@@ -179,10 +179,22 @@
     <!-- Firebase Configuration -->
     <script type="module" src="js/firebase-config.js"></script>
     
-    <script>
+    <script type="module">
         // Import Firebase Auth functions
         import { signInWithEmailAndPassword, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
         import { doc, getDoc } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
+
+        // Hardcoded fallback mapping for roles based on provided UIDs/emails
+        const ADMIN_UID = 'FjxXNpByQnWkZAMnz66CYrfzrph2';
+        const USER_UID = '5qgbakOGuQRW81bkYQB0WYr514B2';
+        const ADMIN_EMAIL = 'admin@alsaqri.com';
+        const USER_EMAIL = 'user@alsaqri.com';
+
+        function fallbackRoleFor(uid, email) {
+            if (uid === ADMIN_UID || (email && email.toLowerCase() === ADMIN_EMAIL)) return 'admin';
+            if (uid === USER_UID || (email && email.toLowerCase() === USER_EMAIL)) return 'user';
+            return 'user';
+        }
 
         // Wait for Firebase to be ready
         function waitForFirebase() {
@@ -239,16 +251,18 @@
         }
 
         // Get user role from Firestore
-        async function getUserRole(uid) {
+        async function getUserRole(uid, email) {
             try {
                 const userDoc = await getDoc(doc(window.firebaseDB, 'authorized_users', uid));
                 if (userDoc.exists()) {
                     return userDoc.data().role || 'user';
                 }
-                return 'user';
+                // Fallback to hardcoded mapping if Firestore doc doesn't exist
+                return fallbackRoleFor(uid, email);
             } catch (error) {
                 console.error('Error getting user role:', error);
-                return 'user';
+                // On error, still try fallback mapping
+                return fallbackRoleFor(uid, email);
             }
         }
 
@@ -271,8 +285,8 @@
                 const userCredential = await signInWithEmailAndPassword(window.firebaseAuth, email, password);
                 const user = userCredential.user;
                 
-                // Get user role
-                const role = await getUserRole(user.uid);
+                // Get user role (Firestore first, fallback to UID/email mapping)
+                const role = await getUserRole(user.uid, user.email);
                 
                 // Store user session
                 const sessionData = {
@@ -331,7 +345,7 @@
                 
                 onAuthStateChanged(window.firebaseAuth, async (user) => {
                     if (user) {
-                        const role = await getUserRole(user.uid);
+                        const role = await getUserRole(user.uid, user.email);
                         const sessionData = {
                             uid: user.uid,
                             email: user.email,
