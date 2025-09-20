@@ -45,15 +45,15 @@
 </head>
 <body>
   <div class="container">
-    <div class="card">
+      <div class="card">
       <div class="card-header">
         <h3>طباعة باركود الهاتف</h3>
         <div class="actions no-print">
           <button id="btnDownloadPDF" class="btn btn-primary">تحميل PDF <i class="fa fa-download"></i></button>
           <button id="btnPrintPDF" class="btn btn-outline">طباعة PDF <i class="fa fa-print"></i></button>
           <a href="dashboard.html" class="btn btn-outline">العودة للوحة التحكم</a>
-        </div>
-      </div>
+            </div>
+          </div>
       <div class="card-body">
         <div class="sticker-preview">
           <div id="sticker" class="sticker">
@@ -75,9 +75,9 @@
             </div>
           </div><!-- /sticker -->
         </div><!-- /preview -->
-      </div>
     </div>
   </div>
+</div>
 
 <script>
 (function(){
@@ -242,7 +242,34 @@
     fillSticker({ phone_number: generated, memory:'32GB', battery:'100' });
   }
 
-  document.addEventListener('DOMContentLoaded', loadPhoneData);
+  // Check user role and update navigation
+  function updateNavigationForUser() {
+    const currentUser = localStorage.getItem('current_user');
+    if (currentUser) {
+      try {
+        const userData = JSON.parse(currentUser);
+        const navbar = document.querySelector('.navbar-nav.me-auto');
+        
+        if (userData.role === 'user') {
+          // Show simplified navigation for limited users
+          navbar.innerHTML = `
+            <li class="nav-item"><a class="nav-link" href="limited_dashboard.html"><i class="fas fa-home"></i> الرئيسية</a></li>
+            <li class="nav-item"><a class="nav-link" href="#" onclick="logout()"><i class="fas fa-sign-out-alt"></i> تسجيل الخروج</a></li>
+          `;
+        }
+        // Admin users keep the full navigation (default)
+      } catch (error) {
+        console.error('Error parsing user data:', error);
+      }
+    }
+  }
+
+  document.addEventListener('DOMContentLoaded', () => {
+    // Update navigation based on user role
+    updateNavigationForUser();
+    
+    loadPhoneData();
+  });
   btnDownload?.addEventListener('click', (e)=>{ e.preventDefault(); downloadPdf(); });
   btnPrint?.addEventListener('click', (e)=>{ e.preventDefault(); printPdf(); });
 })();

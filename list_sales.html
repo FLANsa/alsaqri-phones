@@ -615,7 +615,32 @@
     }
   }
 
+  // Check user role and update navigation
+  function updateNavigationForUser() {
+    const currentUser = localStorage.getItem('current_user');
+    if (currentUser) {
+      try {
+        const userData = JSON.parse(currentUser);
+        const navbar = document.querySelector('.navbar-nav.me-auto');
+        
+        if (userData.role === 'user') {
+          // Show simplified navigation for limited users
+          navbar.innerHTML = `
+            <li class="nav-item"><a class="nav-link" href="limited_dashboard.html"><i class="fas fa-home"></i> الرئيسية</a></li>
+            <li class="nav-item"><a class="nav-link" href="#" onclick="logout()"><i class="fas fa-sign-out-alt"></i> تسجيل الخروج</a></li>
+          `;
+        }
+        // Admin users keep the full navigation (default)
+      } catch (error) {
+        console.error('Error parsing user data:', error);
+      }
+    }
+  }
+
   document.addEventListener('DOMContentLoaded', async () => {
+    // Update navigation based on user role
+    updateNavigationForUser();
+    
     populateYears();
     toggleDateInput();
     await loadSalesFromFirebase();
