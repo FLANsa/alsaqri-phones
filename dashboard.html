@@ -283,6 +283,7 @@
 
 <!-- Firebase Configuration -->
 <script type="module" src="js/firebase-config.js"></script>
+<script type="module" src="js/logout-utils.js"></script>
 <script type="module" src="js/firebase-database.js"></script>
 <script type="module" src="js/firebase-storage-manager.js"></script>
 
@@ -317,13 +318,7 @@
   }
 
   // تسجيل الخروج
-  function logout() {
-    if (confirm('هل أنت متأكد من تسجيل الخروج؟')) {
-      localStorage.removeItem('current_user');
-      alert('تم تسجيل الخروج بنجاح');
-      window.location.href = 'index.html';
-    }
-  }
+  // Logout function is now handled by js/logout-utils.js
 
   // ---------- أدوات مساعدة للوقت/التاريخ ----------
   // يحوّل أي مدخل تاريخ (Date | ISO string | number | Firestore Timestamp | {seconds/_seconds, nanoseconds/_nanoseconds}) إلى Date صالح
