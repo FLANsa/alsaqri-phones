@@ -79,7 +79,6 @@
           </li>
 
           <li class="nav-item">
-            <a class="nav-link" href="#" onclick="logout()"><i class="fas fa-sign-out-alt"></i> تسجيل الخروج</a>
           </li>
         </ul>
       </div>
@@ -190,7 +189,6 @@
 
   <!-- Firebase Integration -->
   <script type="module" src="js/firebase-config.js"></script>
-  <script type="module" src="js/logout-utils.js"></script>
   <script type="module" src="js/firebase-database.js"></script>
   <script type="module" src="js/firebase-storage-manager.js"></script>
 
@@ -590,27 +588,12 @@
   // تسجيل الخروج
   function logout() {
     if (confirm('هل أنت متأكد من تسجيل الخروج؟')) {
-      localStorage.removeItem('current_user');
       alert('تم تسجيل الخروج بنجاح');
       window.location.href = 'index.html';
     }
   }
 
   // Check user role and update navigation
-  function updateNavigationForUser() {
-    const currentUser = localStorage.getItem('current_user');
-    if (currentUser) {
-      try {
-        const userData = JSON.parse(currentUser);
-        const navbar = document.querySelector('.navbar-nav.me-auto');
-        
-        if (userData.role === 'user') {
-          // Show simplified navigation for limited users
-          navbar.innerHTML = `
-            <li class="nav-item"><a class="nav-link" href="limited_dashboard.html"><i class="fas fa-home"></i> الرئيسية</a></li>
-            <li class="nav-item"><a class="nav-link" href="#" onclick="logout()"><i class="fas fa-sign-out-alt"></i> تسجيل الخروج</a></li>
-          `;
-        }
         // Admin users keep the full navigation (default)
       } catch (error) {
         console.error('Error parsing user data:', error);
@@ -621,7 +604,6 @@
   // تهيئة الصفحة
   document.addEventListener('DOMContentLoaded', async function() {
     // Update navigation based on user role
-    updateNavigationForUser();
     
     // انتظار تهيئة Firebase
     await new Promise(resolve => setTimeout(resolve, 1000));
