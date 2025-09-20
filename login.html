@@ -1,378 +1,176 @@
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>تسجيل الدخول - الصقري للاتصالات</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
-    <style>
-        body {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-        }
-        .login-container {
-            min-height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-        .login-card {
-            background: rgba(255, 255, 255, 0.95);
-            backdrop-filter: blur(10px);
-            border-radius: 20px;
-            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
-            padding: 3rem;
-            width: 100%;
-            max-width: 400px;
-            border: 1px solid rgba(255, 255, 255, 0.2);
-        }
-        .login-header {
-            text-align: center;
-            margin-bottom: 2rem;
-        }
-        .login-header h2 {
-            color: #333;
-            font-weight: 700;
-            margin-bottom: 0.5rem;
-        }
-        .login-header p {
-            color: #666;
-            font-size: 0.9rem;
-        }
-        .form-floating {
-            margin-bottom: 1.5rem;
-        }
-        .form-control {
-            border-radius: 10px;
-            border: 2px solid #e9ecef;
-            padding: 1rem 0.75rem;
-            font-size: 1rem;
-            transition: all 0.3s ease;
-        }
-        .form-control:focus {
-            border-color: #667eea;
-            box-shadow: 0 0 0 0.2rem rgba(102, 126, 234, 0.25);
-        }
-        .btn-login {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            border: none;
-            border-radius: 10px;
-            padding: 0.75rem 2rem;
-            font-weight: 600;
-            font-size: 1.1rem;
-            color: white;
-            width: 100%;
-            transition: all 0.3s ease;
-            position: relative;
-            overflow: hidden;
-        }
-        .btn-login:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
-        }
-        .btn-login:disabled {
-            opacity: 0.7;
-            cursor: not-allowed;
-            transform: none;
-        }
-        .spinner-border-sm {
-            width: 1rem;
-            height: 1rem;
-        }
-        .alert {
-            border-radius: 10px;
-            border: none;
-            font-weight: 500;
-        }
-        .alert-danger {
-            background: linear-gradient(135deg, #ff6b6b, #ee5a52);
-            color: white;
-        }
-        .alert-success {
-            background: linear-gradient(135deg, #51cf66, #40c057);
-            color: white;
-        }
-        .login-footer {
-            text-align: center;
-            margin-top: 2rem;
-            padding-top: 1.5rem;
-            border-top: 1px solid #e9ecef;
-        }
-        .login-footer a {
-            color: #667eea;
-            text-decoration: none;
-            font-weight: 500;
-        }
-        .login-footer a:hover {
-            text-decoration: underline;
-        }
-        .loading-overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0, 0, 0, 0.5);
-            display: none;
-            align-items: center;
-            justify-content: center;
-            z-index: 9999;
-        }
-        .loading-content {
-            background: white;
-            padding: 2rem;
-            border-radius: 10px;
-            text-align: center;
-        }
-    </style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>تسجيل الدخول — الصقري للاتصالات</title>
+
+  <!-- نفس الخط والمكتبات المستخدمة في بقية الصفحات -->
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&display=swap" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+
+  <style>
+    body { font-family: 'Cairo', sans-serif; background-color: #f8f9fa; padding-top: 70px; }
+    .navbar { 
+      background-color: #2c3e50; 
+      position: fixed; 
+      top: 0; 
+      width: 100%; 
+      z-index: 1030; 
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    .navbar-brand, .nav-link { color: white !important; }
+    .card { margin-top: 40px; box-shadow: 0 2px 6px rgba(0,0,0,0.08); }
+    .btn-primary { background-color: #2c3e50; border-color: #2c3e50; }
+    .btn-primary:hover { background-color: #1a252f; border-color: #1a252f; }
+  </style>
 </head>
 <body>
-    <div class="loading-overlay" id="loadingOverlay">
-        <div class="loading-content">
-            <div class="spinner-border text-primary mb-3" role="status">
-                <span class="visually-hidden">جاري التحميل...</span>
-            </div>
-            <p>جاري تسجيل الدخول...</p>
-        </div>
+
+  <!-- شريط التنقل -->
+  <nav class="navbar navbar-expand-lg navbar-dark">
+    <div class="container">
+      <a class="navbar-brand" href="index.html">الصقري للاتصالات</a>
+      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+
+      <div class="collapse navbar-collapse" id="navbarNav">
+        <ul class="navbar-nav me-auto">
+          <li class="nav-item">
+            <a class="nav-link active" href="login.html"><i class="fas fa-right-to-bracket"></i> تسجيل الدخول</a>
+          </li>
+        </ul>
+      </div>
     </div>
+  </nav>
 
-    <div class="login-container">
-        <div class="login-card">
-            <div class="login-header">
-                <h2><i class="fas fa-mobile-alt text-primary me-2"></i>الصقري للاتصالات</h2>
-                <p>نظام إدارة متجر الهواتف المحمولة</p>
-            </div>
-
-            <div id="alertContainer"></div>
-
-            <form id="loginForm">
-                <div class="form-floating">
-                    <input type="email" class="form-control" id="email" placeholder="البريد الإلكتروني" required>
-                    <label for="email"><i class="fas fa-envelope me-2"></i>البريد الإلكتروني</label>
-                </div>
-
-                <div class="form-floating">
-                    <input type="password" class="form-control" id="password" placeholder="كلمة المرور" required>
-                    <label for="password"><i class="fas fa-lock me-2"></i>كلمة المرور</label>
-                </div>
-
-                <button type="submit" class="btn btn-login" id="loginBtn">
-                    <span id="loginText">تسجيل الدخول</span>
-                    <span id="loginSpinner" class="spinner-border spinner-border-sm d-none" role="status">
-                        <span class="visually-hidden">جاري التحميل...</span>
-                    </span>
-                </button>
-            </form>
-
-            <div class="login-footer">
-                <p class="mb-0">
-                    <a href="index.html">
-                        <i class="fas fa-arrow-right me-1"></i>العودة للصفحة الرئيسية
-                    </a>
-                </p>
-            </div>
+<div class="container">
+  <div class="row justify-content-center">
+    <div class="col-md-6">
+      <div class="card">
+        <div class="card-header">
+          <h3 class="text-center mb-0">تسجيل الدخول</h3>
         </div>
+        <div class="card-body">
+          <!-- نموذج تسجيل الدخول -->
+          <form method="POST" action="#" onsubmit="handleLogin(event)">
+            <div class="mb-3">
+              <label for="username" class="form-label">اسم المستخدم</label>
+              <input type="text" class="form-control" id="username" name="username" required>
+            </div>
+            <div class="mb-3">
+              <label for="password" class="form-label">كلمة المرور</label>
+              <input type="password" class="form-control" id="password" name="password" required>
+            </div>
+            <div class="d-grid">
+              <button type="submit" class="btn btn-primary">تسجيل الدخول</button>
+            </div>
+          </form>
+          <!-- /form -->
+        </div>
+      </div>
     </div>
+  </div>
+</div>
 
-    <!-- Firebase Configuration -->
-    <script type="module" src="js/firebase-config.js"></script>
+<!-- مكتبات JS -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+  // عرض التنبيهات
+  function showAlert(type, message) {
+    const alertDiv = document.createElement('div');
+    alertDiv.className = `alert alert-${type} alert-dismissible fade show position-fixed`;
+    alertDiv.style.cssText = 'top: 20px; right: 20px; z-index: 9999; min-width: 300px;';
+    alertDiv.innerHTML = `
+      <i class="fas fa-${type === 'success' ? 'check-circle' : type === 'danger' ? 'exclamation-triangle' : 'info-circle'}"></i>
+      ${message}
+      <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
     
-    <script type="module">
-        // Import Firebase Auth functions
-        import { signInWithEmailAndPassword, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
-        import { doc, getDoc } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
+    document.body.appendChild(alertDiv);
+    
+    setTimeout(() => {
+      if (alertDiv.parentNode) {
+        alertDiv.remove();
+      }
+    }, 4000);
+  }
 
-        // Wait for Firebase to be ready
-        function waitForFirebase() {
-            return new Promise((resolve) => {
-                const checkFirebase = () => {
-                    if (window.firebaseAuth && window.firebaseDB) {
-                        resolve();
-                    } else {
-                        setTimeout(checkFirebase, 100);
-                    }
-                };
-                checkFirebase();
-            });
-        }
+  // دالة مساعدة: إنشاء SHA-256 كقيمة hex
+  async function sha256Hex(text){
+    const enc = new TextEncoder();
+    const data = enc.encode(text);
+    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+    return hashHex;
+  }
 
-        // Show alert function
-        function showAlert(type, message) {
-            const alertContainer = document.getElementById('alertContainer');
-            const alertId = 'alert-' + Date.now();
-            
-            const alertHTML = `
-                <div id="${alertId}" class="alert alert-${type} alert-dismissible fade show" role="alert">
-                    <i class="fas fa-${type === 'danger' ? 'exclamation-triangle' : 'check-circle'} me-2"></i>
-                    ${message}
-                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-                </div>
-            `;
-            
-            alertContainer.innerHTML = alertHTML;
-            
-            // Auto remove after 5 seconds
-            setTimeout(() => {
-                const alertElement = document.getElementById(alertId);
-                if (alertElement) {
-                    alertElement.remove();
-                }
-            }, 5000);
-        }
+  // معالجة تسجيل الدخول
+  async function handleLogin(e){
+    e.preventDefault();
+    
+    const username = document.getElementById('username').value.trim();
+    const password = document.getElementById('password').value;
+    
+    // التحقق من البيانات
+    if (!username || !password) {
+      showAlert('danger', 'يرجى إدخال اسم المستخدم وكلمة المرور');
+      return;
+    }
 
-        // Show loading state
-        function showLoading() {
-            document.getElementById('loadingOverlay').style.display = 'flex';
-            document.getElementById('loginBtn').disabled = true;
-            document.getElementById('loginText').classList.add('d-none');
-            document.getElementById('loginSpinner').classList.remove('d-none');
-        }
+    // بيانات المستخدمين الافتراضية مع كلمات مرور مُجزأة (SHA-256)
+    // admin -> admin123, user -> user123
+    const validUsers = [
+      { username: 'admin', passwordHash: '240be518fabd2724ddb6f04eeb1da5967448d7e831c08c8fa822809f74c720a9', name: 'مدير النظام', role: 'admin', dashboard: 'dashboard.html' },
+      { username: 'user',  passwordHash: 'e606e38b0d8c19b24cf0ee3808183162ea7cd63ff7912dbb22b5e803286b4446', name: 'موظف المبيعات', role: 'user',  dashboard: 'limited_dashboard.html' }
+    ];
 
-        // Hide loading state
-        function hideLoading() {
-            document.getElementById('loadingOverlay').style.display = 'none';
-            document.getElementById('loginBtn').disabled = false;
-            document.getElementById('loginText').classList.remove('d-none');
-            document.getElementById('loginSpinner').classList.add('d-none');
-        }
+    // حساب هاش كلمة المرور المُدخلة ثم المطابقة
+    const inputHash = await sha256Hex(password);
+    const user = validUsers.find(u => u.username === username && u.passwordHash === inputHash);
 
-        // Get user role from Firestore
-        async function getUserRole(uid) {
-            try {
-                const userDoc = await getDoc(doc(window.firebaseDB, 'authorized_users', uid));
-                if (userDoc.exists()) {
-                    return userDoc.data().role || 'user';
-                }
-                return 'user';
-            } catch (error) {
-                console.error('Error getting user role:', error);
-                return 'user';
-            }
-        }
+    if (user) {
+      // حفظ بيانات المستخدم في التخزين المحلي
+      const sessionData = {
+        username: user.username,
+        name: user.name,
+        role: user.role,
+        loginTime: new Date().toISOString()
+      };
+      
+      localStorage.setItem('current_user', JSON.stringify(sessionData));
+      
+      showAlert('success', `مرحباً ${user.name}! جاري التحويل إلى لوحة التحكم...`);
+      
+      // التحويل لصفحة لوحة التحكم المناسبة بعد ثانيتين
+      setTimeout(() => {
+        window.location.href = user.dashboard;
+      }, 2000);
+      
+    } else {
+      showAlert('danger', 'اسم المستخدم أو كلمة المرور غير صحيحة');
+    }
+  }
 
-        // Handle login form submission
-        async function handleLogin(event) {
-            event.preventDefault();
-            
-            const email = document.getElementById('email').value.trim();
-            const password = document.getElementById('password').value;
-
-            if (!email || !password) {
-                showAlert('danger', 'يرجى إدخال البريد الإلكتروني وكلمة المرور');
-                return;
-            }
-
-            showLoading();
-
-            try {
-                // Sign in with Firebase Auth
-                const userCredential = await signInWithEmailAndPassword(window.firebaseAuth, email, password);
-                const user = userCredential.user;
-                
-                // Get user role
-                const role = await getUserRole(user.uid);
-                
-                // Store user session
-                const sessionData = {
-                    uid: user.uid,
-                    email: user.email,
-                    role: role,
-                    name: role === 'admin' ? 'مدير النظام' : 'مستخدم النظام',
-                    loginTime: new Date().toISOString()
-                };
-                
-                localStorage.setItem('current_user', JSON.stringify(sessionData));
-                
-                showAlert('success', `مرحباً ${sessionData.name}! جاري التحويل...`);
-                
-                // Redirect based on role
-                setTimeout(() => {
-                    if (role === 'admin') {
-                        window.location.href = 'dashboard.html';
-                    } else {
-                        window.location.href = 'limited_dashboard.html';
-                    }
-                }, 1500);
-                
-            } catch (error) {
-                console.error('Login error:', error);
-                hideLoading();
-                
-                let errorMessage = 'حدث خطأ أثناء تسجيل الدخول';
-                
-                switch (error.code) {
-                    case 'auth/user-not-found':
-                        errorMessage = 'البريد الإلكتروني غير مسجل';
-                        break;
-                    case 'auth/wrong-password':
-                        errorMessage = 'كلمة المرور غير صحيحة';
-                        break;
-                    case 'auth/invalid-email':
-                        errorMessage = 'البريد الإلكتروني غير صحيح';
-                        break;
-                    case 'auth/too-many-requests':
-                        errorMessage = 'تم تجاوز عدد المحاولات المسموح. حاول مرة أخرى لاحقاً';
-                        break;
-                    case 'auth/network-request-failed':
-                        errorMessage = 'خطأ في الاتصال. تحقق من اتصال الإنترنت';
-                        break;
-                }
-                
-                showAlert('danger', errorMessage);
-            }
-        }
-
-        // Check if user is already logged in
-        async function checkExistingLogin() {
-            try {
-                await waitForFirebase();
-                
-                onAuthStateChanged(window.firebaseAuth, async (user) => {
-                    if (user) {
-                        const role = await getUserRole(user.uid);
-                        const sessionData = {
-                            uid: user.uid,
-                            email: user.email,
-                            role: role,
-                            name: role === 'admin' ? 'مدير النظام' : 'مستخدم النظام',
-                            loginTime: new Date().toISOString()
-                        };
-                        
-                        localStorage.setItem('current_user', JSON.stringify(sessionData));
-                        
-                        // Redirect based on role
-                        if (role === 'admin') {
-                            window.location.href = 'dashboard.html';
-                        } else {
-                            window.location.href = 'limited_dashboard.html';
-                        }
-                    }
-                });
-            } catch (error) {
-                console.error('Error checking existing login:', error);
-            }
-        }
-
-        // Initialize the page
-        document.addEventListener('DOMContentLoaded', async () => {
-            try {
-                await waitForFirebase();
-                
-                // Set up form submission
-                document.getElementById('loginForm').addEventListener('submit', handleLogin);
-                
-                // Check for existing login
-                await checkExistingLogin();
-                
-            } catch (error) {
-                console.error('Initialization error:', error);
-                showAlert('danger', 'خطأ في تحميل النظام. يرجى إعادة تحميل الصفحة');
-            }
-        });
-    </script>
-
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+  // التحقق من تسجيل الدخول عند تحميل الصفحة
+  document.addEventListener('DOMContentLoaded', function() {
+    // إذا كان المستخدم مسجل دخول بالفعل، اتجه للوحة التحكم المناسبة
+    const currentUser = localStorage.getItem('current_user');
+    if (currentUser) {
+      try {
+        const userData = JSON.parse(currentUser);
+        const dashboardUrl = userData.role === 'admin' ? 'dashboard.html' : 'limited_dashboard.html';
+        window.location.href = dashboardUrl;
+      } catch (error) {
+        // في حالة وجود خطأ في البيانات، احذف الجلسة وأعد التحميل
+        localStorage.removeItem('current_user');
+        location.reload();
+      }
+    }
+  });
+</script>
 </body>
 </html>
