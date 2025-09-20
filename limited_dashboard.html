@@ -130,41 +130,6 @@
       </div>
     </div>
 
-    <!-- Statistics Cards -->
-    <div class="row mb-4">
-      <div class="col-md-3">
-        <div class="card stats-card text-center">
-          <div class="card-body">
-            <h5 class="card-title">إجمالي الهواتف</h5>
-            <h2 class="text-primary" id="total_phones">0</h2>
-          </div>
-        </div>
-      </div>
-      <div class="col-md-3">
-        <div class="card stats-card text-center">
-          <div class="card-body">
-            <h5 class="card-title">إجمالي الأكسسوارات</h5>
-            <h2 class="text-success" id="total_accessories">0</h2>
-          </div>
-        </div>
-      </div>
-      <div class="col-md-3">
-        <div class="card stats-card text-center">
-          <div class="card-body">
-            <h5 class="card-title">إجمالي المبيعات</h5>
-            <h2 class="text-info" id="total_sales">0</h2>
-          </div>
-        </div>
-      </div>
-      <div class="col-md-3">
-        <div class="card stats-card text-center">
-          <div class="card-body">
-            <h5 class="card-title">إجمالي المنتجات</h5>
-            <h2 class="text-warning" id="total_items">0</h2>
-          </div>
-        </div>
-      </div>
-    </div>
 
     <!-- Action Buttons -->
     <div class="row mb-4">
@@ -290,8 +255,6 @@
         const accessories = await window.storage.getAccessories();
         const sales = await window.storage.getSales();
         
-        // Update statistics
-        updateStatistics(phones, accessories, sales);
         
         
       } catch (error) {
@@ -300,17 +263,6 @@
       }
     }
 
-    function updateStatistics(phones, accessories, sales) {
-      const totalPhones = phones ? phones.length : 0;
-      const totalAccessories = accessories ? accessories.length : 0;
-      const totalSales = sales ? sales.length : 0;
-      const totalItems = totalPhones + totalAccessories;
-
-      document.getElementById('total_phones').textContent = convertToLatinNumbers(totalPhones.toString());
-      document.getElementById('total_accessories').textContent = convertToLatinNumbers(totalAccessories.toString());
-      document.getElementById('total_sales').textContent = convertToLatinNumbers(totalSales.toString());
-      document.getElementById('total_items').textContent = convertToLatinNumbers(totalItems.toString());
-    }
 
 
     function convertToLatinNumbers(str) {
