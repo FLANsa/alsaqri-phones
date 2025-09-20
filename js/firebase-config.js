@@ -24,6 +24,7 @@ const db = getFirestore(app);
 const auth = getAuth(app);
 
 // تصدير الخدمات للاستخدام في الملفات الأخرى
+// هذه هي الطريقة الصحيحة لتعيين المتغيرات العامة
 window.firebaseDB = db;
 window.firebaseAuth = auth;
 
