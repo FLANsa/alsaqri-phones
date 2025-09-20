@@ -121,8 +121,7 @@
       return;
     }
 
-    // بيانات المستخدمين الافتراضية مع كلمات مرور مُجزأة (SHA-256)
-    // admin -> admin123, user -> user123
+   
     const validUsers = [
       { username: 'admin', passwordHash: '240be518fabd2724ddb6f04eeb1da5967448d7e831c08c8fa822809f74c720a9', name: 'مدير النظام', role: 'admin', dashboard: 'dashboard.html' },
       { username: 'user',  passwordHash: 'e606e38b0d8c19b24cf0ee3808183162ea7cd63ff7912dbb22b5e803286b4446', name: 'موظف المبيعات', role: 'user',  dashboard: 'limited_dashboard.html' }
