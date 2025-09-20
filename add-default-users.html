@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>إضافة المستخدمين الافتراضيين - الصقري للاتصالات</title>
+  
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&display=swap" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+  
+  <style>
+    body { font-family: 'Cairo', sans-serif; background-color: #f8f9fa; padding-top: 70px; }
+    .navbar { background-color: #2c3e50; position: fixed; top: 0; width: 100%; z-index: 1030; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+    .navbar-brand, .nav-link { color: white !important; }
+    .card { margin-top: 40px; box-shadow: 0 2px 6px rgba(0,0,0,0.08); }
+    .btn-primary { background-color: #2c3e50; border-color: #2c3e50; }
+    .btn-primary:hover { background-color: #1a252f; border-color: #1a252f; }
+  </style>
+</head>
+<body>
+
+  <!-- شريط التنقل -->
+  <nav class="navbar navbar-expand-lg navbar-dark">
+    <div class="container">
+      <a class="navbar-brand" href="index.html">الصقري للاتصالات</a>
+      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+      <div class="collapse navbar-collapse" id="navbarNav">
+        <ul class="navbar-nav me-auto">
+          <li class="nav-item">
+            <a class="nav-link" href="login.html"><i class="fas fa-right-to-bracket"></i> تسجيل الدخول</a>
+          </li>
+        </ul>
+      </div>
+    </div>
+  </nav>
+
+  <div class="container">
+    <div class="row justify-content-center">
+      <div class="col-md-6">
+        <div class="card">
+          <div class="card-header">
+            <h3 class="text-center mb-0">إضافة المستخدمين الافتراضيين</h3>
+          </div>
+          <div class="card-body">
+            <div class="alert alert-info">
+              <i class="fas fa-info-circle"></i>
+              <strong>ملاحظة:</strong> هذا الصفحة لإضافة المستخدمين الافتراضيين للنظام.
+            </div>
+            
+            <div class="mb-4">
+              <h5>المستخدمون الافتراضيون:</h5>
+              <ul class="list-group">
+                <li class="list-group-item d-flex justify-content-between align-items-center">
+                  <div>
+                    <strong>admin@alsaqri.com</strong><br>
+                    <small class="text-muted">مدير النظام</small>
+                  </div>
+                  <span class="badge bg-danger">مدير</span>
+                </li>
+                <li class="list-group-item d-flex justify-content-between align-items-center">
+                  <div>
+                    <strong>user@alsaqri.com</strong><br>
+                    <small class="text-muted">موظف المبيعات</small>
+                  </div>
+                  <span class="badge bg-primary">موظف</span>
+                </li>
+              </ul>
+            </div>
+            
+            <div class="d-grid gap-2">
+              <button class="btn btn-primary" onclick="addDefaultUsers()">
+                <i class="fas fa-plus"></i> إضافة المستخدمين الافتراضيين
+              </button>
+              <a href="login.html" class="btn btn-outline-secondary">
+                <i class="fas fa-sign-in-alt"></i> الذهاب لتسجيل الدخول
+              </a>
+            </div>
+            
+            <div class="mt-4">
+              <h6>بيانات الدخول:</h6>
+              <div class="row">
+                <div class="col-6">
+                  <strong>المدير:</strong><br>
+                  البريد: admin@alsaqri.com<br>
+                  كلمة المرور: admin123
+                </div>
+                <div class="col-6">
+                  <strong>الموظف:</strong><br>
+                  البريد: user@alsaqri.com<br>
+                  كلمة المرور: user123
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- مكتبات JS -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+  <script type="module" src="js/firebase-config.js"></script>
+  
+  <script type="module">
+    import { createUserWithEmailAndPassword } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
+    import { doc, setDoc } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
+
+    // عرض التنبيهات
+    function showAlert(type, message) {
+      const alertDiv = document.createElement('div');
+      alertDiv.className = `alert alert-${type} alert-dismissible fade show position-fixed`;
+      alertDiv.style.cssText = 'top: 20px; right: 20px; z-index: 9999; min-width: 300px;';
+      alertDiv.innerHTML = `
+        <i class="fas fa-${type === 'success' ? 'check-circle' : type === 'danger' ? 'exclamation-triangle' : 'info-circle'}"></i>
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+      `;
+      
+      document.body.appendChild(alertDiv);
+      
+      setTimeout(() => {
+        if (alertDiv.parentNode) {
+          alertDiv.remove();
+        }
+      }, 4000);
+    }
+
+    // إضافة المستخدمين الافتراضيين
+    async function addDefaultUsers() {
+      const users = [
+        {
+          email: 'admin@alsaqri.com',
+          password: 'admin123',
+          name: 'مدير النظام',
+          role: 'admin'
+        },
+        {
+          email: 'user@alsaqri.com',
+          password: 'user123',
+          name: 'موظف المبيعات',
+          role: 'user'
+        }
+      ];
+
+      let successCount = 0;
+      let errorCount = 0;
+
+      for (const userData of users) {
+        try {
+          // إنشاء حساب في Firebase Authentication
+          const userCredential = await createUserWithEmailAndPassword(
+            window.firebaseAuth, 
+            userData.email, 
+            userData.password
+          );
+          const user = userCredential.user;
+          
+          // إضافة بيانات المستخدم في Firestore
+          await setDoc(doc(window.firebaseDB, 'authorized_users', user.uid), {
+            name: userData.name,
+            role: userData.role,
+            email: userData.email,
+            createdAt: new Date().toISOString(),
+            isActive: true
+          });
+          
+          successCount++;
+          console.log(`تم إضافة المستخدم: ${userData.name}`);
+          
+        } catch (error) {
+          errorCount++;
+          console.error(`خطأ في إضافة المستخدم ${userData.name}:`, error);
+          
+          if (error.code === 'auth/email-already-in-use') {
+            console.log(`المستخدم ${userData.name} موجود بالفعل`);
+            successCount++; // نعتبره نجاح لأنه موجود
+          }
+        }
+      }
+
+      // تسجيل خروج المستخدم الحالي
+      await window.firebaseAuth.signOut();
+
+      if (successCount > 0) {
+        showAlert('success', `تم إضافة ${successCount} مستخدم بنجاح`);
+      }
+      
+      if (errorCount > 0) {
+        showAlert('warning', `حدث خطأ في إضافة ${errorCount} مستخدم`);
+      }
+    }
+
+    // جعل الدالة متاحة عالمياً
+    window.addDefaultUsers = addDefaultUsers;
+  </script>
+</body>
+</html>

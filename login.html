@@ -57,8 +57,8 @@
           <!-- نموذج تسجيل الدخول -->
           <form method="POST" action="#" onsubmit="handleLogin(event)">
             <div class="mb-3">
-              <label for="username" class="form-label">اسم المستخدم</label>
-              <input type="text" class="form-control" id="username" name="username" required>
+              <label for="username" class="form-label">البريد الإلكتروني</label>
+              <input type="email" class="form-control" id="username" name="username" required>
             </div>
             <div class="mb-3">
               <label for="password" class="form-label">كلمة المرور</label>
@@ -77,7 +77,13 @@
 
 <!-- مكتبات JS -->
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-<script>
+
+<!-- Firebase SDKs -->
+<script type="module" src="js/firebase-config.js"></script>
+<script type="module">
+  import { signInWithEmailAndPassword, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
+  import { doc, getDoc } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
+
   // عرض التنبيهات
   function showAlert(type, message) {
     const alertDiv = document.createElement('div');
@@ -98,65 +104,124 @@
     }, 4000);
   }
 
-  // معالجة تسجيل الدخول
-  function handleLogin(e){
+  // معالجة تسجيل الدخول مع Firebase Authentication
+  async function handleLogin(e) {
     e.preventDefault();
     
-    const username = document.getElementById('username').value.trim();
+    const email = document.getElementById('username').value.trim();
     const password = document.getElementById('password').value;
     
     // التحقق من البيانات
-    if (!username || !password) {
-      showAlert('danger', 'يرجى إدخال اسم المستخدم وكلمة المرور');
+    if (!email || !password) {
+      showAlert('danger', 'يرجى إدخال البريد الإلكتروني وكلمة المرور');
       return;
     }
 
-    // بيانات المستخدمين الافتراضية (يمكن تطويرها لاحقاً)
-    const validUsers = [
-      { username: 'admin', password: 'admin123', name: 'مدير النظام', role: 'admin', dashboard: 'dashboard.html' },
-      { username: 'user', password: 'user123', name: 'موظف المبيعات', role: 'user', dashboard: 'limited_dashboard.html' }
-    ];
-
-    // البحث عن المستخدم
-    const user = validUsers.find(u => u.username === username && u.password === password);
-
-    if (user) {
-      // حفظ بيانات المستخدم في التخزين المحلي
-      const sessionData = {
-        username: user.username,
-        name: user.name,
-        role: user.role,
-        loginTime: new Date().toISOString()
-      };
+    try {
+      // تسجيل الدخول باستخدام Firebase Authentication
+      const userCredential = await signInWithEmailAndPassword(window.firebaseAuth, email, password);
+      const user = userCredential.user;
       
-      localStorage.setItem('current_user', JSON.stringify(sessionData));
+      // جلب بيانات المستخدم من Firestore
+      const userDocRef = doc(window.firebaseDB, 'authorized_users', user.uid);
+      const userDoc = await getDoc(userDocRef);
       
-      showAlert('success', `مرحباً ${user.name}! جاري التحويل إلى لوحة التحكم...`);
+      if (userDoc.exists()) {
+        const userData = userDoc.data();
+        
+        // حفظ بيانات المستخدم في التخزين المحلي
+        const sessionData = {
+          uid: user.uid,
+          email: user.email,
+          name: userData.name || userData.displayName || 'مستخدم',
+          role: userData.role || 'user',
+          loginTime: new Date().toISOString()
+        };
+        
+        localStorage.setItem('current_user', JSON.stringify(sessionData));
+        
+        showAlert('success', `مرحباً ${sessionData.name}! جاري التحويل إلى لوحة التحكم...`);
+        
+        // التحويل لصفحة لوحة التحكم المناسبة بعد ثانيتين
+        setTimeout(() => {
+          const dashboardUrl = sessionData.role === 'admin' ? 'dashboard.html' : 'limited_dashboard.html';
+          window.location.href = dashboardUrl;
+        }, 2000);
+        
+      } else {
+        // المستخدم غير موجود في قاعدة البيانات
+        showAlert('danger', 'المستخدم غير مصرح له بالدخول');
+        await window.firebaseAuth.signOut();
+      }
       
-      // التحويل لصفحة لوحة التحكم المناسبة بعد ثانيتين
-      setTimeout(() => {
-        window.location.href = user.dashboard;
-      }, 2000);
+    } catch (error) {
+      console.error('خطأ في تسجيل الدخول:', error);
       
-    } else {
-      showAlert('danger', 'اسم المستخدم أو كلمة المرور غير صحيحة');
+      let errorMessage = 'حدث خطأ في تسجيل الدخول';
+      
+      switch (error.code) {
+        case 'auth/user-not-found':
+          errorMessage = 'البريد الإلكتروني غير مسجل';
+          break;
+        case 'auth/wrong-password':
+          errorMessage = 'كلمة المرور غير صحيحة';
+          break;
+        case 'auth/invalid-email':
+          errorMessage = 'البريد الإلكتروني غير صحيح';
+          break;
+        case 'auth/user-disabled':
+          errorMessage = 'تم تعطيل هذا الحساب';
+          break;
+        case 'auth/too-many-requests':
+          errorMessage = 'محاولات دخول كثيرة جداً، حاول لاحقاً';
+          break;
+        default:
+          errorMessage = `خطأ: ${error.message}`;
+      }
+      
+      showAlert('danger', errorMessage);
     }
   }
 
-  // التحقق من تسجيل الدخول عند تحميل الصفحة
-  document.addEventListener('DOMContentLoaded', function() {
-    // إذا كان المستخدم مسجل دخول بالفعل، اتجه للوحة التحكم المناسبة
-    const currentUser = localStorage.getItem('current_user');
-    if (currentUser) {
+  // مراقبة حالة المصادقة
+  onAuthStateChanged(window.firebaseAuth, async (user) => {
+    if (user) {
+      // المستخدم مسجل دخول
       try {
-        const userData = JSON.parse(currentUser);
-        const dashboardUrl = userData.role === 'admin' ? 'dashboard.html' : 'limited_dashboard.html';
-        window.location.href = dashboardUrl;
+        const userDocRef = doc(window.firebaseDB, 'authorized_users', user.uid);
+        const userDoc = await getDoc(userDocRef);
+        
+        if (userDoc.exists()) {
+          const userData = userDoc.data();
+          const sessionData = {
+            uid: user.uid,
+            email: user.email,
+            name: userData.name || userData.displayName || 'مستخدم',
+            role: userData.role || 'user',
+            loginTime: new Date().toISOString()
+          };
+          
+          localStorage.setItem('current_user', JSON.stringify(sessionData));
+          
+          // التحويل للوحة التحكم المناسبة
+          const dashboardUrl = sessionData.role === 'admin' ? 'dashboard.html' : 'limited_dashboard.html';
+          window.location.href = dashboardUrl;
+        }
       } catch (error) {
-        // في حالة وجود خطأ في البيانات، احذف الجلسة وأعد التحميل
+        console.error('خطأ في جلب بيانات المستخدم:', error);
         localStorage.removeItem('current_user');
-        location.reload();
       }
+    } else {
+      // المستخدم غير مسجل دخول
+      localStorage.removeItem('current_user');
+    }
+  });
+
+  // ربط دالة تسجيل الدخول بالنموذج
+  document.addEventListener('DOMContentLoaded', function() {
+    const loginForm = document.querySelector('form');
+    if (loginForm) {
+      loginForm.addEventListener('submit', handleLogin);
     }
   });
 </script>
