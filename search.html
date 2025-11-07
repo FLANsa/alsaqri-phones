@@ -604,6 +604,66 @@
 
   // ===== دوال الإجراءات =====
   
+  // ===== دوال تحويل وتنسيق التاريخ =====
+  // يحوّل أي مدخل تاريخ (Date | ISO string | number | Firestore Timestamp | {seconds/_seconds, nanoseconds/_nanoseconds}) إلى Date صالح
+  function normalizeToDate(v) {
+    if (v == null) return null;
+
+    // 1) Date جاهز
+    if (v instanceof Date) {
+      return isNaN(v.getTime()) ? null : v;
+    }
+
+    // 2) Firestore Timestamp: toDate()
+    if (typeof v === 'object') {
+      if (typeof v.toDate === 'function') {
+        const d = v.toDate();
+        return isNaN(d?.getTime()) ? null : d;
+      }
+      // 3) شكل seconds/nanoseconds أو _seconds/_nanoseconds
+      if ('seconds' in v || '_seconds' in v) {
+        const sec  = Number(v.seconds ?? v._seconds ?? 0);
+        const nsec = Number(v.nanoseconds ?? v._nanoseconds ?? 0);
+        const ms = (sec * 1000) + Math.floor(nsec / 1e6);
+        const d = new Date(ms);
+        return isNaN(d.getTime()) ? null : d;
+      }
+    }
+
+    // 4) رقم: ms أو s
+    if (typeof v === 'number') {
+      const ms = v > 1e12 ? v : v * 1000; // إذا أقل من 1e12 نفترض ثواني
+      const d = new Date(ms);
+      return isNaN(d.getTime()) ? null : d;
+    }
+
+    // 5) سترنق: ISO أو رقمية
+    if (typeof v === 'string') {
+      const s = v.trim();
+      if (/^\d+$/.test(s)) {
+        const n = parseInt(s, 10);
+        const ms = n > 1e12 ? n : n * 1000;
+        const d = new Date(ms);
+        return isNaN(d.getTime()) ? null : d;
+      }
+      const d = new Date(s); // مثل "2025-09-20T11:34:48.797Z"
+      return isNaN(d.getTime()) ? null : d;
+    }
+
+    return null;
+  }
+
+  // تنسيق التاريخ بصيغة YYYY-MM-DD
+  function formatDate(value) {
+    const d = normalizeToDate(value);
+    if (!d) return 'غير محدد';
+    const pad = n => String(n).padStart(2, '0');
+    const y = d.getFullYear();
+    const m = pad(d.getMonth() + 1);
+    const day = pad(d.getDate());
+    return `${y}-${m}-${day}`;
+  }
+  
   // عرض تفاصيل الهاتف
   function viewPhoneDetails(phoneNumber) {
     const phone = allPhones.find(p => p.phone_number === phoneNumber || p.id === phoneNumber);
@@ -621,6 +681,7 @@
 اللون: ${phone.phone_color || 'غير محدد'}
 الرقم التسلسلي: ${phone.serial_number || 'غير محدد'}
 الضمان: ${phone.warranty || 'غير محدد'} شهر
+تاريخ الإضافة: ${formatDate(phone.date_added)}
       `;
       alert(details);
     }
