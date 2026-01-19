@@ -1,19 +1,19 @@
 services:
   - type: static
-    name: aldhahbi
-    buildCommand: ""
+    name: abdulmalik-telecom-system
+    buildCommand: echo "no build"
     staticPublishPath: ./
     envVars:
       - key: NODE_ENV
         value: production
       - key: APP_NAME
-        value: Aldhahbi
+        value: Abdulmalik Telecom
       - key: APP_VERSION
         value: "2.0.0"
       - key: COMPANY_NAME
         value: عبدالملك للاتصالات
       - key: COMPANY_NAME_EN
-        value: Al-Rakbi for Communications
+        value: Abdulmalik Telecom
       - key: COMPANY_ADDRESS
         value: الرياض، المملكة العربية السعودية
       - key: COMPANY_PHONE
