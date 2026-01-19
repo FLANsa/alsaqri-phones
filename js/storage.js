@@ -1,6 +1,6 @@
 /**
  * Local Storage Management
- * عبدالملك للاتصالات - Phone Store Management System
+ * الصقري للاتصالات - Phone Store Management System
  */
 
 class StorageManager {

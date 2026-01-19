@@ -1,16 +1,16 @@
 // Firebase Configuration for Phone Store Demo
-// إعدادات Firebase لمشروع AbdulMalik - نسخة npm
+// إعدادات Firebase لمشروع Al Saqri - نسخة npm
 // تم التحديث: 2026-01-19
-// Project: abdulmalik-690c1
+// Project: alsaqri-dc3ca
 
 const firebaseConfig = {
-  apiKey: "AIzaSyDmJqsMxCyfSUCWEUzeWWS4e7yT-e5FWKY",
-  authDomain: "abdulmalik-690c1.firebaseapp.com",
-  projectId: "abdulmalik-690c1",
-  storageBucket: "abdulmalik-690c1.firebasestorage.app",
-  messagingSenderId: "487683552497",
-  appId: "1:487683552497:web:fd150711491f06a410e550",
-  measurementId: "G-1BV2E5QQN1"
+  apiKey: "AIzaSyB_MvtG7xnY5c18GybVF_SYJfxOa8mxgc8",
+  authDomain: "alsaqri-dc3ca.firebaseapp.com",
+  projectId: "alsaqri-dc3ca",
+  storageBucket: "alsaqri-dc3ca.firebasestorage.app",
+  messagingSenderId: "325709838350",
+  appId: "1:325709838350:web:c3c5dfadc079ce825ae45f",
+  measurementId: "G-Q8E93ZR4FZ"
 };
 
 // تهيئة Firebase
@@ -41,6 +41,6 @@ console.log('🔐 Authentication:', auth);
 console.log('📈 Analytics:', analytics);
 
 // تحذير إذا كان المشروع خاطئ
-if (firebaseConfig.projectId !== 'abdulmalik-690c1') {
-  console.error('⚠️ تحذير: Project ID غير صحيح! يجب أن يكون abdulmalik-690c1');
+if (firebaseConfig.projectId !== 'alsaqri-dc3ca') {
+  console.error('⚠️ تحذير: Project ID غير صحيح! يجب أن يكون alsaqri-dc3ca');
 }

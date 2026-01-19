@@ -1,30 +1,30 @@
-# AbdulMalik - Environment Variables
+# Al Saqri - Environment Variables
 # متغيرات البيئة لنظام إدارة متجر الجوالات
 # تم التحديث: 2026-01-19
 
-# Firebase Configuration (Project: abdulmalik-690c1)
-FIREBASE_API_KEY=AIzaSyDmJqsMxCyfSUCWEUzeWWS4e7yT-e5FWKY
-FIREBASE_AUTH_DOMAIN=abdulmalik-690c1.firebaseapp.com
-FIREBASE_PROJECT_ID=abdulmalik-690c1
-FIREBASE_STORAGE_BUCKET=abdulmalik-690c1.firebasestorage.app
-FIREBASE_MESSAGING_SENDER_ID=487683552497
-FIREBASE_APP_ID=1:487683552497:web:fd150711491f06a410e550
-FIREBASE_MEASUREMENT_ID=G-1BV2E5QQN1
+# Firebase Configuration (Project: alsaqri-dc3ca)
+FIREBASE_API_KEY=AIzaSyB_MvtG7xnY5c18GybVF_SYJfxOa8mxgc8
+FIREBASE_AUTH_DOMAIN=alsaqri-dc3ca.firebaseapp.com
+FIREBASE_PROJECT_ID=alsaqri-dc3ca
+FIREBASE_STORAGE_BUCKET=alsaqri-dc3ca.firebasestorage.app
+FIREBASE_MESSAGING_SENDER_ID=325709838350
+FIREBASE_APP_ID=1:325709838350:web:c3c5dfadc079ce825ae45f
+FIREBASE_MEASUREMENT_ID=G-Q8E93ZR4FZ
 
 # Application Settings
 NODE_ENV=production
-APP_NAME=AbdulMalik
+APP_NAME=AL SAQRI TELECOM
 APP_VERSION=2.0.0
 APP_DESCRIPTION=نظام إدارة متجر الجوالات
 
 # Company Information
-COMPANY_NAME=عبدالملك للاتصالات
-COMPANY_NAME_EN=Abdulmalik Telecom
-COMPANY_ADDRESS=الرياض، المملكة العربية السعودية
-COMPANY_PHONE=0591813149
-COMPANY_EMAIL=support@abdulmalik.com
-COMPANY_VAT_NUMBER=311362508900003
-COMMERCIAL_REG_NUMBER=7030090570
+COMPANY_NAME=الصقري للاتصالات
+COMPANY_NAME_EN=AL SAQRI TELECOM
+COMPANY_ADDRESS=القصيم بريده الصفراء - اسواق النافوره
+COMPANY_PHONE=0505663222
+COMPANY_EMAIL=support@alsaqri.com
+COMPANY_VAT_NUMBER=310105614500003
+COMMERCIAL_REG_NUMBER=7050488852
 
 # Database Settings
 DATABASE_TYPE=firestore

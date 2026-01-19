@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>تفاصيل عملية البيع — عبدالملك للاتصالات</title>
+  <title>تفاصيل عملية البيع — الصقري للاتصالات</title>
 
   <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&display=swap" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
@@ -230,7 +230,7 @@
   <!-- شريط التنقل -->
   <nav class="navbar navbar-expand-lg navbar-dark">
     <div class="container">
-      <span class="navbar-brand">عبدالملك للاتصالات</span>
+      <span class="navbar-brand">الصقري للاتصالات</span>
       <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
         <span class="navbar-toggler-icon"></span>
       </button>
@@ -422,12 +422,13 @@
   <div class="receipt-container">
   <div class="receipt-header">
     <div class="company-info">
-        <h1>عبدالملك للاتصالات</h1>
-        <p>Abdulmalik Telecom</p>
-        <p>الجوال: 0591813149</p>
-        <p>السجل التجاري: 7030090570</p>
-        <p>الرقم الضريبي: 311362508900003</p>
-        <p>الرياض، المملكة العربية السعودية</p>
+        <h1>الصقري للاتصالات</h1>
+        <p>AL SAQRI TELECOM</p>
+        <p>الجوال: 0505663222</p>
+        <p>0594946426</p>
+        <p>السجل التجاري: 7050488852</p>
+        <p>الرقم الضريبي: 310105614500003</p>
+        <p>القصيم بريده الصفراء - اسواق النافوره</p>
     </div>
 
     <div class="sale-info">
@@ -488,7 +489,7 @@
       <p>2) والاجهزة المستعملة تستبدل ولا تسترجع</p>
       <p>في حال وجود عطل داخلي يشمل ضمان</p>
       <p>المستخدم في حال وجود كامل الملحقات</p>
-      <p>شكراً لزيارتكم عبدالملك للاتصالات</p>
+      <p>شكراً لزيارتكم الصقري للاتصالات</p>
     </div>
   </div>
 </div>
@@ -1075,11 +1076,11 @@
       const saleNumber = currentSale.sale_number || currentSale.id || '';
       const saleDate = getSaleDateValue(currentSale) || new Date();
       const formattedDate = formatDate(saleDate);
-      const vatNumber = '311362508900003'; // الرقم الضريبي
+      const vatNumber = '310105614500003'; // الرقم الضريبي
       
       // إنشاء نص QR Code (يحتوي على بيانات الفاتورة)
       const qrData = [
-        'عبدالملك للاتصالات',
+        'الصقري للاتصالات',
         vatNumber,
         formattedDate,
         total.toFixed(2),

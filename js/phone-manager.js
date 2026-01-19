@@ -1,6 +1,6 @@
 /**
  * Phone Management Module
- * عبدالملك للاتصالات - Phone Store Management System
+ * الصقري للاتصالات - Phone Store Management System
  */
 
 class PhoneManager {

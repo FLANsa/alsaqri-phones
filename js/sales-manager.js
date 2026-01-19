@@ -1,6 +1,6 @@
 /**
  * Sales Management Module
- * عبدالملك للاتصالات - Phone Store Management System
+ * الصقري للاتصالات - Phone Store Management System
  */
 
 class SalesManager {

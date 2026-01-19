@@ -1,4 +1,4 @@
-# JavaScript Architecture - عبدالملك للاتصالات
+# JavaScript Architecture - الصقري للاتصالات
 
 ## 📁 File Structure
 
@@ -344,5 +344,5 @@ To extend the system:
 
 ---
 
-**عبدالملك للاتصالات - Phone Store Management System**
+**الصقري للاتصالات - Phone Store Management System**
 *Modular JavaScript Architecture v1.0*

@@ -1,23 +1,23 @@
 services:
   - type: static
-    name: abdulmalik-telecom-system
+    name: alsaqri-telecom-system
     buildCommand: echo "no build"
     staticPublishPath: ./
     envVars:
       - key: NODE_ENV
         value: production
       - key: APP_NAME
-        value: Abdulmalik Telecom
+        value: AL SAQRI TELECOM
       - key: APP_VERSION
         value: "2.0.0"
       - key: COMPANY_NAME
-        value: عبدالملك للاتصالات
+        value: الصقري للاتصالات
       - key: COMPANY_NAME_EN
-        value: Abdulmalik Telecom
+        value: AL SAQRI TELECOM
       - key: COMPANY_ADDRESS
-        value: الرياض، المملكة العربية السعودية
+        value: القصيم بريده الصفراء - اسواق النافوره
       - key: COMPANY_PHONE
-        value: "0591813149"
+        value: "0505663222"
       - key: COMPANY_EMAIL
         value: support@aldhahbi.com
       - key: VAT_RATE

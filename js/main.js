@@ -1,6 +1,6 @@
 /**
  * Main Application Entry Point
- * عبدالملك للاتصالات - Phone Store Management System
+ * الصقري للاتصالات - Phone Store Management System
  */
 
 // Global application state

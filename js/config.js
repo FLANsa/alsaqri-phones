@@ -1,16 +1,16 @@
 /**
  * Configuration and Constants
- * عبدالملك للاتصالات - Phone Store Management System
+ * الصقري للاتصالات - Phone Store Management System
  */
 
 // VAT Configuration for Saudi Arabia
 const CONFIG = {
     VAT_RATE: 0.15, // 15% VAT rate
     COMPANY_INFO: {
-        name: "عبدالملك للاتصالات",
-        vatNumber: "311362508900003",
-        address: "الرياض، المملكة العربية السعودية",
-        phone: "0591813149"
+        name: "الصقري للاتصالات",
+        vatNumber: "310105614500003",
+        address: "القصيم بريده الصفراء - اسواق النافوره",
+        phone: "0505663222"
     },
     STORAGE_KEYS: {
         PHONES: 'phone_store_phones',
