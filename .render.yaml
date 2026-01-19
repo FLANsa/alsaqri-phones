@@ -1,0 +1,9 @@
+services:
+  - type: static
+    name: phone-store-demo
+    buildCommand: echo "No build required for static site"
+    staticPublishPath: ./
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html

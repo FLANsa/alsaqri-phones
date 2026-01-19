@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>طباعة باركود الإكسسوار — عبدالملك للاتصالات</title>
+
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&display=swap" rel="stylesheet" />
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet" />
+
+  <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
+
+  <!-- Firebase so we can read the accessory back -->
+  <script type="module" src="js/firebase-config-cdn.js?v=20260119"></script>
+  <script type="module" src="js/firebase-database-cdn.js?v=20260119"></script>
+  <script type="module" src="js/firebase-storage-manager.js?v=20260119"></script>
+
+  <style>
+    :root { --card-bg:#fff; --muted:#cfcfcf; }
+    body { font-family:'Cairo',sans-serif; background:#f8f9fa; margin:0; padding:24px; }
+    .container { max-width:900px; margin:0 auto; }
+    .card { background:var(--card-bg); border:1px solid #e5e7eb; border-radius:12px; box-shadow:0 10px 20px rgba(0,0,0,.05); }
+    .card-header { padding:16px 20px; border-bottom:1px solid #e5e7eb; display:flex; align-items:center; justify-content:space-between; }
+    .card-header h3 { margin:0; font-size:1.1rem; font-weight:700; }
+    .card-body { padding:20px; }
+    .sticker-preview{ border:2px dashed var(--muted); padding:20px; background:#f9f9f9; border-radius:10px; display:flex; justify-content:center; margin-bottom:18px; }
+    .sticker{ width:6cm; height:3cm; background:#fff; border:1px solid #ddd; box-sizing:border-box; display:flex; flex-direction:column; padding:0.2cm; gap:0.15cm; }
+    .row2{ display:flex; flex-direction:column; align-items:center; text-align:center; width:50%; line-height:1.1; }
+    .label{ color:#222; font-weight:700; font-size:3.0mm; line-height:1.1; text-align:center; }
+    .value{ color:#000; font-weight:600; font-size:3.0mm; line-height:1.05; text-align:center; }
+    .shop{ text-align:center; font-weight:700; font-size:4.5mm; line-height:1.1; margin-bottom:0.1cm; }
+    .rows{ display:flex; flex-direction:row; gap:0.1cm; justify-content:space-between; margin-top:-0.2cm; }
+    .info-vertical{ display:flex; flex-direction:column; align-items:center; gap:0.05cm; margin-top:0; }
+    .sticker-barcode canvas{ width:100%; height:auto; max-height:2.2cm; image-rendering:crisp-edges; image-rendering:pixelated; display:block; }
+    .actions{ display:flex; gap:10px; flex-wrap:wrap; }
+    .btn{ appearance:none; border:0; padding:10px 14px; border-radius:10px; cursor:pointer; font-weight:700; font-family:inherit; }
+    .btn-primary{ background:#10b981; color:#fff; }
+    .btn-outline{ background:#fff; color:#111; border:1px solid #e5e7eb; }
+    .btn i{ margin-left:8px; }
+    @page{ size:auto; margin:5mm; }
+    @media print{ .no-print{ display:none !important; } }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="card">
+      <div class="card-header">
+        <h3>طباعة باركود الإكسسوار</h3>
+        <div class="actions no-print">
+          <button id="btnDownloadPDF" class="btn btn-primary">تحميل PDF <i class="fa fa-download"></i></button>
+          <button id="btnPrintPDF" class="btn btn-outline">طباعة PDF <i class="fa fa-print"></i></button>
+          <a href="dashboard.html" class="btn btn-outline">العودة للوحة التحكم</a>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="sticker-preview">
+          <div id="sticker" class="sticker">
+            <div class="shop">عبدالملك للاتصالات</div>
+            <div class="sticker-barcode"><canvas id="barcode-canvas"></canvas></div>
+            <div class="info-vertical">
+              <div class="value" id="accessory-name">جاري التحميل...</div>
+              <div class="value" id="selling-price">جاري التحميل...</div>
+            </div>
+          </div><!-- /sticker -->
+        </div><!-- /preview -->
+      </div>
+    </div>
+  </div>
+
+<script>
+(function(){
+  // Sticker output size - نفس مقاس ملصق الجوال
+  const STICKER_MM = { w:40, h:25 }, DPI = 300, PX_PER_MM = DPI/25.4;
+  const TARGET_W = Math.round(STICKER_MM.w * PX_PER_MM);
+  const TARGET_H = Math.round(STICKER_MM.h * PX_PER_MM);
+
+  const stickerEl = document.getElementById('sticker');
+  const btnDownload = document.getElementById('btnDownloadPDF');
+  const btnPrint = document.getElementById('btnPrintPDF');
+
+  function generateBarcode(code){
+    const canvas = document.getElementById('barcode-canvas');
+    if(!canvas || !window.JsBarcode) return;
+    JsBarcode(canvas, String(code||'').trim(), {
+      format:"CODE128",
+      width:3,
+      height:80,
+      displayValue:false,
+      background:"#ffffff",
+      lineColor:"#000000"
+    });
+  }
+
+  async function captureStickerCanvas(){
+    const scaleX = TARGET_W / stickerEl.clientWidth;
+    const scaleY = TARGET_H / stickerEl.clientHeight;
+    const scale = Math.min(scaleX, scaleY);
+    return await html2canvas(stickerEl, {
+      backgroundColor:'#ffffff',
+      scale,
+      useCORS:true,
+      logging:false,
+      x:0, y:0,
+      width: stickerEl.clientWidth,
+      height: stickerEl.clientHeight
+    });
+  }
+
+  async function downloadPdf(){
+    const canvas = await captureStickerCanvas();
+    const imgData = canvas.toDataURL('image/png');
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ orientation:'landscape', unit:'mm', format:[STICKER_MM.w, STICKER_MM.h] });
+    doc.addImage(imgData, 'PNG', 0, 0, STICKER_MM.w, STICKER_MM.h, undefined, 'FAST');
+    const accessoryName = document.getElementById('accessory-name').textContent || 'accessory';
+    doc.save(`barcode_${accessoryName.replace(/[^a-zA-Z0-9]/g, '_')}.pdf`);
+  }
+
+  async function printPdf(){
+    const canvas = await captureStickerCanvas();
+    const imgData = canvas.toDataURL('image/png');
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ orientation:'landscape', unit:'mm', format:[STICKER_MM.w, STICKER_MM.h] });
+    doc.addImage(imgData, 'PNG', 0, 0, STICKER_MM.w, STICKER_MM.h, undefined, 'FAST');
+    const blobUrl = doc.output('bloburl');
+    const win = window.open(blobUrl);
+    if(!win){ alert('يرجى السماح بفتح النوافذ المنبثقة للطباعة.'); return; }
+    const onLoad = ()=>{ win.focus(); win.print(); };
+    if(win.document.readyState==='complete'){ onLoad(); } else { win.onload = onLoad; }
+  }
+
+  function valuesFromAccessory(accessory){
+    const name = accessory?.name || accessory?.arabic_name || 'غير محدد';
+    const price = accessory?.selling_price || 0;
+    const priceText = price ? `${price} ريال` : '-';
+    return { name, priceText };
+  }
+
+  function fillSticker({name, priceText}){
+    document.getElementById('accessory-name').textContent = name || '-';
+    document.getElementById('selling-price').textContent = priceText || '-';
+    
+    generateBarcode(currentBarcode || '-');
+  }
+
+  async function findAccessoryByBarcode(barcode){
+    if(!barcode) return null;
+
+    // 1) Fast handoff from add page
+    try{
+      const last = JSON.parse(localStorage.getItem('lastAddedAccessory')||'null');
+      if(last && (String(last.barcode)===String(barcode) || String(last.barcode_id)===String(barcode))){
+        return last;
+      }
+    }catch{}
+
+    // 2) Firebase (if available)
+    try{
+      if(window.storage && window.storage.isFirebaseAvailable){
+        // If your API has a direct method, prefer it:
+        if(typeof window.storage.getAccessoryByBarcode === 'function'){
+          const one = await window.storage.getAccessoryByBarcode(String(barcode));
+          if(one) return one;
+        }
+        // Otherwise scan list (supports object or array):
+        const all = await window.storage.getAccessories();
+        if(all){
+          if(Array.isArray(all)){
+            const found = all.find(a => 
+              String(a.barcode)===String(barcode) || 
+              String(a.barcode_id)===String(barcode)
+            );
+            if(found) return found;
+          }else if(typeof all==='object'){
+            const found = Object.values(all).find(a => 
+              String(a.barcode)===String(barcode) || 
+              String(a.barcode_id)===String(barcode)
+            );
+            if(found) return found;
+          }
+        }
+      }
+    }catch(e){ console.warn('Firebase lookup failed:', e); }
+
+    // 3) LocalStorage fallback
+    try{
+      const arr = JSON.parse(localStorage.getItem('accessories')||'[]');
+      if(Array.isArray(arr)){
+        const found = arr.find(a => 
+          String(a.barcode)===String(barcode) || 
+          String(a.barcode_id)===String(barcode)
+        );
+        if(found) return found;
+      }
+    }catch{}
+
+    return null;
+  }
+
+  let currentBarcode = '';
+
+  async function loadAccessoryData(){
+    // allow Firebase modules to initialize
+    await new Promise(r => setTimeout(r, 300));
+
+    const urlParams = new URLSearchParams(window.location.search);
+    const barcode = urlParams.get('barcode');
+
+    if(barcode){
+      currentBarcode = barcode;
+      const accessory = await findAccessoryByBarcode(barcode);
+      if(accessory){
+        fillSticker(valuesFromAccessory(accessory));
+        return;
+      }else{
+        // If not found anywhere, still show the code the user passed
+        fillSticker({ name: 'إكسسوار غير محدد', priceText: '-' });
+        alert('لم يتم العثور على بيانات الإكسسوار في القاعدة، تم استخدام الباركود فقط.');
+        return;
+      }
+    }
+
+    // No ?barcode= : try lastAddedAccessory directly (user came here manually after adding)
+    try{
+      const last = JSON.parse(localStorage.getItem('lastAddedAccessory')||'null');
+      if(last){
+        currentBarcode = last.barcode || last.barcode_id || '';
+        fillSticker(valuesFromAccessory(last));
+        return;
+      }
+    }catch{}
+
+    // Finally, generate a new label if nothing provided
+    const generated = (() => {
+      let last = localStorage.getItem('lastAccessorySerial')||'0';
+      const next = (parseInt(last,10)+1); localStorage.setItem('lastAccessorySerial', String(next));
+      return `ACC-${new Date().toISOString().slice(0,10).replace(/-/g,'')}-${String(next).padStart(4,'0')}`;
+    })();
+    currentBarcode = generated;
+    fillSticker({ name: 'إكسسوار جديد', priceText: '0 ريال' });
+  }
+
+  document.addEventListener('DOMContentLoaded', loadAccessoryData);
+  btnDownload?.addEventListener('click', (e)=>{ e.preventDefault(); downloadPdf(); });
+  btnPrint?.addEventListener('click', (e)=>{ e.preventDefault(); printPdf(); });
+})();
+</script>
+</body>
+</html>

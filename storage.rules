@@ -1,0 +1,38 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    
+    // قواعد لصور المنتجات
+    match /products/{productId}/{fileName} {
+      allow read: if true; // السماح للجميع بقراءة صور المنتجات
+      allow write: if request.auth != null; // السماح بالكتابة للمستخدمين المسجلين فقط
+    }
+    
+    // قواعد لصور العملاء (إذا كانت موجودة)
+    match /customers/{customerId}/{fileName} {
+      allow read: if request.auth != null; // السماح بالقراءة للمستخدمين المسجلين
+      allow write: if request.auth != null; // السماح بالكتابة للمستخدمين المسجلين
+    }
+    
+    // قواعد للملفات العامة
+    match /public/{fileName} {
+      allow read: if true; // السماح للجميع بقراءة الملفات العامة
+      allow write: if request.auth != null; // السماح بالكتابة للمستخدمين المسجلين فقط
+    }
+    
+    // قواعد للملفات المؤقتة
+    match /temp/{fileName} {
+      allow read, write: if request.auth != null; // السماح للمستخدمين المسجلين فقط
+    }
+    
+    // قواعد للنسخ الاحتياطية
+    match /backups/{fileName} {
+      allow read, write: if request.auth != null; // السماح للمستخدمين المسجلين فقط
+    }
+    
+    // منع الوصول لجميع الملفات الأخرى
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

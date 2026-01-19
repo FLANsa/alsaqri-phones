@@ -1,0 +1,800 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>تقرير حسابات - عبدالملك للاتصالات</title>
+    
+    <!-- Google Fonts - Cairo -->
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Firebase Scripts -->
+    <script type="module" src="js/firebase-config-cdn.js?v=20260119"></script>
+    <script type="module" src="js/firebase-database-cdn.js?v=20260119"></script>
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Cairo', sans-serif;
+            background-color: #fff;
+            color: #333;
+            line-height: 1.6;
+            padding: 40px;
+        }
+        
+        .report-container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        
+        /* Header */
+        .report-header {
+            text-align: center;
+            margin-bottom: 40px;
+            padding-bottom: 20px;
+            border-bottom: 2px solid #333;
+        }
+        
+        .report-header h1 {
+            font-size: 24px;
+            font-weight: 700;
+            margin-bottom: 8px;
+        }
+        
+        .report-header .company-name {
+            font-size: 16px;
+            color: #666;
+            margin-bottom: 15px;
+        }
+        
+        .report-header .report-date {
+            font-size: 14px;
+            color: #888;
+        }
+        
+        /* Date Range */
+        .date-range {
+            text-align: center;
+            margin-bottom: 40px;
+            padding: 15px;
+            background: #f5f5f5;
+            border-radius: 4px;
+        }
+        
+        .date-range h3 {
+            font-size: 14px;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+        
+        .date-range p {
+            font-size: 14px;
+        }
+        
+        /* Section */
+        .section {
+            margin-bottom: 40px;
+            page-break-inside: avoid;
+        }
+        
+        .section-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 0;
+            border-bottom: 1px solid #ddd;
+            margin-bottom: 15px;
+        }
+        
+        .section-header h2 {
+            font-size: 16px;
+            font-weight: 700;
+        }
+        
+        .section-header .status {
+            font-size: 12px;
+            padding: 4px 12px;
+            border-radius: 4px;
+            font-weight: 600;
+        }
+        
+        .status-pending {
+            background: #fff3cd;
+            color: #856404;
+        }
+        
+        .status-paid {
+            background: #d4edda;
+            color: #155724;
+        }
+        
+        .contact-info {
+            font-size: 13px;
+            color: #666;
+            margin-bottom: 15px;
+        }
+        
+        /* Table */
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 15px;
+            font-size: 13px;
+        }
+        
+        .data-table th {
+            background: #f8f8f8;
+            padding: 10px 8px;
+            text-align: right;
+            font-weight: 600;
+            border: 1px solid #ddd;
+        }
+        
+        .data-table td {
+            padding: 8px;
+            border: 1px solid #ddd;
+        }
+        
+        .data-table td:first-child {
+            text-align: center;
+            width: 40px;
+        }
+        
+        .data-table td:last-child {
+            text-align: left;
+            direction: ltr;
+        }
+        
+        /* Summary */
+        .summary-box {
+            display: flex;
+            justify-content: space-between;
+            background: #f8f8f8;
+            padding: 12px 15px;
+            border-radius: 4px;
+            font-size: 13px;
+        }
+        
+        .summary-item {
+            text-align: center;
+        }
+        
+        .summary-item .label {
+            color: #666;
+            margin-bottom: 4px;
+        }
+        
+        .summary-item .value {
+            font-weight: 700;
+            font-size: 14px;
+        }
+        
+        .summary-item.balance .value {
+            color: #dc3545;
+        }
+        
+        .summary-item.balance.paid .value {
+            color: #28a745;
+        }
+        
+        /* Overall Summary */
+        .overall-summary {
+            margin-top: 50px;
+            padding: 25px;
+            background: #333;
+            color: #fff;
+            border-radius: 4px;
+        }
+        
+        .overall-summary h3 {
+            font-size: 16px;
+            font-weight: 700;
+            margin-bottom: 20px;
+            text-align: center;
+            padding-bottom: 15px;
+            border-bottom: 1px solid #555;
+        }
+        
+        .overall-grid {
+            display: flex;
+            justify-content: space-around;
+            flex-wrap: wrap;
+            gap: 20px;
+        }
+        
+        .overall-item {
+            text-align: center;
+            min-width: 120px;
+        }
+        
+        .overall-item .label {
+            font-size: 12px;
+            color: #aaa;
+            margin-bottom: 5px;
+        }
+        
+        .overall-item .value {
+            font-size: 18px;
+            font-weight: 700;
+        }
+        
+        /* Loading & Error */
+        .loading, .error, .no-data {
+            text-align: center;
+            padding: 60px 20px;
+            font-size: 16px;
+            color: #666;
+        }
+        
+        .error {
+            color: #dc3545;
+        }
+        
+        /* Print Button */
+        .print-controls {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            display: flex;
+            gap: 10px;
+            z-index: 1000;
+        }
+        
+        .print-btn, .close-btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-family: 'Cairo', sans-serif;
+            font-size: 14px;
+            font-weight: 600;
+        }
+        
+        .print-btn {
+            background: #333;
+            color: #fff;
+        }
+        
+        .close-btn {
+            background: #f5f5f5;
+            color: #333;
+        }
+        
+        .print-btn:hover {
+            background: #555;
+        }
+        
+        .close-btn:hover {
+            background: #e5e5e5;
+        }
+        
+        /* Print Styles */
+        @media print {
+            .print-controls {
+                display: none !important;
+            }
+            
+            body {
+                padding: 20px;
+            }
+            
+            .report-container {
+                max-width: 100%;
+            }
+            
+            .overall-summary {
+                background: #333 !important;
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Print Controls -->
+    <div class="print-controls">
+        <button class="print-btn" onclick="window.print()">طباعة</button>
+        <button class="close-btn" onclick="window.close()">إغلاق</button>
+    </div>
+
+    <div class="report-container">
+        <div id="loading" class="loading">جاري تحميل البيانات...</div>
+        <div id="error" class="error" style="display: none;">حدث خطأ في تحميل البيانات</div>
+        
+        <div id="reportContent" style="display: none;">
+            <!-- Header -->
+            <div class="report-header">
+                <h1 id="reportTitle">تقرير حسابات المندوبين</h1>
+                <p class="company-name">عبدالملك للاتصالات</p>
+                <p class="report-date" id="reportDate"></p>
+            </div>
+            
+            <!-- Date Range -->
+            <div class="date-range">
+                <h3>الفترة الزمنية</h3>
+                <p>من: <span id="fromDate"></span> إلى: <span id="toDate"></span></p>
+            </div>
+            
+            <!-- Sections -->
+            <div id="sections"></div>
+            
+            <!-- No Data -->
+            <div id="noData" class="no-data" style="display: none;">لا توجد بيانات في الفترة المحددة</div>
+            
+            <!-- Overall Summary -->
+            <div class="overall-summary" id="overallSummary">
+                <h3 id="summaryTitle">الملخص العام</h3>
+                <div class="overall-grid" id="summaryGrid"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let jobsData = [];
+        let repsData = [];
+        let techniciansData = [];
+        let paymentsData = [];
+        let filters = {};
+
+        document.addEventListener('DOMContentLoaded', function() {
+            parseFilters();
+            // انتظار تحميل Firebase فقط إذا لم يكن جاهزاً
+            if (window.firebaseDatabase) {
+                loadReportData();
+            } else {
+                setTimeout(loadReportData, 500);
+            }
+        });
+
+        function parseFilters() {
+            const urlParams = new URLSearchParams(window.location.search);
+            filters = {
+                dateFrom: urlParams.get('dateFrom') || '',
+                dateTo: urlParams.get('dateTo') || '',
+                type: urlParams.get('type') || '', // 'rep' or 'tech' or empty for all reps
+                id: urlParams.get('id') || ''
+            };
+        }
+
+        async function loadReportData() {
+            try {
+                // انتظار Firebase إذا لم يكن جاهزاً
+                if (!window.firebaseDatabase) {
+                    await new Promise(resolve => setTimeout(resolve, 300));
+                    if (!window.firebaseDatabase) {
+                        showError('قاعدة البيانات غير متاحة');
+                        return;
+                    }
+                }
+
+                if (!filters.dateFrom || !filters.dateTo) {
+                    showError('يرجى تحديد الفترة الزمنية');
+                    return;
+                }
+
+                const fromDate = new Date(filters.dateFrom);
+                const toDate = new Date(filters.dateTo);
+                toDate.setHours(23, 59, 59, 999);
+
+                // تحميل البيانات الأساسية فقط (المندوبين والفنيين)
+                // ثم تحميل الأعمال والمدفوعات بعدها
+                const [reps, techs] = await Promise.all([
+                    window.firebaseDatabase.getReps(),
+                    window.firebaseDatabase.getTechnicians()
+                ]);
+                repsData = reps;
+                techniciansData = techs;
+                
+                // تحميل الأعمال والمدفوعات
+                const [jobs, payments] = await Promise.all([
+                    window.firebaseDatabase.getMaintenanceJobs({
+                        status: 'done',
+                        dateFrom: fromDate,
+                        dateTo: toDate
+                    }),
+                    window.firebaseDatabase.getPayments({
+                        dateFrom: fromDate,
+                        dateTo: toDate
+                    })
+                ]);
+                jobsData = jobs;
+                paymentsData = payments;
+
+                displayReport();
+                
+            } catch (error) {
+                console.error('Error:', error);
+                showError('حدث خطأ في تحميل البيانات: ' + error.message);
+            }
+        }
+
+        function displayReport() {
+            document.getElementById('loading').style.display = 'none';
+            document.getElementById('reportContent').style.display = 'block';
+            
+            // Set report date
+            document.getElementById('reportDate').textContent = 
+                'تاريخ التقرير: ' + new Date().toLocaleDateString('ar-SA', {
+                    year: 'numeric',
+                    month: 'long',
+                    day: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                });
+            
+            // Set date range
+            document.getElementById('fromDate').textContent = filters.dateFrom;
+            document.getElementById('toDate').textContent = filters.dateTo;
+            
+            // Determine report type
+            if (filters.type === 'tech') {
+                displayTechReport();
+            } else {
+                displayRepReport();
+            }
+        }
+
+        // ==================== REP REPORT ====================
+        function displayRepReport() {
+            document.getElementById('reportTitle').textContent = 
+                filters.id ? 'تقرير حساب المندوب' : 'تقرير حسابات المندوبين';
+            
+            const accounts = processRepsData();
+            
+            // Filter for single rep if specified
+            let displayAccounts = accounts;
+            if (filters.id) {
+                displayAccounts = accounts.filter(a => a.repId === filters.id);
+            }
+            
+            if (displayAccounts.length === 0) {
+                document.getElementById('noData').style.display = 'block';
+                document.getElementById('overallSummary').style.display = 'none';
+                return;
+            }
+            
+            displaySections(displayAccounts, 'rep');
+            displayRepSummary(displayAccounts);
+        }
+
+        function processRepsData() {
+            const repsMap = {};
+            
+            jobsData.forEach(job => {
+                if (job.parts && Array.isArray(job.parts) && job.parts.length > 0) {
+                    job.parts.forEach(part => {
+                        if (!part.repId) return;
+                        
+                        if (!repsMap[part.repId]) {
+                            const rep = repsData.find(r => r.id === part.repId);
+                            repsMap[part.repId] = {
+                                repId: part.repId,
+                                name: part.repName || (rep ? rep.name : 'غير محدد'),
+                                phone: rep ? rep.phone : '',
+                                items: [],
+                                totalAmount: 0,
+                                totalPaid: 0,
+                                balance: 0
+                            };
+                        }
+                        
+                        repsMap[part.repId].items.push({
+                            name: part.partName,
+                            cost: Number(part.partCost) || 0,
+                            customerName: job.customerName || '-',
+                            deviceModel: job.deviceModel || '-',
+                            date: formatDate(job.visitDate)
+                        });
+                        
+                        repsMap[part.repId].totalAmount += Number(part.partCost) || 0;
+                    });
+                } else if (job.partName && job.repId) {
+                    if (!repsMap[job.repId]) {
+                        const rep = repsData.find(r => r.id === job.repId);
+                        repsMap[job.repId] = {
+                            repId: job.repId,
+                            name: job.repName || (rep ? rep.name : 'غير محدد'),
+                            phone: rep ? rep.phone : '',
+                            items: [],
+                            totalAmount: 0,
+                            totalPaid: 0,
+                            balance: 0
+                        };
+                    }
+                    
+                    repsMap[job.repId].items.push({
+                        name: job.partName,
+                        cost: Number(job.partCost) || 0,
+                        customerName: job.customerName || '-',
+                        deviceModel: job.deviceModel || '-',
+                        date: formatDate(job.visitDate)
+                    });
+                    
+                    repsMap[job.repId].totalAmount += Number(job.partCost) || 0;
+                }
+            });
+            
+            Object.values(repsMap).forEach(rep => {
+                const repPayments = paymentsData.filter(p => p.entityType === 'rep' && p.entityId === rep.repId);
+                rep.totalPaid = repPayments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+                rep.balance = rep.totalAmount - rep.totalPaid;
+                rep.status = (rep.totalAmount > 0 && rep.balance <= 0) ? 'paid' : 'pending';
+            });
+            
+            return Object.values(repsMap).sort((a, b) => b.totalAmount - a.totalAmount);
+        }
+
+        function displayRepSummary(accounts) {
+            document.getElementById('summaryTitle').textContent = 
+                accounts.length === 1 ? 'ملخص الحساب' : 'الملخص العام لجميع المندوبين';
+            
+            let totalItems = 0;
+            let totalAmount = 0;
+            let totalPaid = 0;
+            let totalBalance = 0;
+            
+            accounts.forEach(acc => {
+                totalItems += acc.items.length;
+                totalAmount += acc.totalAmount;
+                totalPaid += acc.totalPaid;
+                totalBalance += acc.balance;
+            });
+            
+            let summaryHTML = '';
+            
+            if (accounts.length > 1) {
+                summaryHTML += `
+                    <div class="overall-item">
+                        <div class="label">عدد المندوبين</div>
+                        <div class="value">${accounts.length}</div>
+                    </div>
+                `;
+            }
+            
+            summaryHTML += `
+                <div class="overall-item">
+                    <div class="label">عدد القطع</div>
+                    <div class="value">${totalItems}</div>
+                </div>
+                <div class="overall-item">
+                    <div class="label">إجمالي تكلفة القطع</div>
+                    <div class="value">${totalAmount.toFixed(2)} ريال</div>
+                </div>
+                <div class="overall-item">
+                    <div class="label">إجمالي المدفوع</div>
+                    <div class="value">${totalPaid.toFixed(2)} ريال</div>
+                </div>
+                <div class="overall-item">
+                    <div class="label">إجمالي المتبقي</div>
+                    <div class="value">${totalBalance.toFixed(2)} ريال</div>
+                </div>
+            `;
+            
+            document.getElementById('summaryGrid').innerHTML = summaryHTML;
+        }
+
+        // ==================== TECH REPORT ====================
+        function displayTechReport() {
+            document.getElementById('reportTitle').textContent = 
+                filters.id ? 'تقرير حساب الفني' : 'تقرير حسابات الفنيين';
+            
+            const accounts = processTechsData();
+            
+            // Filter for single tech if specified
+            let displayAccounts = accounts;
+            if (filters.id) {
+                displayAccounts = accounts.filter(a => a.techId === filters.id);
+            }
+            
+            if (displayAccounts.length === 0) {
+                document.getElementById('noData').style.display = 'block';
+                document.getElementById('overallSummary').style.display = 'none';
+                return;
+            }
+            
+            displaySections(displayAccounts, 'tech');
+            displayTechSummary(displayAccounts);
+        }
+
+        function processTechsData() {
+            const techsMap = {};
+            
+            jobsData.forEach(job => {
+                if (!job.techId) return;
+                
+                if (!techsMap[job.techId]) {
+                    const tech = techniciansData.find(t => t.id === job.techId);
+                    techsMap[job.techId] = {
+                        techId: job.techId,
+                        name: job.techName || (tech ? tech.name : 'غير محدد'),
+                        phone: tech ? tech.phone : '',
+                        items: [],
+                        totalAmount: 0,
+                        totalPaid: 0,
+                        balance: 0
+                    };
+                }
+                
+                techsMap[job.techId].items.push({
+                    name: job.deviceModel || 'جهاز',
+                    cost: Number(job.techCommission) || 0,
+                    customerName: job.customerName || '-',
+                    deviceModel: job.deviceModel || '-',
+                    date: formatDate(job.visitDate)
+                });
+                
+                techsMap[job.techId].totalAmount += Number(job.techCommission) || 0;
+            });
+            
+            Object.values(techsMap).forEach(tech => {
+                const techPayments = paymentsData.filter(p => p.entityType === 'tech' && p.entityId === tech.techId);
+                tech.totalPaid = techPayments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+                tech.balance = tech.totalAmount - tech.totalPaid;
+                tech.status = (tech.totalAmount > 0 && tech.balance <= 0) ? 'paid' : 'pending';
+            });
+            
+            return Object.values(techsMap).sort((a, b) => b.totalAmount - a.totalAmount);
+        }
+
+        function displayTechSummary(accounts) {
+            document.getElementById('summaryTitle').textContent = 
+                accounts.length === 1 ? 'ملخص الحساب' : 'الملخص العام لجميع الفنيين';
+            
+            let totalItems = 0;
+            let totalAmount = 0;
+            let totalPaid = 0;
+            let totalBalance = 0;
+            
+            accounts.forEach(acc => {
+                totalItems += acc.items.length;
+                totalAmount += acc.totalAmount;
+                totalPaid += acc.totalPaid;
+                totalBalance += acc.balance;
+            });
+            
+            let summaryHTML = '';
+            
+            if (accounts.length > 1) {
+                summaryHTML += `
+                    <div class="overall-item">
+                        <div class="label">عدد الفنيين</div>
+                        <div class="value">${accounts.length}</div>
+                    </div>
+                `;
+            }
+            
+            summaryHTML += `
+                <div class="overall-item">
+                    <div class="label">عدد الأعمال</div>
+                    <div class="value">${totalItems}</div>
+                </div>
+                <div class="overall-item">
+                    <div class="label">إجمالي العمولات</div>
+                    <div class="value">${totalAmount.toFixed(2)} ريال</div>
+                </div>
+                <div class="overall-item">
+                    <div class="label">إجمالي المدفوع</div>
+                    <div class="value">${totalPaid.toFixed(2)} ريال</div>
+                </div>
+                <div class="overall-item">
+                    <div class="label">إجمالي المتبقي</div>
+                    <div class="value">${totalBalance.toFixed(2)} ريال</div>
+                </div>
+            `;
+            
+            document.getElementById('summaryGrid').innerHTML = summaryHTML;
+        }
+
+        // ==================== COMMON ====================
+        function displaySections(accounts, type) {
+            const container = document.getElementById('sections');
+            container.innerHTML = '';
+            
+            const isRep = type === 'rep';
+            const itemLabel = isRep ? 'اسم القطعة' : 'العملية';
+            const costLabel = isRep ? 'تكلفة القطعة' : 'العمولة';
+            
+            accounts.forEach((account, index) => {
+                const section = document.createElement('div');
+                section.className = 'section';
+                
+                const statusText = account.status === 'paid' ? 'مدفوع' : 'معلق';
+                const statusClass = account.status === 'paid' ? 'status-paid' : 'status-pending';
+                
+                let html = `
+                    <div class="section-header">
+                        <h2>${accounts.length > 1 ? (index + 1) + '. ' : ''}${account.name}</h2>
+                        <span class="status ${statusClass}">${statusText}</span>
+                    </div>
+                `;
+                
+                if (account.phone) {
+                    html += `<p class="contact-info">${account.phone}</p>`;
+                }
+                
+                html += `
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>التاريخ</th>
+                                <th>العميل</th>
+                                <th>الجهاز</th>
+                                <th>${itemLabel}</th>
+                                <th>${costLabel}</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                `;
+                
+                account.items.forEach((item, itemIndex) => {
+                    html += `
+                        <tr>
+                            <td>${itemIndex + 1}</td>
+                            <td>${item.date}</td>
+                            <td>${item.customerName}</td>
+                            <td>${item.deviceModel}</td>
+                            <td>${item.name}</td>
+                            <td>${item.cost.toFixed(2)} ريال</td>
+                        </tr>
+                    `;
+                });
+                
+                html += `
+                        </tbody>
+                    </table>
+                `;
+                
+                const balanceClass = account.balance <= 0 ? 'balance paid' : 'balance';
+                const countLabel = isRep ? 'عدد القطع' : 'عدد الأعمال';
+                const totalLabel = isRep ? 'إجمالي التكلفة' : 'إجمالي العمولات';
+                
+                html += `
+                    <div class="summary-box">
+                        <div class="summary-item">
+                            <div class="label">${countLabel}</div>
+                            <div class="value">${account.items.length}</div>
+                        </div>
+                        <div class="summary-item">
+                            <div class="label">${totalLabel}</div>
+                            <div class="value">${account.totalAmount.toFixed(2)} ريال</div>
+                        </div>
+                        <div class="summary-item">
+                            <div class="label">المدفوع</div>
+                            <div class="value">${account.totalPaid.toFixed(2)} ريال</div>
+                        </div>
+                        <div class="summary-item ${balanceClass}">
+                            <div class="label">المتبقي</div>
+                            <div class="value">${account.balance.toFixed(2)} ريال</div>
+                        </div>
+                    </div>
+                `;
+                
+                section.innerHTML = html;
+                container.appendChild(section);
+            });
+        }
+
+        function formatDate(date) {
+            if (!date) return '-';
+            try {
+                const d = date.seconds ? new Date(date.seconds * 1000) : new Date(date);
+                return d.toLocaleDateString('ar-SA');
+            } catch (e) {
+                return '-';
+            }
+        }
+
+        function showError(message) {
+            document.getElementById('loading').style.display = 'none';
+            document.getElementById('error').style.display = 'block';
+            document.getElementById('error').textContent = message;
+        }
+    </script>
+</body>
+</html>

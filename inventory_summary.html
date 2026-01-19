@@ -1,0 +1,562 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>ملخص المخزون — عبدالملك للاتصالات</title>
+
+  <!-- نفس الخط/المكتبات المستخدمة في القالب -->
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&display=swap" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+
+  <style>
+    body { font-family: 'Cairo', sans-serif; background-color: #f8f9fa; padding-top: 70px; }
+    .navbar { 
+      background-color: #2c3e50; 
+      position: fixed; 
+      top: 0; 
+      width: 100%; 
+      z-index: 1030; 
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    .navbar-brand, .nav-link { color: white !important; }
+    .card { margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.08); }
+    .card-header { font-weight: 600; }
+  </style>
+</head>
+<body>
+
+  <!-- شريط التنقل -->
+  <nav class="navbar navbar-expand-lg navbar-dark">
+    <div class="container">
+      <span class="navbar-brand">عبدالملك للاتصالات</span>
+      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+
+      <div class="collapse navbar-collapse" id="navbarNav">
+        <ul class="navbar-nav me-auto">
+          <!-- Navigation will be populated by navigation.js -->
+        </ul>
+      </div>
+    </div>
+  </nav>
+
+<div class="container mt-4">
+  <div class="row">
+    <div class="col-md-12">
+      <!-- الملخص العلوي -->
+      <div class="card mb-4">
+        <div class="card-header">
+          <h3>ملخص المخزون</h3>
+        </div>
+        <div class="card-body">
+          <div class="row g-3">
+            <div class="col-md-3">
+              <div class="card bg-primary text-white h-100">
+                <div class="card-body text-center">
+                  <h5 class="card-title">إجمالي الهواتف</h5>
+                  <h2 id="total_phones">0</h2>
+                </div>
+              </div>
+            </div>
+            <div class="col-md-3">
+              <div class="card bg-success text-white h-100">
+                <div class="card-body text-center">
+                  <h5 class="card-title">إجمالي القيمة الشرائية</h5>
+                  <h2 id="total_purchase_value">0.00 ريال</h2>
+                </div>
+              </div>
+            </div>
+            <div class="col-md-3">
+              <div class="card bg-info text-white h-100">
+                <div class="card-body text-center">
+                  <h5 class="card-title">إجمالي القيمة البيعية</h5>
+                  <h2 id="total_selling_value">0.00 ريال</h2>
+                </div>
+              </div>
+            </div>
+            <div class="col-md-3">
+              <div class="card bg-warning text-white h-100">
+                <div class="card-body text-center">
+                  <h5 class="card-title">إجمالي الربح المتوقع</h5>
+                  <h2 id="total_profit">0.00 ريال</h2>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- هواتف جديدة/مستعملة -->
+          <div class="row g-3 mt-1">
+            <div class="col-md-6">
+              <div class="card bg-light h-100">
+                <div class="card-body">
+                  <h5 class="card-title">الهواتف الجديدة</h5>
+                  <p class="mb-1">العدد: <span id="new_phones_count">0</span></p>
+                  <p class="mb-1">القيمة الشرائية: <span id="new_phones_purchase_value">0.00</span> ريال</p>
+                  <p class="mb-1">القيمة البيعية: <span id="new_phones_selling_value">0.00</span> ريال</p>
+                  <p class="mb-0"><strong>الربح المتوقع: <span id="new_phones_profit">0.00</span> ريال</strong></p>
+                </div>
+              </div>
+            </div>
+            <div class="col-md-6">
+              <div class="card bg-light h-100">
+                <div class="card-body">
+                  <h5 class="card-title">الهواتف المستعملة</h5>
+                  <p class="mb-1">العدد: <span id="used_phones_count">0</span></p>
+                  <p class="mb-1">القيمة الشرائية: <span id="used_phones_purchase_value">0.00</span> ريال</p>
+                  <p class="mb-1">القيمة البيعية: <span id="used_phones_selling_value">0.00</span> ريال</p>
+                  <p class="mb-0"><strong>الربح المتوقع: <span id="used_phones_profit">0.00</span> ريال</strong></p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div><!-- /الملخص العلوي -->
+
+      <!-- تفاصيل حسب نوع الجوال -->
+      <div class="card">
+        <div class="card-header">
+          <h3>تفاصيل المخزون حسب نوع الجوال</h3>
+        </div>
+        <div class="card-body">
+          <div class="table-responsive">
+            <table class="table table-striped align-middle">
+              <thead>
+                <tr>
+                  <th>نوع الجوال</th>
+                  <th>عدد الهواتف</th>
+                  <th>القيمة الشرائية</th>
+                  <th>القيمة البيعية</th>
+                  <th>الربح المتوقع</th>
+                  <th>متوسط السعر</th>
+                </tr>
+              </thead>
+              <tbody id="phone_type_summary">
+                <tr class="text-muted">
+                  <td colspan="6" class="text-center">لا توجد بيانات</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- الهواتف الجديدة حسب الشركة -->
+      <div class="card mt-4" id="new_phones_brand_block">
+        <div class="card-header">
+          <h3>الهواتف الجديدة حسب الشركة المصنعة</h3>
+        </div>
+        <div class="card-body">
+          <div class="table-responsive">
+            <table class="table table-striped align-middle">
+              <thead>
+                <tr>
+                  <th>الشركة المصنعة</th>
+                  <th>نوع الهاتف</th>
+                  <th>عدد الهواتف</th>
+                  <th>القيمة الشرائية</th>
+                  <th>القيمة البيعية</th>
+                  <th>الربح المتوقع</th>
+                  <th>متوسط السعر</th>
+                </tr>
+              </thead>
+              <tbody id="new_phones_brand_summary">
+                <tr class="text-muted">
+                  <td colspan="7" class="text-center">لا توجد بيانات</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- الهواتف المستعملة حسب الشركة -->
+      <div class="card mt-4" id="used_phones_brand_block">
+        <div class="card-header">
+          <h3>الهواتف المستعملة حسب الشركة المصنعة</h3>
+        </div>
+        <div class="card-body">
+          <div class="table-responsive">
+            <table class="table table-striped align-middle">
+              <thead>
+                <tr>
+                  <th>الشركة المصنعة</th>
+                  <th>نوع الهاتف</th>
+                  <th>عدد الهواتف</th>
+                  <th>القيمة الشرائية</th>
+                  <th>القيمة البيعية</th>
+                  <th>الربح المتوقع</th>
+                  <th>متوسط السعر</th>
+                </tr>
+              </thead>
+              <tbody id="used_phones_brand_summary">
+                <tr class="text-muted">
+                  <td colspan="7" class="text-center">لا توجد بيانات</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- ملخص الأكسسوارات -->
+      <div class="card mt-4" id="accessories_summary_block">
+        <div class="card-header">
+          <h3>ملخص الأكسسوارات</h3>
+        </div>
+        <div class="card-body">
+          <div class="row">
+            <div class="col-md-3">
+              <div class="text-center">
+                <h4 class="text-info" id="total_accessories">0</h4>
+                <p class="text-muted">إجمالي الأكسسوارات</p>
+              </div>
+            </div>
+            <div class="col-md-3">
+              <div class="text-center">
+                <h4 class="text-success" id="total_accessory_quantity">0</h4>
+                <p class="text-muted">إجمالي الكمية</p>
+              </div>
+            </div>
+            <div class="col-md-3">
+              <div class="text-center">
+                <h4 class="text-warning" id="total_accessory_purchase_value">0.00 ريال</h4>
+                <p class="text-muted">القيمة الشرائية</p>
+              </div>
+            </div>
+            <div class="col-md-3">
+              <div class="text-center">
+                <h4 class="text-primary" id="total_accessory_selling_value">0.00 ريال</h4>
+                <p class="text-muted">القيمة البيعية</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+
+    </div><!-- /col -->
+  </div><!-- /row -->
+</div><!-- /container -->
+
+<!-- مكتبات JS نفسها -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+
+  <!-- Firebase Integration -->
+  <script type="module" src="js/firebase-config-cdn.js?v=20260119"></script>
+  <script type="module" src="js/firebase-database-cdn.js?v=20260119"></script>
+  <script type="module" src="js/firebase-storage-manager.js?v=20260119"></script>
+
+<!-- نظام ملخص المخزون مع التحقق من تسجيل الدخول -->
+<script>
+  // التحقق من تسجيل الدخول
+  function checkLogin() {
+    const currentUser = localStorage.getItem('current_user');
+    if (!currentUser) {
+      alert('يجب تسجيل الدخول أولاً');
+      window.location.href = 'login.html';
+      return false;
+    }
+    return true;
+  }
+
+  // تسجيل الخروج
+  function logout() {
+    if (confirm('هل أنت متأكد من تسجيل الخروج؟')) {
+      localStorage.removeItem('current_user');
+      alert('تم تسجيل الخروج بنجاح');
+      window.location.href = 'index.html';
+    }
+  }
+
+  // التحقق من بيع الهاتف
+  function isPhoneSold(phoneId, salesData = []) {
+    try {
+      const rawSales = salesData.length > 0 ? salesData : JSON.parse(localStorage.getItem('sales') || '[]');
+      const sales = (rawSales || []).filter(s => s && s.returned !== true && s.status !== 'مسترجعة');
+      return sales.some(sale =>
+        Array.isArray(sale.items) &&
+        sale.items.some(item => item.type === 'phone' && (item.id === phoneId || item.phone_id === phoneId))
+      );
+    } catch (error) {
+      console.error('❌ خطأ في التحقق من بيع الهاتف:', error);
+      return false;
+    }
+  }
+
+  // تحديث ملخص المخزون من قاعدة البيانات
+  async function updateInventorySummary() {
+    try {
+      console.log('📊 تحديث ملخص المخزون من قاعدة البيانات...');
+      
+      let phones = [];
+      let accessories = [];
+      let sales = [];
+      
+      // تحميل البيانات من Firebase أو localStorage
+      if (window.storage && window.storage.isFirebaseAvailable) {
+        console.log('🔥 تحميل البيانات من Firebase...');
+        phones = await window.storage.getPhones();
+        accessories = await window.storage.getAccessories();
+        sales = await window.storage.getSales();
+        console.log('✅ تم تحميل البيانات من Firebase:', { phones: phones.length, accessories: accessories.length, sales: sales.length });
+      } else {
+        console.log('💾 Firebase غير متاح، تحميل من localStorage...');
+        phones = JSON.parse(localStorage.getItem('phones') || '[]');
+        accessories = JSON.parse(localStorage.getItem('accessories') || '[]');
+        sales = JSON.parse(localStorage.getItem('sales') || '[]');
+      }
+
+      // تصفية الهواتف المباعة - إبقاء الهواتف المتاحة فقط
+      const availablePhones = phones.filter(phone => {
+        const phoneId = phone.id || phone.phone_number;
+        return phoneId && !isPhoneSold(phoneId, sales);
+      });
+
+      console.log('📱 الهواتف المتاحة:', availablePhones.length, 'من أصل', phones.length);
+
+      // فصل الهواتف الجديدة والمستعملة (من الهواتف المتاحة فقط)
+      const newPhones = availablePhones.filter(p => p.condition === 'new' || p.phone_type === 'new');
+      const usedPhones = availablePhones.filter(p => p.condition === 'used' || p.phone_type === 'used');
+
+      // حساب الإحصائيات الأساسية للهواتف (الهواتف المتاحة فقط)
+      const totalPhones = availablePhones.length;
+      const totalPurchaseValue = availablePhones.reduce((sum, p) => sum + (p.purchase_price || p.price || 0), 0);
+      const totalSellingValue = availablePhones.reduce((sum, p) => sum + (p.selling_price || p.price || 0), 0);
+      const totalProfit = totalSellingValue - totalPurchaseValue;
+
+      // إحصائيات الهواتف الجديدة
+      const newPhonesCount = newPhones.length;
+      const newPhonesPurchaseValue = newPhones.reduce((sum, p) => sum + (p.purchase_price || p.price || 0), 0);
+      const newPhonesSellingValue = newPhones.reduce((sum, p) => sum + (p.selling_price || p.price || 0), 0);
+      const newPhonesProfit = newPhonesSellingValue - newPhonesPurchaseValue;
+
+      // إحصائيات الهواتف المستعملة
+      const usedPhonesCount = usedPhones.length;
+      const usedPhonesPurchaseValue = usedPhones.reduce((sum, p) => sum + (p.purchase_price || p.price || 0), 0);
+      const usedPhonesSellingValue = usedPhones.reduce((sum, p) => sum + (p.selling_price || p.price || 0), 0);
+      const usedPhonesProfit = usedPhonesSellingValue - usedPhonesPurchaseValue;
+
+
+      // حساب إحصائيات الأكسسوارات
+      const totalAccessories = accessories.length;
+      const totalAccessoryQuantity = accessories.reduce((sum, a) => sum + (a.quantity_in_stock || a.quantity || 0), 0);
+      const totalAccessoryPurchaseValue = accessories.reduce((sum, a) => 
+        sum + ((a.purchase_price || 0) * (a.quantity_in_stock || a.quantity || 0)), 0);
+      const totalAccessorySellingValue = accessories.reduce((sum, a) => 
+        sum + ((a.selling_price || 0) * (a.quantity_in_stock || a.quantity || 0)), 0);
+
+      console.log('📈 الإحصائيات المحسوبة:', {
+        totalPhones,
+        totalPurchaseValue,
+        totalSellingValue,
+        totalProfit,
+        newPhonesCount,
+        usedPhonesCount,
+        totalAccessories,
+        totalAccessoryQuantity,
+        totalAccessoryPurchaseValue,
+        totalAccessorySellingValue
+      });
+
+      // تحديث العناصر في الصفحة - قيم الهواتف فقط
+      document.getElementById('total_phones').textContent = totalPhones;
+      document.getElementById('total_purchase_value').textContent = totalPurchaseValue.toFixed(2) + ' ريال';
+      document.getElementById('total_selling_value').textContent = totalSellingValue.toFixed(2) + ' ريال';
+      document.getElementById('total_profit').textContent = totalProfit.toFixed(2) + ' ريال';
+
+      document.getElementById('new_phones_count').textContent = newPhonesCount;
+      document.getElementById('new_phones_purchase_value').textContent = newPhonesPurchaseValue.toFixed(2);
+      document.getElementById('new_phones_selling_value').textContent = newPhonesSellingValue.toFixed(2);
+      document.getElementById('new_phones_profit').textContent = newPhonesProfit.toFixed(2);
+
+      document.getElementById('used_phones_count').textContent = usedPhonesCount;
+      document.getElementById('used_phones_purchase_value').textContent = usedPhonesPurchaseValue.toFixed(2);
+      document.getElementById('used_phones_selling_value').textContent = usedPhonesSellingValue.toFixed(2);
+      document.getElementById('used_phones_profit').textContent = usedPhonesProfit.toFixed(2);
+
+      // تحديث ملخص الأكسسوارات
+      document.getElementById('total_accessories').textContent = totalAccessories;
+      document.getElementById('total_accessory_quantity').textContent = totalAccessoryQuantity;
+      document.getElementById('total_accessory_purchase_value').textContent = totalAccessoryPurchaseValue.toFixed(2) + ' ريال';
+      document.getElementById('total_accessory_selling_value').textContent = totalAccessorySellingValue.toFixed(2) + ' ريال';
+
+
+      // تحديث جداول التفاصيل
+      updatePhoneTypeSummary(newPhones, usedPhones);
+      updateBrandSummary(newPhones, usedPhones);
+
+    } catch (error) {
+      console.error('❌ خطأ في تحديث ملخص المخزون:', error);
+    }
+  }
+
+  // تحديث ملخص أنواع الهواتف من قاعدة البيانات
+  function updatePhoneTypeSummary(newPhones, usedPhones) {
+    const tbodyType = document.getElementById('phone_type_summary');
+    tbodyType.innerHTML = '';
+
+    const phoneTypes = [
+      { 
+        condition: 'new', 
+        phones: newPhones,
+        label: 'هواتف جديدة'
+      },
+      { 
+        condition: 'used', 
+        phones: usedPhones,
+        label: 'هواتف مستعملة'
+      }
+    ];
+
+    phoneTypes.forEach(type => {
+      if (type.phones.length > 0) {
+        const totalPurchase = type.phones.reduce((sum, p) => sum + (p.purchase_price || p.price || 0), 0);
+        const totalSelling = type.phones.reduce((sum, p) => sum + (p.selling_price || p.price || 0), 0);
+        const averagePrice = type.phones.length > 0 ? totalSelling / type.phones.length : 0;
+
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${type.label}</td>
+          <td>${type.phones.length}</td>
+          <td>${totalPurchase.toFixed(2)} ريال</td>
+          <td>${totalSelling.toFixed(2)} ريال</td>
+          <td>${(totalSelling - totalPurchase).toFixed(2)} ريال</td>
+          <td>${averagePrice.toFixed(2)} ريال</td>
+        `;
+        tbodyType.appendChild(tr);
+      }
+    });
+
+    if (newPhones.length === 0 && usedPhones.length === 0) {
+      const tr = document.createElement('tr');
+      tr.innerHTML = '<td colspan="6" class="text-center text-muted">لا توجد هواتف في المخزون</td>';
+      tbodyType.appendChild(tr);
+    }
+  }
+
+  // تحديث ملخص العلامات التجارية من قاعدة البيانات
+  function updateBrandSummary(newPhones, usedPhones) {
+    // ملخص الهواتف الجديدة حسب العلامة التجارية
+    const newBrandSummary = {};
+    newPhones.forEach(phone => {
+      const brand = phone.manufacturer || phone.brand;
+      const model = phone.model;
+      const key = `${brand}-${model}`;
+      if (!newBrandSummary[key]) {
+        newBrandSummary[key] = {
+          brand: brand,
+          model: model,
+          total_phones: 0,
+          total_purchase_value: 0,
+          total_selling_value: 0
+        };
+      }
+      newBrandSummary[key].total_phones++;
+      newBrandSummary[key].total_purchase_value += phone.purchase_price || phone.price || 0;
+      newBrandSummary[key].total_selling_value += phone.selling_price || phone.price || 0;
+    });
+
+    const newBrandTbody = document.getElementById('new_phones_brand_summary');
+    newBrandTbody.innerHTML = '';
+    
+    Object.values(newBrandSummary).forEach(brand => {
+      const averagePrice = brand.total_phones > 0 ? brand.total_selling_value / brand.total_phones : 0;
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td>${brand.brand}</td>
+        <td>${brand.model}</td>
+        <td>${brand.total_phones}</td>
+        <td>${brand.total_purchase_value.toFixed(2)} ريال</td>
+        <td>${brand.total_selling_value.toFixed(2)} ريال</td>
+        <td>${(brand.total_selling_value - brand.total_purchase_value).toFixed(2)} ريال</td>
+        <td>${averagePrice.toFixed(2)} ريال</td>
+      `;
+      newBrandTbody.appendChild(tr);
+    });
+
+    if (Object.keys(newBrandSummary).length === 0) {
+      const tr = document.createElement('tr');
+      tr.innerHTML = '<td colspan="7" class="text-center text-muted">لا توجد هواتف جديدة</td>';
+      newBrandTbody.appendChild(tr);
+    }
+
+    // ملخص الهواتف المستعملة حسب العلامة التجارية
+    const usedBrandSummary = {};
+    usedPhones.forEach(phone => {
+      const brand = phone.manufacturer || phone.brand;
+      const model = phone.model;
+      const key = `${brand}-${model}`;
+      if (!usedBrandSummary[key]) {
+        usedBrandSummary[key] = {
+          brand: brand,
+          model: model,
+          total_phones: 0,
+          total_purchase_value: 0,
+          total_selling_value: 0
+        };
+      }
+      usedBrandSummary[key].total_phones++;
+      usedBrandSummary[key].total_purchase_value += phone.purchase_price || phone.price || 0;
+      usedBrandSummary[key].total_selling_value += phone.selling_price || phone.price || 0;
+    });
+
+    const usedBrandTbody = document.getElementById('used_phones_brand_summary');
+    usedBrandTbody.innerHTML = '';
+    
+    Object.values(usedBrandSummary).forEach(brand => {
+      const averagePrice = brand.total_phones > 0 ? brand.total_selling_value / brand.total_phones : 0;
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td>${brand.brand}</td>
+        <td>${brand.model}</td>
+        <td>${brand.total_phones}</td>
+        <td>${brand.total_purchase_value.toFixed(2)} ريال</td>
+        <td>${brand.total_selling_value.toFixed(2)} ريال</td>
+        <td>${(brand.total_selling_value - brand.total_purchase_value).toFixed(2)} ريال</td>
+        <td>${averagePrice.toFixed(2)} ريال</td>
+      `;
+      usedBrandTbody.appendChild(tr);
+    });
+
+    if (Object.keys(usedBrandSummary).length === 0) {
+      const tr = document.createElement('tr');
+      tr.innerHTML = '<td colspan="7" class="text-center text-muted">لا توجد هواتف مستعملة</td>';
+      usedBrandTbody.appendChild(tr);
+    }
+  }
+
+  // تهيئة الصفحة
+  document.addEventListener('DOMContentLoaded', async function() {
+    // التحقق من تسجيل الدخول أولاً
+    if (!checkLogin()) return;
+
+    // انتظار تهيئة Firebase
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    
+    if (window.storage && window.storage.isFirebaseAvailable) {
+      console.log('✅ Firebase متاح في صفحة ملخص المخزون');
+    } else {
+      console.log('⚠️ Firebase غير متاح، استخدام localStorage');
+    }
+
+    // تحديث ملخص المخزون
+    await updateInventorySummary();
+
+    // تحديث البيانات كل 10 ثوانِ
+    setInterval(updateInventorySummary, 10000);
+  });
+</script>
+
+<!-- Navigation Script -->
+<script src="js/navigation.js"></script>
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    initNavigation('inventory_summary');
+  });
+</script>
+</body>
+</html>

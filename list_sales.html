@@ -1,0 +1,695 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>قائمة المبيعات — عبدالملك للاتصالات</title>
+
+  <!-- نفس الخط/المكتبات -->
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&display=swap" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+
+  <style>
+    body { font-family: 'Cairo', sans-serif; background-color: #f8f9fa; padding-top: 70px; }
+    .navbar { 
+      background-color: #2c3e50; 
+      position: fixed; 
+      top: 0; 
+      width: 100%; 
+      z-index: 1030; 
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    .navbar-brand, .nav-link { color: white !important; }
+    .card { margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.08); }
+    .card-header { font-weight: 600; }
+    .table thead.table-dark th { vertical-align: middle; }
+  </style>
+</head>
+<body>
+
+  <!-- شريط التنقل -->
+  <nav class="navbar navbar-expand-lg navbar-dark">
+    <div class="container">
+      <span class="navbar-brand">عبدالملك للاتصالات</span>
+      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+
+      <div class="collapse navbar-collapse" id="navbarNav">
+        <ul class="navbar-nav me-auto">
+          <!-- Navigation will be populated by navigation.js -->
+        </ul>
+      </div>
+    </div>
+  </nav>
+
+<div class="container mt-4">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="fas fa-shopping-cart"></i> قائمة المبيعات</h2>
+    <div>
+      <a href="create_sale.html" class="btn btn-success me-2">
+        <i class="fas fa-plus"></i> إنشاء عملية بيع جديدة
+      </a>
+      <a href="dashboard.html" class="btn btn-secondary">
+        <i class="fas fa-arrow-left"></i> العودة للوحة التحكم
+      </a>
+    </div>
+  </div>
+
+  <!-- منطقة التصفية -->
+  <div class="card mb-4">
+    <div class="card-header bg-primary text-white">
+      <h5 class="mb-0"><i class="fas fa-filter"></i> تصفية المبيعات</h5>
+    </div>
+    <div class="card-body">
+      <form id="filterForm" class="row g-3" action="#" onsubmit="applyFilter(); return false;">
+        <div class="col-md-3">
+          <label for="filter_type" class="form-label">نوع التصفية</label>
+          <select class="form-select" id="filter_type" name="filter_type" onchange="toggleDateInput()">
+            <option value="all">جميع المبيعات</option>
+            <option value="day">يوم محدد</option>
+            <option value="month">شهر محدد</option>
+            <option value="year">سنة محددة</option>
+          </select>
+        </div>
+
+        <!-- Day -->
+        <div class="col-md-3" id="day_filter_container" style="display:none;">
+          <label for="filter_date" class="form-label">التاريخ</label>
+          <input type="date" class="form-control" id="filter_date" name="filter_date" value="">
+        </div>
+
+        <!-- Month -->
+        <div class="col-md-6" id="month_filter_container" style="display:none;">
+          <div class="row">
+            <div class="col-md-6">
+              <label for="filter_month_year" class="form-label">السنة</label>
+              <select class="form-select" id="filter_month_year" name="filter_month_year">
+                <option value="">اختر السنة</option>
+              </select>
+            </div>
+            <div class="col-md-6">
+              <label for="filter_month_month" class="form-label">الشهر</label>
+              <select class="form-select" id="filter_month_month" name="filter_month_month">
+                <option value="">اختر الشهر</option>
+                <option value="01">يناير</option>
+                <option value="02">فبراير</option>
+                <option value="03">مارس</option>
+                <option value="04">أبريل</option>
+                <option value="05">مايو</option>
+                <option value="06">يونيو</option>
+                <option value="07">يوليو</option>
+                <option value="08">أغسطس</option>
+                <option value="09">سبتمبر</option>
+                <option value="10">أكتوبر</option>
+                <option value="11">نوفمبر</option>
+                <option value="12">ديسمبر</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <!-- Year -->
+        <div class="col-md-3" id="year_filter_container" style="display:none;">
+          <label for="filter_year" class="form-label">السنة</label>
+          <select class="form-select" id="filter_year" name="filter_year">
+            <option value="">اختر السنة</option>
+          </select>
+        </div>
+
+        <!-- Sale number search -->
+        <div class="col-md-3">
+          <label for="filter_sale_number" class="form-label">رقم الفاتورة</label>
+          <input type="text" class="form-control arabic-number-field" id="filter_sale_number" placeholder="اكتب رقم الفاتورة (SALE-...)" oninput="applyCurrentFilter()">
+        </div>
+
+        <div class="col-md-3">
+          <label class="form-label">&nbsp;</label>
+          <div>
+            <button type="submit" class="btn btn-primary">
+              <i class="fas fa-search"></i> تطبيق التصفية
+            </button>
+            <button type="button" class="btn btn-secondary" onclick="resetFilter()">
+              <i class="fas fa-undo"></i> إعادة تعيين
+            </button>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ملخص التصفية الحالية -->
+  <div id="active_filter_alert" class="alert alert-info mb-4 d-none">
+    <h6 class="alert-heading mb-0">
+      <i class="fas fa-filter"></i>
+      <strong>التصفية الحالية:</strong>
+      <span id="active_filter_text"></span>
+    </h6>
+  </div>
+
+  <!-- جدول المبيعات -->
+  <div id="sales_block" class="card d-none">
+    <div class="card-header">
+      <h5 class="mb-0">إجمالي عمليات البيع: <span id="total_sales_count">0</span></h5>
+    </div>
+    <div class="card-body">
+      <div class="table-responsive">
+        <table class="table table-striped table-hover">
+          <thead class="table-dark">
+            <tr>
+              <th>رقم العملية</th>
+              <th>التاريخ</th>
+              <th>اسم العميل</th>
+              <th>عدد المنتجات</th>
+              <th>المبلغ الإجمالي</th>
+              <th>طريقة الدفع</th>
+              <th>الحالة</th>
+              <th>الإجراءات</th>
+            </tr>
+          </thead>
+          <tbody id="sales_tbody">
+            <!-- تُملأ ديناميكياً -->
+          </tbody>
+        </table>
+      </div>
+      <div id="sales_pagination" class="d-flex justify-content-center mt-3"></div>
+    </div>
+  </div>
+
+  <!-- البطاقات التلخيصية -->
+  <div id="summary_cards" class="row mt-4 d-none">
+    <div class="col-md-3">
+      <div class="card bg-primary text-white">
+        <div class="card-body text-center">
+          <h5 class="card-title">إجمالي عمليات البيع</h5>
+          <h3 id="sum_total_sales_count">0</h3>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-6">
+      <div class="card bg-success text-white">
+        <div class="card-body text-center">
+          <h5 class="card-title">إجمالي المبيعات</h5>
+          <h3><span id="sum_total_sales_amount">0.00</span> ريال</h3>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- حالة عدم وجود بيانات -->
+  <div id="empty_state" class="card d-none">
+    <div class="card-body text-center py-5">
+      <i class="fas fa-shopping-cart fa-3x text-muted mb-3"></i>
+      <h4 class="text-muted">لا توجد مبيعات</h4>
+      <p class="text-muted" id="empty_state_text">لم يتم إنشاء أي مبيعات بعد</p>
+      <a href="create_sale.html" class="btn btn-primary">
+        <i class="fas fa-plus"></i> إنشاء عملية بيع جديدة
+      </a>
+    </div>
+  </div>
+</div>
+
+<!-- مكتبات JS نفسها -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+
+<!-- Firebase Configuration -->
+<script type="module" src="js/firebase-config-cdn.js?v=20260119"></script>
+<script type="module" src="js/firebase-database-cdn.js?v=20260119"></script>
+<script type="module" src="js/firebase-storage-manager.js?v=20260119"></script>
+
+<!-- Firebase Integration: Load sales from database -->
+<script>
+  // ---------- متغيرات عامة ----------
+  let salesAll = [];
+  let currentFilteredSales = [];
+  let currentPage = 1;
+  const pageSize = 20;
+
+  // ---------- دعم الأرقام العربية ----------
+  function convertArabicToEnglishNumbers(str) {
+    if (!str) return '';
+    const map = {'٠':'0','١':'1','٢':'2','٣':'3','٤':'4','٥':'5','٦':'6','٧':'7','٨':'8','٩':'9'};
+    return str.toString().replace(/[٠-٩]/g, m => map[m] ?? m);
+  }
+  
+  function parseArabicNumber(value) {
+    if (!value || value.trim() === '') return 0;
+    const converted = convertArabicToEnglishNumbers(value.toString());
+    const num = parseFloat(converted);
+    return isNaN(num) ? 0 : num;
+  }
+  
+  function setupArabicNumberSupport() {
+    document.querySelectorAll('.arabic-number-field').forEach(field => {
+      field.addEventListener('input', function() {
+        const pos = this.selectionStart;
+        const cv = convertArabicToEnglishNumbers(this.value);
+        if (cv !== this.value) {
+          this.value = cv;
+          this.setSelectionRange(pos, pos);
+        }
+      });
+    });
+  }
+
+  // ---------- أدوات مساعدة للوقت/التاريخ ----------
+  // يحوّل أي مدخل تاريخ (Date | ISO string | number | Firestore Timestamp | {seconds/_seconds, nanoseconds/_nanoseconds}) إلى Date صالح
+  function normalizeToDate(v) {
+    if (v == null) return null;
+
+    // 1) Date جاهز
+    if (v instanceof Date) {
+      return isNaN(v.getTime()) ? null : v;
+    }
+
+    // 2) Firestore Timestamp: toDate()
+    if (typeof v === 'object') {
+      if (typeof v.toDate === 'function') {
+        const d = v.toDate();
+        return isNaN(d?.getTime()) ? null : d;
+      }
+      // 3) شكل seconds/nanoseconds أو _seconds/_nanoseconds
+      if ('seconds' in v || '_seconds' in v) {
+        const sec  = Number(v.seconds ?? v._seconds ?? 0);
+        const nsec = Number(v.nanoseconds ?? v._nanoseconds ?? 0);
+        const ms = (sec * 1000) + Math.floor(nsec / 1e6);
+        const d = new Date(ms);
+        return isNaN(d.getTime()) ? null : d;
+      }
+    }
+
+    // 4) رقم: ms أو s
+    if (typeof v === 'number') {
+      const ms = v > 1e12 ? v : v * 1000; // إذا أقل من 1e12 نفترض ثواني
+      const d = new Date(ms);
+      return isNaN(d.getTime()) ? null : d;
+    }
+
+    // 5) سترنق: ISO أو رقمية
+    if (typeof v === 'string') {
+      const s = v.trim();
+      if (/^\d+$/.test(s)) {
+        const n = parseInt(s, 10);
+        const ms = n > 1e12 ? n : n * 1000;
+        const d = new Date(ms);
+        return isNaN(d.getTime()) ? null : d;
+      }
+      const d = new Date(s); // مثل "2025-09-20T11:34:48.797Z"
+      return isNaN(d.getTime()) ? null : d;
+    }
+
+    return null;
+  }
+
+  // يرجّع أفضل تاريخ موجود في السجل
+  function getSaleDateValue(sale) {
+    return (
+      normalizeToDate(sale?.date_created) ||
+      normalizeToDate(sale?.date_added)   ||
+      normalizeToDate(sale?.createdAt)    || // حسب بياناتك
+      normalizeToDate(sale?.created_at)   ||
+      null
+    );
+  }
+
+  // تحويل الأرقام العربية إلى لاتينية — يدعم المدخلات الرقمية
+  function convertToLatinNumbers(input) {
+    if (input == null) return '';
+    const str = String(input);
+    const map = {'٠':'0','١':'1','٢':'2','٣':'3','٤':'4','٥':'5','٦':'6','٧':'7','٨':'8','٩':'9'};
+    return str.replace(/[٠-٩]/g, d => map[d] || d);
+  }
+
+  const fmtMoney = n => convertToLatinNumbers((Number(n)||0).toFixed(2));
+
+  function formatDateTime(anyDate) {
+    // يُظهر بصيغة YYYY-MM-DD HH:mm بأرقام لاتينية
+    const d = normalizeToDate(anyDate);
+    if (!d) return '-';
+    const pad = x => String(x).padStart(2,'0');
+    const year    = d.getFullYear();
+    const month   = pad(d.getMonth() + 1);
+    const day     = pad(d.getDate());
+    const hours   = pad(d.getHours());
+    const minutes = pad(d.getMinutes());
+    return `${convertToLatinNumbers(year)}-${convertToLatinNumbers(month)}-${convertToLatinNumbers(day)} ${convertToLatinNumbers(hours)}:${convertToLatinNumbers(minutes)}`;
+  }
+
+  function sameDay(anyDate, y, m, d) {
+    const dt = normalizeToDate(anyDate);
+    if (!dt) return false;
+    return dt.getFullYear()===y && (dt.getMonth()+1)===m && dt.getDate()===d;
+  }
+  function sameMonth(anyDate, y, m) {
+    const dt = normalizeToDate(anyDate);
+    if (!dt) return false;
+    return dt.getFullYear()===y && (dt.getMonth()+1)===m;
+  }
+  function sameYear(anyDate, y) {
+    const dt = normalizeToDate(anyDate);
+    if (!dt) return false;
+    return dt.getFullYear()===y;
+  }
+
+  // ---------- تحميل البيانات من Firebase ----------
+  async function loadSalesFromFirebase() {
+    try {
+      console.log('🔄 تحميل قائمة المبيعات من Firebase...');
+      
+      if (window.storage && window.storage.isFirebaseAvailable) {
+        const sales = await window.storage.getSales();
+        salesAll = Array.isArray(sales) ? sales : [];
+        console.log('✅ تم تحميل المبيعات من Firebase:', salesAll.length);
+      } else {
+        console.log('💾 تحميل المبيعات من localStorage...');
+        salesAll = JSON.parse(localStorage.getItem('sales') || '[]');
+        console.log('✅ تم تحميل المبيعات من localStorage:', salesAll.length);
+      }
+      
+      applyCurrentFilter();
+      
+    } catch (error) {
+      console.error('❌ خطأ في تحميل المبيعات:', error);
+      salesAll = [];
+      showAlert('danger', 'حدث خطأ في تحميل قائمة المبيعات');
+    }
+  }
+
+  // ---------- تطبيق التصفية الحالية ----------
+  function applyCurrentFilter() {
+    const type = document.getElementById('filter_type').value;
+    let filtered = [...salesAll];
+    let summaryText = '';
+    let emptyHint = 'لم يتم إنشاء أي مبيعات بعد';
+
+    if (type==='day') {
+      const val = document.getElementById('filter_date').value;
+      if (val) {
+        const [y,m,d] = val.split('-').map(Number);
+        filtered = salesAll.filter(s => {
+          const dt = getSaleDateValue(s);
+          return dt && sameDay(dt, y, m, d);
+        });
+        summaryText = `مبيعات يوم ${convertToLatinNumbers(val)}`;
+      }
+    } else if (type==='month') {
+      const year = parseInt(document.getElementById('filter_month_year').value);
+      const month = parseInt(document.getElementById('filter_month_month').value);
+      if (year && month) {
+        filtered = salesAll.filter(s => {
+          const dt = getSaleDateValue(s);
+          return dt && sameMonth(dt, year, month);
+        });
+        summaryText = `مبيعات شهر ${convertToLatinNumbers(month)}/${convertToLatinNumbers(year)}`;
+      }
+    } else if (type==='year') {
+      const year = parseInt(document.getElementById('filter_year').value);
+      if (year) {
+        filtered = salesAll.filter(s => {
+          const dt = getSaleDateValue(s);
+          return dt && sameYear(dt, year);
+        });
+        summaryText = `مبيعات سنة ${convertToLatinNumbers(year)}`;
+      }
+    }
+
+    // Filter by sale number if provided
+    const saleNo = (document.getElementById('filter_sale_number')?.value || '').trim();
+    if (saleNo) {
+      const q = saleNo.toLowerCase();
+      filtered = filtered.filter(s => (s.sale_number || '').toLowerCase().includes(q));
+      summaryText = summaryText ? `${summaryText} — رقم الفاتورة يحتوي: ${saleNo}` : `رقم الفاتورة يحتوي: ${saleNo}`;
+    }
+
+    currentFilteredSales = filtered;
+    renderSales(filtered, type, summaryText, emptyHint);
+  }
+
+  // ---------- تعبئة سنوات القوائم ----------
+  function populateYears() {
+    const yearNow = new Date().getFullYear();
+    const years = [];
+    for (let y=yearNow+2; y>=yearNow-10; y--) years.push(y);
+
+    const selYear1 = document.getElementById('filter_month_year');
+    const selYear2 = document.getElementById('filter_year');
+    years.forEach(y => {
+      const o1 = document.createElement('option'); o1.value = y; o1.textContent = y; selYear1.appendChild(o1);
+      const o2 = document.createElement('option'); o2.value = y; o2.textContent = y; selYear2.appendChild(o2);
+    });
+  }
+
+  // ---------- منطق التبديل بين مدخلات التاريخ ----------
+  function toggleDateInput() {
+    const type = document.getElementById('filter_type').value;
+    const dayC = document.getElementById('day_filter_container');
+    const monC = document.getElementById('month_filter_container');
+    const yearC = document.getElementById('year_filter_container');
+    dayC.style.display = 'none'; monC.style.display = 'none'; yearC.style.display = 'none';
+    if (type==='day') dayC.style.display = 'block';
+    else if (type==='month') monC.style.display = 'block';
+    else if (type==='year') yearC.style.display = 'block';
+  }
+
+  // ---------- تطبيق/إعادة التصفية ----------
+  function applyFilter() {
+    applyCurrentFilter();
+  }
+
+  function resetFilter() {
+    document.getElementById('filterForm').reset();
+    toggleDateInput();
+    document.getElementById('filter_sale_number').value = '';
+    applyCurrentFilter();
+  }
+
+  // ---------- العرض ----------
+  function renderSales(sales, type='all', summaryText='', emptyHint='لم يتم إنشاء أي مبيعات بعد') {
+    const hasData = sales && sales.length>0;
+
+    // ملخص التصفية
+    const alertBox = document.getElementById('active_filter_alert');
+    const alertText = document.getElementById('active_filter_text');
+    if (type!=='all' && summaryText) {
+      alertText.textContent = summaryText;
+      alertBox.classList.remove('d-none');
+    } else {
+      alertBox.classList.add('d-none');
+      alertText.textContent = '';
+    }
+
+    // إظهار/إخفاء البلوكات
+    document.getElementById('sales_block').classList.toggle('d-none', !hasData);
+    document.getElementById('summary_cards').classList.toggle('d-none', !hasData);
+    document.getElementById('empty_state').classList.toggle('d-none', hasData);
+
+    // نص حالة فارغة
+    document.getElementById('empty_state_text').textContent = (type!=='all') ? 'لا توجد مبيعات تطابق معايير التصفية المحددة' : emptyHint;
+
+    if (!hasData) return;
+
+    // تطبيق التقسيم إلى صفحات
+    const totalItems = sales.length;
+    const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
+    if (currentPage > totalPages) currentPage = totalPages;
+    const startIdx = (currentPage - 1) * pageSize;
+    const endIdx = Math.min(startIdx + pageSize, totalItems);
+    const pageSlice = sales.slice(startIdx, endIdx);
+
+    // تعبئة الجدول
+    const tbody = document.getElementById('sales_tbody');
+    tbody.innerHTML = '';
+    // استبعاد المسترجعة من المجاميع فقط (لكن تظل معروضة ومحتسبة في عدد العمليات)                                                                           
+    const effectiveForTotals = (sales || []).filter(s => !(s && (s.returned === true || s.status === 'مسترجعة')));                                          
+    let totalAmount = 0;
+
+    pageSlice.forEach(sale => {
+      totalAmount   += sale.total_amount || 0;
+
+      const tr = document.createElement('tr');
+
+      // رقم العملية
+      const tdNum = document.createElement('td');
+      tdNum.innerHTML = `<span class="badge bg-primary">${sale.sale_number}</span>`;
+      tr.appendChild(tdNum);
+
+      // التاريخ
+      const tdDate = document.createElement('td');
+      const dt = getSaleDateValue(sale) || new Date();
+      tdDate.textContent = formatDateTime(dt);
+      tr.appendChild(tdDate);
+
+      // العميل
+      const tdCust = document.createElement('td');
+      tdCust.textContent = sale.customer_name || 'عميل نقدي';
+      tr.appendChild(tdCust);
+
+      // عدد المنتجات
+      const tdItems = document.createElement('td');
+      const count = sale.items ? sale.items.length : 0;
+      tdItems.innerHTML = `<span class="badge bg-info">${count}</span>`;
+      tr.appendChild(tdItems);
+
+      // المبلغ الإجمالي + تفاصيل
+      const tdAmt = document.createElement('td');
+      tdAmt.innerHTML = `
+        <span class="fw-bold text-success">${fmtMoney(sale.total_amount)} ريال</span>`;
+      tr.appendChild(tdAmt);
+
+      // طريقة الدفع
+      const tdPay = document.createElement('td');
+      tdPay.textContent = sale.payment_method || '-';
+      tr.appendChild(tdPay);
+
+      // الحالة (شارة)
+      const tdStatus = document.createElement('td');
+      let badge = 'bg-warning';
+      if (sale.status === 'مكتمل') badge = 'bg-success';
+      else if (sale.status === 'ملغي') badge = 'bg-danger';
+      tdStatus.innerHTML = `<span class="badge ${badge}">${sale.status || '-'}</span>`;
+      tr.appendChild(tdStatus);
+
+      // الإجراءات
+      const tdAct = document.createElement('td');
+      tdAct.innerHTML = `
+        <div class="btn-group" role="group">
+          <a href="view_sale.html?id=${encodeURIComponent(sale.id)}"
+             class="btn btn-sm btn-info" title="عرض التفاصيل">
+            <i class="fas fa-eye"></i>
+          </a>
+          <a class="btn btn-sm btn-success"
+             href="view_sale.html?id=${encodeURIComponent(sale.id)}&print=1"
+             title="طباعة الفاتورة">
+            <i class="fas fa-print"></i>
+          </a>
+        </div>
+      `;
+      tr.appendChild(tdAct);
+
+      tbody.appendChild(tr);
+    });
+
+    // الرأس + البطاقات
+    document.getElementById('total_sales_count').textContent = sales.length; // يشمل المسترجعة
+    document.getElementById('sum_total_sales_count').textContent = sales.length; // يشمل المسترجعة
+
+    // احسب المجاميع من غير المسترجعة فقط
+    totalAmount = 0;
+    effectiveForTotals.forEach(sale => {
+      totalAmount   += sale.total_amount || 0;
+    });
+
+    document.getElementById('sum_total_sales_amount').textContent = fmtMoney(totalAmount);
+
+    // رسم عناصر التصفح بين الصفحات
+    renderPagination(totalPages);
+  }
+
+  function renderPagination(totalPages) {
+    const container = document.getElementById('sales_pagination');
+    if (!container) return;
+    if (totalPages <= 1) { container.innerHTML = ''; return; }
+
+    let html = '<nav><ul class="pagination">';
+    const disabledPrev = (currentPage === 1) ? ' disabled' : '';
+    html += `<li class="page-item${disabledPrev}"><a class="page-link" href="#" onclick="gotoPage(${currentPage-1}); return false;">السابق</a></li>`;
+
+    const maxButtons = 5;
+    let start = Math.max(1, currentPage - Math.floor(maxButtons/2));
+    let end = Math.min(totalPages, start + maxButtons - 1);
+    if (end - start + 1 < maxButtons) start = Math.max(1, end - maxButtons + 1);
+
+    for (let p = start; p <= end; p++) {
+      const active = (p === currentPage) ? ' active' : '';
+      html += `<li class="page-item${active}"><a class="page-link" href="#" onclick="gotoPage(${p}); return false;">${p}</a></li>`;
+    }
+
+    const disabledNext = (currentPage === totalPages) ? ' disabled' : '';
+    html += `<li class="page-item${disabledNext}"><a class="page-link" href="#" onclick="gotoPage(${currentPage+1}); return false;">التالي</a></li>`;
+    html += '</ul></nav>';
+    container.innerHTML = html;
+  }
+
+  function gotoPage(p) {
+    if (p < 1) return;
+    currentPage = p;
+    // أعد الرسم بالاعتماد على الفلتر الحالي المخزن
+    renderSales(currentFilteredSales, 'all', '', 'لم يتم إنشاء أي مبيعات بعد');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  // (أُزيلت دالة البيانات التجريبية)
+
+  // ---------- عرض التنبيهات ----------
+  function showAlert(type, message) {
+    const alertDiv = document.createElement('div');
+    alertDiv.className = `alert alert-${type} alert-dismissible fade show`;
+    alertDiv.innerHTML = `
+      ${message}
+      <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+    
+    const container = document.querySelector('.container');
+    container.insertBefore(alertDiv, container.firstChild);
+    
+    setTimeout(() => {
+      if (alertDiv.parentNode) {
+        alertDiv.remove();
+      }
+    }, 5000);
+  }
+
+  // ---------- تهيئة ----------
+  function logout() {
+    if (confirm('هل أنت متأكد من تسجيل الخروج؟')) {
+      localStorage.removeItem('current_user');
+      alert('تم تسجيل الخروج بنجاح');
+      window.location.href = 'index.html';
+    }
+  }
+
+  // تحديث شريط التنقل حسب دور المستخدم (إظهار الرئيسية/تسجيل الخروج للمستخدم المحدود)
+  function updateNavigationForUser() {
+    const currentUser = localStorage.getItem('current_user');
+    if (!currentUser) return;
+    try {
+      const userData = JSON.parse(currentUser);
+      if (userData && userData.role === 'user') {
+        const navbar = document.querySelector('.navbar-nav.me-auto');
+        if (navbar) {
+          navbar.innerHTML = `
+            <li class=\"nav-item\"><a class=\"nav-link\" href=\"limited_dashboard.html\"><i class=\"fas fa-home\"></i> الرئيسية</a></li>
+            <li class=\"nav-item\"><a class=\"nav-link\" href=\"#\" onclick=\"logout()\"><i class=\"fas fa-sign-out-alt\"></i> تسجيل الخروج</a></li>
+          `;
+        }
+        const backBtn = document.querySelector('a.btn.btn-secondary[href="dashboard.html"]');
+        if (backBtn) backBtn.setAttribute('href', 'limited_dashboard.html');
+      }
+    } catch (e) { /* تجاهل أي خطأ في التحليل */ }
+  }
+
+  document.addEventListener('DOMContentLoaded', async () => {
+    // تحديث التنقل بناءً على دور المستخدم
+    updateNavigationForUser();
+    
+    // إعداد دعم الأرقام العربية
+    setupArabicNumberSupport();
+    
+    populateYears();
+    toggleDateInput();
+    await loadSalesFromFirebase();
+  });
+</script>
+
+<!-- Navigation Script -->
+<script src="js/navigation.js"></script>
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    initNavigation('list_sales');
+  });
+</script>
+
+</body>
+</html>

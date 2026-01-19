@@ -1,0 +1,927 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>البحث في المخزون — عبدالملك للاتصالات</title>
+
+  <!-- نفس الخط/المكتبات -->
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&display=swap" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+
+  <style>
+    body { font-family: 'Cairo', sans-serif; background-color: #f8f9fa; padding-top: 70px; }
+    .navbar { 
+      background-color: #2c3e50; 
+      position: fixed; 
+      top: 0; 
+      width: 100%; 
+      z-index: 1030; 
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    .navbar-brand, .nav-link { color: white !important; }
+    .card { box-shadow: 0 2px 6px rgba(0,0,0,0.08); }
+    .table thead.table-dark th { vertical-align: middle; }
+    
+    /* تحسين مظهر أزرار التنقل */
+    .pagination-nav .btn-group .btn {
+      border-radius: 0 !important;
+      font-weight: 500;
+      transition: all 0.2s ease;
+    }
+    
+    .pagination-nav .btn-group .btn:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    
+    .pagination-nav .btn-group .btn:first-child {
+      border-top-left-radius: 8px !important;
+      border-bottom-left-radius: 8px !important;
+    }
+    
+    .pagination-nav .btn-group .btn:last-child {
+      border-top-right-radius: 8px !important;
+      border-bottom-right-radius: 8px !important;
+    }
+    
+    .pagination-nav .btn-primary {
+      background-color: #007bff;
+      border-color: #007bff;
+      box-shadow: 0 2px 4px rgba(0,123,255,0.3);
+    }
+  </style>
+</head>
+<body>
+
+  <!-- شريط التنقل -->
+  <nav class="navbar navbar-expand-lg navbar-dark">
+    <div class="container">
+      <span class="navbar-brand">عبدالملك للاتصالات</span>
+      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+
+      <div class="collapse navbar-collapse" id="navbarNav">
+        <ul class="navbar-nav me-auto">
+          <!-- Navigation will be populated by navigation.js -->
+        </ul>
+      </div>
+    </div>
+  </nav>
+
+<div class="container mt-4">
+  <!-- Simple Header -->
+  <div class="row mb-4">
+    <div class="col-12">
+      <h2 class="text-center mb-3">
+        <i class="fas fa-search text-primary"></i> البحث في المخزون
+      </h2>
+    </div>
+  </div>
+
+  <!-- Simple Search Form -->
+  <div class="row justify-content-center">
+    <div class="col-md-8">
+      <div class="card">
+        <div class="card-body">
+          <!-- واجهة فقط: لا إرسال لخادم -->
+          <form id="searchForm" action="#" onsubmit="handleSearch(event)">
+            <div class="row">
+              <div class="col-md-8">
+                <div class="mb-3">
+                  <label for="search_term" class="form-label">كلمة البحث</label>
+                  <input type="text" class="form-control form-control-lg arabic-number-field" id="search_term" name="search_term"
+                         placeholder="أدخل الباركود، الرقم التسلسلي، اسم المنتج، الماركة، الموديل...">
+                </div>
+              </div>
+              <div class="col-md-4">
+                <div class="mb-3">
+                  <label for="search_type" class="form-label">نوع البحث</label>
+                  <select class="form-select form-select-lg" id="search_type" name="search_type">
+                    <option value="all">الكل</option>
+                    <option value="phones">الهواتف</option>
+                    <option value="accessories">الأكسسوارات</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+            <div class="text-center">
+              <button type="submit" class="btn btn-primary btn-lg px-4">
+                <i class="fas fa-search"></i> بحث
+              </button>
+              <button type="button" class="btn btn-secondary btn-lg px-4 ms-2" onclick="loadAllData()">
+                <i class="fas fa-list"></i> عرض الكل
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Search Results -->
+  <div id="results_wrap" class="row mt-4 d-none">
+    <div class="col-12">
+      <div class="card">
+        <div class="card-header bg-success text-white">
+          <h5 class="mb-0">
+            <i class="fas fa-list"></i>
+            نتائج البحث (<span id="results_count">0</span>)
+          </h5>
+        </div>
+        <div class="card-body" id="results_body">
+          <!-- يتم ملؤه ديناميكياً -->
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- مكتبات JS -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+<!-- Firebase Integration -->
+<script type="module" src="js/firebase-config-cdn.js?v=20260119"></script>
+<script type="module" src="js/firebase-database-cdn.js?v=20260119"></script>
+<script type="module" src="js/firebase-storage-manager.js?v=20260119"></script>
+
+<!-- Firebase Search Integration -->
+<script>
+  // ===== متغيرات البيانات =====
+  let allPhones = [];
+  let allAccessories = [];
+  let allSales = [];
+  
+  // ===== متغيرات الصفحات =====
+  const ITEMS_PER_PAGE = 20;
+  let currentPage = 1;
+  let totalPages = 1;
+  let currentSearchResults = { phones: [], accessories: [] };
+
+  // ===== دعم الأرقام العربية =====
+  function convertArabicToEnglishNumbers(str) {
+    if (!str) return '';
+    const map = {'٠':'0','١':'1','٢':'2','٣':'3','٤':'4','٥':'5','٦':'6','٧':'7','٨':'8','٩':'9'};
+    return str.toString().replace(/[٠-٩]/g, m => map[m] ?? m);
+  }
+  
+  function parseArabicNumber(value) {
+    if (!value || value.trim() === '') return 0;
+    const converted = convertArabicToEnglishNumbers(value.toString());
+    const num = parseFloat(converted);
+    return isNaN(num) ? 0 : num;
+  }
+  
+  function setupArabicNumberSupport() {
+    document.querySelectorAll('.arabic-number-field').forEach(field => {
+      field.addEventListener('input', function() {
+        const pos = this.selectionStart;
+        const cv = convertArabicToEnglishNumbers(this.value);
+        if (cv !== this.value) {
+          this.value = cv;
+          this.setSelectionRange(pos, pos);
+        }
+      });
+    });
+  }
+
+  // ===== الأدوات =====
+  const fmtMoney = n => (Number(n)||0).toFixed(2);
+  function includesAny(str, arr) {
+    const s = (str || '').toString().toLowerCase();
+    return arr.some(x => s.includes((x||'').toString().toLowerCase()));
+  }
+
+  // ===== تحويل الأرقام العربية إلى إنجليزية =====
+  function convertArabicToEnglishNumbers(str) {
+    if (!str) return '';
+    const map = {
+      '٠': '0', '١': '1', '٢': '2', '٣': '3', '٤': '4',
+      '٥': '5', '٦': '6', '٧': '7', '٨': '8', '٩': '9'
+    };
+    return str.toString().replace(/[٠-٩]/g, m => map[m] || m);
+  }
+
+  // ===== تحويل الأرقام الإنجليزية إلى عربية =====
+  function convertEnglishToArabicNumbers(str) {
+    if (!str) return '';
+    const map = {
+      '0': '٠', '1': '١', '2': '٢', '3': '٣', '4': '٤',
+      '5': '٥', '6': '٦', '7': '٧', '8': '٨', '9': '٩'
+    };
+    return str.toString().replace(/[0-9]/g, m => map[m] || m);
+  }
+
+  // ===== هل الهاتف مباع؟ (نفس منطق صفحة المبيعات مع شوية مرونة في الحقول) =====
+  function isPhoneSold(phoneId) {
+    if (!phoneId) return false;
+    if (!allSales || allSales.length === 0) return false;
+
+    // استبعدنا العمليات المسترجعة
+    const effectiveSales = allSales.filter(s => s && s.returned !== true && s.status !== 'مسترجعة');
+
+    // ابحث عن هاتف ضمن items يطابق المعرّف
+    return effectiveSales.some(sale =>
+      Array.isArray(sale.items) &&
+      sale.items.some(item => {
+        const isPhoneType =
+          item.type === 'phone' ||
+          item.product_type === 'phone' ||
+          item.type === 'هاتف';
+
+        const candidateIds = [
+          item.id,
+          item.phone_id,
+          item.barcode,
+          item.phone_number,
+          item.device_number,
+          item.serial_number
+        ].filter(Boolean).map(String);
+
+        return isPhoneType && candidateIds.includes(String(phoneId));
+      })
+    );
+  }
+
+
+  // (تمت إزالة عناصر نوع البحث وحالة الهاتف من واجهة البحث)
+
+  // ===== منطق البحث من قاعدة البيانات =====
+  async function handleSearch(e){
+    e.preventDefault();
+    const term = (document.getElementById('search_term').value || '').trim();
+    const type = document.getElementById('search_type').value || 'all';
+    const statusFilter = 'all';
+
+    console.log('🔍 البحث عن:', term, 'نوع:', type, 'حالة:', statusFilter);
+
+    if (!term) {
+      showAlert('warning', 'يرجى إدخال كلمة البحث');
+      return;
+    }
+
+    try {
+      // تحميل البيانات من Firebase أو localStorage
+      if (window.storage && window.storage.isFirebaseAvailable) {
+        console.log('🔥 تحميل البيانات من Firebase للبحث...');
+        allPhones = await window.storage.getPhones();
+        allAccessories = await window.storage.getAccessories();
+        allSales = await window.storage.getSales();
+        console.log('📱 الهواتف المحملة:', allPhones);
+        console.log('📦 الأكسسوارات المحملة:', allAccessories);
+        console.log('🧾 المبيعات المحملة:', allSales);
+      } else {
+        console.log('💾 Firebase غير متاح، تحميل من localStorage...');
+        allPhones = JSON.parse(localStorage.getItem('phones') || '[]');
+        allAccessories = JSON.parse(localStorage.getItem('accessories') || '[]');
+        allSales = JSON.parse(localStorage.getItem('sales') || '[]');
+        console.log('📱 الهواتف من localStorage:', allPhones);
+        console.log('📦 الأكسسوارات من localStorage:', allAccessories);
+        console.log('🧾 المبيعات من localStorage:', allSales);
+      }
+
+      // لم نعد نحتاج Set لأننا سنستخدم isPhoneSold مباشرة
+
+      // تحويل الأرقام العربية إلى إنجليزية للبحث
+      const englishTerm = convertArabicToEnglishNumbers(term);
+      const arabicTerm = convertEnglishToArabicNumbers(term);
+      
+      // البحث في كلا النسختين (عربية وإنجليزية)
+      const searchTerms = [term.toLowerCase(), englishTerm.toLowerCase(), arabicTerm.toLowerCase()];
+      const uniqueTerms = [...new Set(searchTerms)]; // إزالة التكرار
+      
+      console.log('🔤 الرموز المطلوب البحث عنها:', uniqueTerms);
+
+      let phones = [];
+      let accessories = [];
+
+      if (type === 'all' || type === 'phones') {
+        phones = allPhones.filter(p => {
+          
+          // البحث في النص مع دعم الأرقام العربية والإنجليزية
+          // إضافة serial_number إلى البحث
+          const searchText = `${p.phone_number || ''} ${p.serial_number || ''} ${p.manufacturer || p.brand || ''} ${p.model || ''} ${p.condition || p.phone_type || ''}`.toLowerCase();
+          const englishSearchText = convertArabicToEnglishNumbers(searchText);
+          const arabicSearchText = convertEnglishToArabicNumbers(searchText);
+          
+          console.log('🔍 البحث في الهاتف:', p.phone_number, 'الرقم التسلسلي:', p.serial_number, 'النص:', searchText, 'الحالة:', p.status || 'available');
+          
+          // البحث في جميع النسخ (الأصلية، الإنجليزية، العربية)
+          return uniqueTerms.some(term => 
+            searchText.includes(term) || 
+            englishSearchText.includes(term) || 
+            arabicSearchText.includes(term)
+          );
+        });
+      }
+
+      if (type === 'all' || type === 'accessories') {
+        accessories = allAccessories.filter(a => {
+          // إضافة الباركود و serial_number إلى البحث للأكسسوارات
+          const searchText = `${a.name || ''} ${a.arabic_name || ''} ${a.barcode || ''} ${a.barcode_id || ''} ${a.serial_number || ''} ${a.category || ''}`.toLowerCase();
+          const englishSearchText = convertArabicToEnglishNumbers(searchText);
+          const arabicSearchText = convertEnglishToArabicNumbers(searchText);
+          
+          console.log('🔍 البحث في الأكسسوار:', a.name || a.arabic_name, 'الباركود:', a.barcode, 'الرقم التسلسلي:', a.serial_number, 'النص:', searchText);
+          
+          // البحث في جميع النسخ (الأصلية، الإنجليزية، العربية)
+          return uniqueTerms.some(term => 
+            searchText.includes(term) || 
+            englishSearchText.includes(term) || 
+            arabicSearchText.includes(term)
+          );
+        });
+      }
+
+      console.log('📊 نتائج البحث:', { phones: phones.length, accessories: accessories.length });
+      console.log('📱 الهواتف المطابقة:', phones);
+      console.log('📦 الأكسسوارات المطابقة:', accessories);
+      
+      // حفظ النتائج وإعادة تعيين الصفحة الأولى
+      currentSearchResults = { phones, accessories };
+      currentPage = 1;
+      
+      renderResults(phones, accessories);
+
+    } catch (error) {
+      console.error('❌ خطأ في البحث:', error);
+      showAlert('danger', 'حدث خطأ في البحث. حاول مرة أخرى.');
+    }
+  }
+
+  // ===== العرض مع دعم الصفحات =====
+  function renderResults(phones, accessories){
+    const wrap = document.getElementById('results_wrap');
+    const body = document.getElementById('results_body');
+    const countEl = document.getElementById('results_count');
+
+    const total = (phones?.length || 0) + (accessories?.length || 0);
+    countEl.textContent = total;
+
+    wrap.classList.remove('d-none');
+    if (total === 0){
+      body.innerHTML = `
+        <div class="text-center py-4">
+          <i class="fas fa-search fa-3x text-muted mb-3"></i>
+          <h4 class="text-muted">لا توجد نتائج</h4>
+          <p class="text-muted">لم يتم العثور على أي نتائج تطابق معايير البحث</p>
+        </div>`;
+      return;
+    }
+
+    // حساب عدد الصفحات
+    totalPages = Math.ceil(total / ITEMS_PER_PAGE);
+    
+    // تحديد العناصر للصفحة الحالية
+    const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+    const endIndex = startIndex + ITEMS_PER_PAGE;
+    
+    // تقسيم النتائج للصفحة الحالية
+    const currentPhones = phones.slice(startIndex, endIndex);
+    const currentAccessories = accessories.slice(startIndex, endIndex);
+
+    let html = '';
+
+    // Phones - Sort by status: available first, then sold
+    if (phones && phones.length){
+      // ترتيب الجوالات: المتاحة أولاً، ثم المباعة
+      const sortedPhones = phones.sort((a, b) => {
+        const aId = a.id || a.phone_number || a.device_number || a.serial_number;
+        const bId = b.id || b.phone_number || b.device_number || b.serial_number;
+        
+        const aSold = aId && isPhoneSold(String(aId));
+        const bSold = bId && isPhoneSold(String(bId));
+        
+        // المتاحة تأتي أولاً (false يأتي قبل true)
+        if (aSold !== bSold) {
+          return aSold ? 1 : -1;
+        }
+        
+        // إذا كانت نفس الحالة، ترتيب حسب رقم الجهاز
+        return (a.phone_number || '').localeCompare(b.phone_number || '');
+      });
+      
+      // استخدام الجوالات المفلترة للصفحة الحالية
+      const phonesForCurrentPage = sortedPhones.slice(startIndex, endIndex);
+      
+      html += `
+        <div class="mb-4">
+          <h6 class="text-primary mb-3">
+            <i class="fas fa-mobile-alt"></i> الهواتف (${phones.length}) - الصفحة ${currentPage} من ${totalPages}
+          </h6>
+          <div class="table-responsive">
+            <table class="table table-striped">
+              <thead class="table-dark">
+                <tr>
+                  <th>الباركود/رقم الجهاز</th>
+                  <th>الرقم التسلسلي</th>
+                  <th>الشركة المصنعة</th>
+                  <th>الموديل</th>
+                  <th>الحالة</th>
+                  <th>سعر الشراء</th>
+                  <th>سعر البيع</th>
+                  <th>الإجراءات</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${phonesForCurrentPage.map(p => `
+                  <tr>
+                    <td><strong>${p.phone_number || p.device_number || 'غير محدد'}</strong></td>
+                    <td><span class="text-info">${p.serial_number || 'غير محدد'}</span></td>
+                    <td>${p.manufacturer || p.brand || 'غير محدد'}</td>
+                    <td>${p.model || 'غير محدد'}</td>
+                    <td>
+                      ${
+                        (() => {
+                          const pid = p.id || p.phone_number || p.device_number || p.serial_number;
+                          return (pid && isPhoneSold(String(pid)))
+                            ? '<span class="badge bg-danger">مباع</span>'
+                            : '<span class="badge bg-success">متاح</span>';
+                        })()
+                      }
+                    </td>
+                    <td><span class="text-success">${fmtMoney(p.purchase_price || 0)} ريال</span></td>
+                    <td><span class="text-primary">${fmtMoney(p.selling_price || p.price || 0)} ريال</span></td>
+                    <td>
+                      <div class="btn-group" role="group">
+                        <button type="button" class="btn btn-sm btn-outline-info" onclick="viewPhoneDetails('${p.phone_number || p.id}')" title="عرض التفاصيل">
+                          <i class="fas fa-eye"></i>
+                        </button>
+                        <button type="button" class="btn btn-sm btn-outline-primary" onclick="editPhone('${p.phone_number || p.id}')" title="تعديل">
+                          <i class="fas fa-edit"></i>
+                        </button>
+                        <!-- ✅ زر طباعة الباركود -->
+                        <button type="button" class="btn btn-sm btn-outline-dark"
+                                onclick="goPrintBarcode('${p.phone_number || p.device_number || p.serial_number || p.id}')"
+                                title="طباعة الباركود">
+                          <i class="fas fa-barcode"></i>
+                        </button>
+                        <!-- ✅ زر حذف الجهاز -->
+                        <button type="button" class="btn btn-sm btn-outline-danger"
+                                onclick="deletePhone('${p.id || p.phone_number}')"
+                                title="حذف الجهاز">
+                          <i class="fas fa-trash"></i>
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          </div>
+        </div>`;
+    }
+
+    // Accessories
+    if (accessories && accessories.length){
+      // استخدام الأكسسوارات المفلترة للصفحة الحالية
+      const accessoriesForCurrentPage = accessories.slice(startIndex, endIndex);
+      
+      html += `
+        <div class="mb-4">
+          <h6 class="text-success mb-3">
+            <i class="fas fa-box"></i> الأكسسوارات (${accessories.length}) - الصفحة ${currentPage} من ${totalPages}
+          </h6>
+          <div class="table-responsive">
+            <table class="table table-striped">
+              <thead class="table-dark">
+                <tr>
+                  <th>الاسم</th>
+                  <th>الباركود</th>
+                  <th>الرقم التسلسلي</th>
+                  <th>الفئة</th>
+                  <th>الكمية</th>
+                  <th>سعر الشراء</th>
+                  <th>سعر البيع</th>
+                  <th>الإجراءات</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${accessoriesForCurrentPage.map(a => `
+                  <tr>
+                    <td><strong>${a.arabic_name || a.name || 'غير محدد'}</strong></td>
+                    <td><span class="text-info">${a.barcode || 'غير محدد'}</span></td>
+                    <td><span class="text-info">${a.serial_number || 'غير محدد'}</span></td>
+                    <td><span class="badge bg-primary">${a.category || 'غير محدد'}</span></td>
+                    <td><span class="badge bg-success">${a.quantity_in_stock || a.quantity || 0}</span></td>
+                    <td><span class="text-success">${fmtMoney(a.purchase_price || 0)} ريال</span></td>
+                    <td><span class="text-primary">${fmtMoney(a.selling_price || 0)} ريال</span></td>
+                    <td>
+                      <div class="btn-group" role="group">
+                        <button type="button" class="btn btn-sm btn-outline-info" onclick="viewAccessoryDetails('${a.id}')" title="عرض التفاصيل">
+                          <i class="fas fa-eye"></i>
+                        </button>
+                        <button type="button" class="btn btn-sm btn-outline-primary" onclick="editAccessory('${a.id}')" title="تعديل">
+                          <i class="fas fa-edit"></i>
+                        </button>
+                        ${a.barcode ? `<button type="button" class="btn btn-sm btn-outline-success" onclick="goPrintAccessoryBarcode('${a.barcode}')" title="طباعة الباركود">
+                          <i class="fas fa-barcode"></i>
+                        </button>` : ''}
+                        <button type="button" class="btn btn-sm btn-outline-danger" onclick="deleteAccessory('${a.id}')" title="حذف">
+                          <i class="fas fa-trash"></i>
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          </div>
+        </div>`;
+    }
+
+    // إضافة أزرار التنقل بين الصفحات
+    if (totalPages > 1) {
+      html += generatePaginationButtons();
+    }
+
+    wrap.classList.remove('d-none');
+    body.innerHTML = html;
+  }
+
+  // ===== دوال الصفحات =====
+  
+  // إنشاء أزرار التنقل بين الصفحات
+  function generatePaginationButtons() {
+    let buttons = '';
+    
+    // زر الصفحة السابقة
+    if (currentPage > 1) {
+      buttons += `<button class="btn btn-outline-primary btn-sm" onclick="goToPage(${currentPage - 1})">
+        <i class="fas fa-chevron-right"></i> السابق
+      </button>`;
+    }
+    
+    // أزرار الصفحات
+    const startPage = Math.max(1, currentPage - 2);
+    const endPage = Math.min(totalPages, currentPage + 2);
+    
+    if (startPage > 1) {
+      buttons += `<button class="btn btn-outline-secondary btn-sm" onclick="goToPage(1)">1</button>`;
+      if (startPage > 2) {
+        buttons += `<span class="mx-2 text-muted">...</span>`;
+      }
+    }
+    
+    for (let i = startPage; i <= endPage; i++) {
+      const isActive = i === currentPage ? 'btn-primary' : 'btn-outline-secondary';
+      buttons += `<button class="btn ${isActive} btn-sm" onclick="goToPage(${i})">${i}</button>`;
+    }
+    
+    if (endPage < totalPages) {
+      if (endPage < totalPages - 1) {
+        buttons += `<span class="mx-2 text-muted">...</span>`;
+      }
+      buttons += `<button class="btn btn-outline-secondary btn-sm" onclick="goToPage(${totalPages})">${totalPages}</button>`;
+    }
+    
+    // زر الصفحة التالية
+    if (currentPage < totalPages) {
+      buttons += `<button class="btn btn-outline-primary btn-sm" onclick="goToPage(${currentPage + 1})">
+        التالي <i class="fas fa-chevron-left"></i>
+      </button>`;
+    }
+    
+    return `
+      <div class="d-flex justify-content-center mt-4 mb-4">
+        <nav aria-label="تنقل الصفحات" class="pagination-nav">
+          <div class="btn-group shadow-sm" role="group" style="border-radius: 8px; overflow: hidden;">
+            ${buttons}
+          </div>
+        </nav>
+      </div>
+    `;
+  }
+  
+  // الانتقال لصفحة محددة
+  function goToPage(page) {
+    if (page < 1 || page > totalPages || page === currentPage) return;
+    
+    currentPage = page;
+    renderResults(currentSearchResults.phones, currentSearchResults.accessories);
+    
+    // التمرير لأعلى الصفحة
+    document.getElementById('results_wrap').scrollIntoView({ behavior: 'smooth' });
+  }
+
+  // ===== دوال الإجراءات =====
+  
+  // عرض تفاصيل الهاتف
+  function viewPhoneDetails(phoneNumber) {
+    const phone = allPhones.find(p => p.phone_number === phoneNumber || p.id === phoneNumber);
+    if (phone) {
+      const details = `
+رقم الجهاز: ${phone.phone_number || phone.device_number || 'غير محدد'}
+الشركة المصنعة: ${phone.manufacturer || phone.brand || 'غير محدد'}
+الموديل: ${phone.model || 'غير محدد'}
+الحالة: ${phone.condition === 'new' || phone.phone_type === 'new' ? 'جديد' : 'مستعمل'}
+سعر الشراء: ${fmtMoney(phone.purchase_price || 0)} ريال
+سعر البيع: ${fmtMoney(phone.selling_price || phone.price || 0)} ريال
+الربح: ${fmtMoney((phone.selling_price || phone.price || 0) - (phone.purchase_price || 0))} ريال
+الذاكرة: ${phone.phone_memory || phone.memory || 'غير محدد'}
+نسبة البطارية: ${phone.battery_level || phone.age || 'غير محدد'}
+اللون: ${phone.phone_color || 'غير محدد'}
+الرقم التسلسلي: ${phone.serial_number || 'غير محدد'}
+الضمان: ${phone.warranty || 'غير محدد'} شهر
+      `;
+      alert(details);
+    }
+  }
+
+  // تعديل الهاتف
+  function editPhone(phoneNumber) {
+    const phone = allPhones.find(p => p.phone_number === phoneNumber || p.id === phoneNumber);
+    if (phone) {
+      // توجيه إلى صفحة التعديل المخصصة
+      window.location.href = `edit_phone.html?edit=${phoneNumber}`;
+    }
+  }
+
+  // عرض تفاصيل الأكسسوار
+  function viewAccessoryDetails(accessoryId) {
+    const accessory = allAccessories.find(a => a.id === accessoryId);
+    if (accessory) {
+      const details = `
+الاسم: ${accessory.arabic_name || accessory.name || 'غير محدد'}
+الفئة: ${accessory.category || 'غير محدد'}
+الكمية: ${accessory.quantity_in_stock || accessory.quantity || 0}
+سعر الشراء: ${fmtMoney(accessory.purchase_price || 0)} ريال
+سعر البيع: ${fmtMoney(accessory.selling_price || 0)} ريال
+المورد: ${accessory.supplier || 'غير محدد'}
+الوصف: ${accessory.description || 'لا يوجد وصف'}
+      `;
+      alert(details);
+    }
+  }
+
+  // تعديل الأكسسوار
+  function editAccessory(accessoryId) {
+    window.location.href = `edit_accessory.html?id=${accessoryId}`;
+  }
+
+  // حذف الأكسسوار
+  async function deleteAccessory(accessoryId) {
+    const accessory = allAccessories.find(a => a.id === accessoryId);
+    if (!accessory) return;
+
+    if (!confirm(`هل أنت متأكد من حذف "${accessory.arabic_name || accessory.name}"؟`)) return;
+
+    try {
+      if (window.storage && window.storage.isFirebaseAvailable) {
+        const success = await window.storage.deleteAccessory(accessoryId);
+        if (success) {
+          showAlert('success', 'تم حذف الأكسسوار بنجاح');
+          // إعادة البحث لعرض النتائج المحدثة
+          document.getElementById('searchForm').dispatchEvent(new Event('submit'));
+        } else {
+          showAlert('danger', 'فشل في حذف الأكسسوار');
+        }
+      } else {
+        showAlert('warning', 'Firebase غير متاح. لا يمكن حذف الأكسسوار.');
+      }
+    } catch (error) {
+      console.error('❌ خطأ في حذف الأكسسوار:', error);
+      showAlert('danger', 'حدث خطأ في حذف الأكسسوار');
+    }
+  }
+
+  // عرض التنبيهات
+  function showAlert(type, message) {
+    const alertDiv = document.createElement('div');
+    alertDiv.className = `alert alert-${type} alert-dismissible fade show position-fixed`;
+    alertDiv.style.cssText = 'top: 20px; right: 20px; z-index: 9999; min-width: 300px;';
+    alertDiv.innerHTML = `
+      ${message}
+      <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+    
+    document.body.appendChild(alertDiv);
+    
+    setTimeout(() => {
+      if (alertDiv.parentNode) {
+        alertDiv.remove();
+      }
+    }, 5000);
+  }
+
+  // التحقق من تسجيل الدخول
+  function checkLogin() {
+    const currentUser = localStorage.getItem('current_user');
+    if (!currentUser) {
+      alert('يجب تسجيل الدخول أولاً');
+      window.location.href = 'login.html';
+      return false;
+    }
+    return true;
+  }
+
+  // تسجيل الخروج
+  function logout() {
+    if (confirm('هل أنت متأكد من تسجيل الخروج؟')) {
+      localStorage.removeItem('current_user');
+      alert('تم تسجيل الخروج بنجاح');
+      window.location.href = 'index.html';
+    }
+  }
+
+  // ===== تحميل جميع البيانات عند فتح الصفحة =====
+  async function loadAllData() {
+    try {
+      if (window.storage && window.storage.isFirebaseAvailable) {
+        console.log('🔥 تحميل جميع البيانات من Firebase...');
+        allPhones = await window.storage.getPhones();
+        allAccessories = await window.storage.getAccessories();
+        allSales = await window.storage.getSales(); // ✅ مهم
+        console.log('📱 جميع الهواتف:', allPhones);
+        console.log('📦 جميع الأكسسوارات:', allAccessories);
+        console.log('🧾 جميع المبيعات:', allSales);
+      } else {
+        console.log('💾 Firebase غير متاح، تحميل من localStorage...');
+        allPhones = JSON.parse(localStorage.getItem('phones') || '[]');
+        allAccessories = JSON.parse(localStorage.getItem('accessories') || '[]');
+        allSales = JSON.parse(localStorage.getItem('sales') || '[]'); // ✅ مهم
+        console.log('📱 الهواتف من localStorage:', allPhones);
+        console.log('📦 الأكسسوارات من localStorage:', allAccessories);
+        console.log('🧾 المبيعات من localStorage:', allSales);
+      }
+
+      // حفظ النتائج وإعادة تعيين الصفحة الأولى
+      currentSearchResults = { phones: allPhones, accessories: allAccessories };
+      currentPage = 1;
+      
+      // عرض جميع البيانات (الـ isPhoneSold بتقرأ من allSales)
+      renderResults(allPhones, allAccessories);
+      
+    } catch (error) {
+      console.error('❌ خطأ في تحميل البيانات:', error);
+      showAlert('danger', 'حدث خطأ في تحميل البيانات');
+    }
+  }
+
+  // Check user role and update navigation
+  function updateNavigationForUser() {
+    const currentUser = localStorage.getItem('current_user');
+    if (currentUser) {
+      try {
+        const userData = JSON.parse(currentUser);
+        const navbar = document.querySelector('.navbar-nav.me-auto');
+        
+        if (userData.role === 'user') {
+          // Show simplified navigation for limited users
+          navbar.innerHTML = `
+            <li class="nav-item"><a class="nav-link" href="limited_dashboard.html"><i class="fas fa-home"></i> الرئيسية</a></li>
+            <li class="nav-item"><a class="nav-link" href="#" onclick="logout()"><i class="fas fa-sign-out-alt"></i> تسجيل الخروج</a></li>
+          `;
+        }
+        // Admin users keep the full navigation (default)
+      } catch (error) {
+        console.error('Error parsing user data:', error);
+      }
+    }
+  }
+
+  // تهيئة الصفحة
+  document.addEventListener('DOMContentLoaded', async function() {
+    // Update navigation based on user role
+    updateNavigationForUser();
+    
+    // إعداد دعم الأرقام العربية
+    setupArabicNumberSupport();
+    
+    // التحقق من تسجيل الدخول أولاً
+    if (!checkLogin()) return;
+
+    // انتظار تهيئة Firebase
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    
+    if (window.storage && window.storage.isFirebaseAvailable) {
+      console.log('✅ Firebase متاح في صفحة البحث');
+    } else {
+      console.log('⚠️ Firebase غير متاح، استخدام localStorage');
+    }
+    
+    // لا تُظهر النتائج افتراضياً — تُعرض فقط بعد البحث أو عند النقر على "عرض الكل"
+    
+    // البحث التلقائي بالباركود إذا تم تمريره في URL
+    const urlParams = new URLSearchParams(window.location.search);
+    const barcode = urlParams.get('barcode');
+    const type = urlParams.get('type');
+    
+    if (barcode) {
+      console.log('🔍 بحث تلقائي بالباركود:', barcode, 'النوع:', type);
+      document.getElementById('search_term').value = barcode;
+      
+      if (type) {
+        document.getElementById('search_type').value = type === 'accessory' ? 'accessories' : 'phones';
+      }
+      
+      // تنفيذ البحث تلقائياً
+      setTimeout(() => {
+        handleSearch({ preventDefault: () => {} });
+      }, 500);
+    }
+  });
+
+  // ===== طباعة الباركود =====
+  function goPrintBarcode(rawCode) {
+    const code = String(rawCode || '').trim();
+    if (!code) { 
+      showAlert('warning', 'لا يوجد رقم باركود صالح لهذا الجهاز'); 
+      return; 
+    }
+    // ✅ نوجّه بنفس الشكل المطلوب
+    window.location.href = `print_barcode.html?edit=${encodeURIComponent(code)}`;
+  }
+
+  // ===== طباعة باركود الإكسسوار =====
+  function goPrintAccessoryBarcode(rawCode) {
+    const code = String(rawCode || '').trim();
+    if (!code) { 
+      showAlert('warning', 'لا يوجد رقم باركود صالح لهذا الإكسسوار'); 
+      return; 
+    }
+    // توجيه لصفحة طباعة باركود الإكسسوارات
+    window.location.href = `print_accessory_barcode.html?barcode=${encodeURIComponent(code)}`;
+  }
+
+  // ===== حذف الجهاز =====
+  async function deletePhone(phoneId) {
+    console.log('🗑️ محاولة حذف الجهاز:', phoneId);
+    
+    if (!phoneId) {
+      console.error('❌ معرف الجهاز غير صالح');
+      showAlert('danger', 'معرف الجهاز غير صالح');
+      return;
+    }
+
+    // العثور على الجهاز للتأكد من وجوده
+    const phone = allPhones.find(p => p.id === phoneId || p.phone_number === phoneId);
+    if (!phone) {
+      console.error('❌ لم يتم العثور على الجهاز:', phoneId);
+      showAlert('danger', 'لم يتم العثور على الجهاز المطلوب');
+      return;
+    }
+
+    // التحقق من أن الجهاز غير مباع
+    const phoneIdentifier = phone.id || phone.phone_number || phone.device_number || phone.serial_number;
+    if (phoneIdentifier && isPhoneSold(String(phoneIdentifier))) {
+      showAlert('warning', 'لا يمكن حذف جهاز تم بيعه مسبقاً');
+      return;
+    }
+
+    // تأكيد الحذف
+    const confirmMessage = `هل أنت متأكد من حذف هذا الجهاز؟
+
+الجهاز: ${phone.manufacturer || phone.brand || 'غير محدد'} ${phone.model || 'غير محدد'}
+الباركود: ${phone.phone_number || 'غير محدد'}
+الرقم التسلسلي: ${phone.serial_number || 'غير محدد'}
+
+⚠️ تحذير: هذا الإجراء لا يمكن التراجع عنه!`;
+
+    if (!confirm(confirmMessage)) {
+      console.log('❌ تم إلغاء عملية الحذف');
+      return;
+    }
+
+    try {
+      console.log('🔄 بدء عملية الحذف...');
+      
+      if (window.storage && window.storage.isFirebaseAvailable) {
+        // حذف من Firebase
+        console.log('🔥 حذف من Firebase...');
+        await window.storage.deletePhone(phoneId);
+        console.log('✅ تم الحذف من Firebase بنجاح');
+      } else {
+        // حذف من localStorage
+        console.log('💾 حذف من localStorage...');
+        const phones = JSON.parse(localStorage.getItem('phones') || '[]');
+        const updatedPhones = phones.filter(p => p.id !== phoneId && p.phone_number !== phoneId);
+        localStorage.setItem('phones', JSON.stringify(updatedPhones));
+        console.log('✅ تم الحذف من localStorage بنجاح');
+      }
+
+      // إعادة تحميل البيانات وعرض النتائج
+      await loadAllData();
+      
+      showAlert('success', 'تم حذف الجهاز بنجاح');
+      console.log('✅ تم حذف الجهاز بنجاح');
+      
+    } catch (error) {
+      console.error('❌ خطأ في حذف الجهاز:', error);
+      showAlert('danger', 'حدث خطأ في حذف الجهاز. حاول مرة أخرى.');
+    }
+  }
+</script>
+
+<!-- Navigation Script -->
+<script src="js/navigation.js"></script>
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    initNavigation('search');
+  });
+</script>
+</body>
+</html>

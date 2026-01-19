@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>طباعة الباركود — عبدالملك للاتصالات</title>
+
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&display=swap" rel="stylesheet" />
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet" />
+
+  <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
+
+  <!-- Firebase so we can read the phone back -->
+  <script type="module" src="js/firebase-config-cdn.js?v=20260119"></script>
+  <script type="module" src="js/firebase-database-cdn.js?v=20260119"></script>
+  <script type="module" src="js/firebase-storage-manager.js?v=20260119"></script>
+
+  <style>
+    :root { --card-bg:#fff; --muted:#cfcfcf; }
+    body { font-family:'Cairo',sans-serif; background:#f8f9fa; margin:0; padding:24px; }
+    .container { max-width:900px; margin:0 auto; }
+    .card { background:var(--card-bg); border:1px solid #e5e7eb; border-radius:12px; box-shadow:0 10px 20px rgba(0,0,0,.05); }
+    .card-header { padding:16px 20px; border-bottom:1px solid #e5e7eb; display:flex; align-items:center; justify-content:space-between; }
+    .card-header h3 { margin:0; font-size:1.1rem; font-weight:700; }
+    .card-body { padding:20px; }
+    .sticker-preview{ border:2px dashed var(--muted); padding:20px; background:#f9f9f9; border-radius:10px; display:flex; justify-content:center; margin-bottom:18px; }
+    .sticker{ width:6cm; height:3cm; background:#fff; border:1px solid #ddd; box-sizing:border-box; display:flex; flex-direction:column; padding:0.2cm; gap:0.15cm; }
+    .row2{ display:flex; flex-direction:column; align-items:center; text-align:center; width:33.333%; line-height:1.1; }
+    .label{ color:#222; font-weight:700; font-size:3.0mm; line-height:1.1; text-align:center; }
+    .value{ color:#000; font-weight:800; font-size:4.2mm; line-height:1.05; text-align:center; }
+    .shop{ text-align:center; font-weight:700; font-size:4.5mm; line-height:1.1; margin-bottom:0.1cm; }
+    .rows{ display:flex; flex-direction:row; gap:0.1cm; justify-content:space-between; margin-top:-0.2cm; }
+    .sticker-barcode canvas{ width:100%; height:auto; max-height:1.2cm; image-rendering:crisp-edges; image-rendering:pixelated; display:block; }
+    .actions{ display:flex; gap:10px; flex-wrap:wrap; }
+    .btn{ appearance:none; border:0; padding:10px 14px; border-radius:10px; cursor:pointer; font-weight:700; font-family:inherit; }
+    .btn-primary{ background:#10b981; color:#fff; }
+    .btn-outline{ background:#fff; color:#111; border:1px solid #e5e7eb; }
+    .btn i{ margin-left:8px; }
+    @page{ size:auto; margin:5mm; }
+    @media print{ .no-print{ display:none !important; } }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="card">
+      <div class="card-header">
+        <h3>طباعة باركود الهاتف</h3>
+        <div class="actions no-print">
+          <button id="btnDownloadPDF" class="btn btn-primary">تحميل PDF <i class="fa fa-download"></i></button>
+          <button id="btnPrintPDF" class="btn btn-outline">طباعة PDF <i class="fa fa-print"></i></button>
+          <a href="dashboard.html" class="btn btn-outline">العودة للوحة التحكم</a>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="sticker-preview">
+          <div id="sticker" class="sticker">
+            <div class="shop">عبدالملك للاتصالات</div>
+            <div class="sticker-barcode"><canvas id="barcode-canvas"></canvas></div>
+            <div class="rows">
+              <div class="row2">
+                <div class="label">رقم الجهاز</div>
+                <div class="value" id="phone-number">جاري التحميل...</div>
+              </div>
+              <div class="row2">
+                <div class="label">نسبة البطارية</div>
+                <div class="value" id="battery-level">جاري التحميل...</div>
+              </div>
+              <div class="row2">
+                <div class="label">الذاكرة</div>
+                <div class="value" id="phone-memory">جاري التحميل...</div>
+              </div>
+            </div>
+          </div><!-- /sticker -->
+        </div><!-- /preview -->
+      </div>
+    </div>
+  </div>
+
+<script>
+(function(){
+  // Sticker output size
+  const STICKER_MM = { w:40, h:25 }, DPI = 300, PX_PER_MM = DPI/25.4;
+  const TARGET_W = Math.round(STICKER_MM.w * PX_PER_MM);
+  const TARGET_H = Math.round(STICKER_MM.h * PX_PER_MM);
+
+  const stickerEl = document.getElementById('sticker');
+  const btnDownload = document.getElementById('btnDownloadPDF');
+  const btnPrint = document.getElementById('btnPrintPDF');
+
+  function generateBarcode(code){
+    const canvas = document.getElementById('barcode-canvas');
+    if(!canvas || !window.JsBarcode) return;
+    JsBarcode(canvas, String(code||'').trim(), {
+      format:"CODE128",
+      width:3,
+      height:35,
+      displayValue:false,
+      background:"#ffffff",
+      lineColor:"#000000"
+    });
+  }
+
+  async function captureStickerCanvas(){
+    const scaleX = TARGET_W / stickerEl.clientWidth;
+    const scaleY = TARGET_H / stickerEl.clientHeight;
+    const scale = Math.min(scaleX, scaleY);
+    return await html2canvas(stickerEl, {
+      backgroundColor:'#ffffff',
+      scale,
+      useCORS:true,
+      logging:false,
+      x:0, y:0,
+      width: stickerEl.clientWidth,
+      height: stickerEl.clientHeight
+    });
+  }
+
+  async function downloadPdf(){
+    const canvas = await captureStickerCanvas();
+    const imgData = canvas.toDataURL('image/png');
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ orientation:'landscape', unit:'mm', format:[STICKER_MM.w, STICKER_MM.h] });
+    doc.addImage(imgData, 'PNG', 0, 0, STICKER_MM.w, STICKER_MM.h, undefined, 'FAST');
+    const pn = document.getElementById('phone-number').textContent || 'phone';
+    doc.save(`barcode_${pn}.pdf`);
+  }
+
+  async function printPdf(){
+    const canvas = await captureStickerCanvas();
+    const imgData = canvas.toDataURL('image/png');
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ orientation:'landscape', unit:'mm', format:[STICKER_MM.w, STICKER_MM.h] });
+    doc.addImage(imgData, 'PNG', 0, 0, STICKER_MM.w, STICKER_MM.h, undefined, 'FAST');
+    const blobUrl = doc.output('bloburl');
+    const win = window.open(blobUrl);
+    if(!win){ alert('يرجى السماح بفتح النوافذ المنبثقة للطباعة.'); return; }
+    const onLoad = ()=>{ win.focus(); win.print(); };
+    if(win.document.readyState==='complete'){ onLoad(); } else { win.onload = onLoad; }
+  }
+
+  function valuesFromPhone(phone){
+    const phone_number = phone?.phone_number || phone?.barcode || phone?.id || '';
+    const memory = phone?.phone_memory || phone?.memory || phone?.storage || '-';
+    // Hide battery for new phones, show for used phones
+    let battery = '-';
+    if (phone?.condition === 'new') {
+      battery = ''; // Empty for new phones - will be hidden
+    } else if (phone?.battery_level != null && phone.battery_level !== '') {
+      battery = String(phone.battery_level);
+    } else if (phone?.age != null) {
+      battery = String(phone.age); // تم الحفظ من صفحة المستعمل كـ battery_level أيضاً
+    }
+    return { phone_number, memory, battery };
+  }
+
+  function fillSticker({phone_number, memory, battery}){
+    document.getElementById('phone-number').textContent = phone_number || '-';
+    document.getElementById('phone-memory').textContent = memory || '-';
+    
+    // Hide battery level row for new phones (when battery is empty)
+    const batteryRow = document.querySelector('.row2:nth-child(2)'); // Second row (battery)
+    if (battery === '') {
+      batteryRow.style.display = 'none';
+    } else {
+      batteryRow.style.display = 'flex';
+      document.getElementById('battery-level').textContent = battery || '-';
+    }
+    
+    generateBarcode(phone_number || '-');
+  }
+
+  async function findPhoneByNumber(phoneNumber){
+    if(!phoneNumber) return null;
+
+    // 1) Fast handoff from add page
+    try{
+      const last = JSON.parse(localStorage.getItem('lastAddedPhone')||'null');
+      if(last && (String(last.phone_number)===String(phoneNumber))){
+        return last;
+      }
+    }catch{}
+
+    // 2) Firebase (if available)
+    try{
+      if(window.storage && window.storage.isFirebaseAvailable){
+        // If your API has a direct method, prefer it:
+        if(typeof window.storage.getPhoneByNumber === 'function'){
+          const one = await window.storage.getPhoneByNumber(String(phoneNumber));
+          if(one) return one;
+        }
+        // Otherwise scan list (supports object or array):
+        const all = await window.storage.getPhones();
+        if(all){
+          if(Array.isArray(all)){
+            const found = all.find(p => String(p.phone_number)===String(phoneNumber));
+            if(found) return found;
+          }else if(typeof all==='object'){
+            const found = Object.values(all).find(p => String(p.phone_number)===String(phoneNumber));
+            if(found) return found;
+          }
+        }
+      }
+    }catch(e){ console.warn('Firebase lookup failed:', e); }
+
+    // 3) LocalStorage fallback
+    try{
+      const arr = JSON.parse(localStorage.getItem('phones')||'[]');
+      if(Array.isArray(arr)){
+        const found = arr.find(p => String(p.phone_number)===String(phoneNumber));
+        if(found) return found;
+      }
+    }catch{}
+
+    return null;
+  }
+
+  async function loadPhoneData(){
+    // allow Firebase modules to initialize
+    await new Promise(r => setTimeout(r, 300));
+
+    const urlParams = new URLSearchParams(window.location.search);
+    const pn = urlParams.get('phone_number') || urlParams.get('edit');
+
+    if(pn){
+      const phone = await findPhoneByNumber(pn);
+      if(phone){
+        fillSticker(valuesFromPhone(phone));
+        return;
+      }else{
+        // If not found anywhere, still show the code the user passed
+        fillSticker({ phone_number: pn, memory:'-', battery:'-' });
+        alert('لم يتم العثور على بيانات الهاتف في القاعدة، تم استخدام رقم الجهاز فقط.');
+        return;
+      }
+    }
+
+    // No ?phone_number= : try lastAddedPhone directly (user came here manually after adding)
+    try{
+      const last = JSON.parse(localStorage.getItem('lastAddedPhone')||'null');
+      if(last){
+        fillSticker(valuesFromPhone(last));
+        return;
+      }
+    }catch{}
+
+    // Finally, generate a new label if nothing provided
+    const generated = (() => {
+      let last = localStorage.getItem('lastDeviceNumber')||'0';
+      const next = (parseInt(last,10)+1); localStorage.setItem('lastDeviceNumber', String(next));
+      return String(next).padStart(6,'0');
+    })();
+    fillSticker({ phone_number: generated, memory:'32GB', battery:'100' });
+  }
+
+  document.addEventListener('DOMContentLoaded', loadPhoneData);
+  btnDownload?.addEventListener('click', (e)=>{ e.preventDefault(); downloadPdf(); });
+  btnPrint?.addEventListener('click', (e)=>{ e.preventDefault(); printPdf(); });
+})();
+</script>
+</body>
+</html>

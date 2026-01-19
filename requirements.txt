@@ -1,0 +1,5 @@
+# بصمة سوداء - نظام إدارة متجر الهواتف
+# Requirements for Render deployment
+
+# No external dependencies required for static site
+# This file is required by Render but can be empty for static sites

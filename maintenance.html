@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta name="requires-role" content="admin">
+  <title>نظام الصيانة — عبدالملك للاتصالات</title>
+    
+    <!-- Page Guard -->
+    <script src="js/guard.js"></script>
+    
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts - Cairo -->
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Firebase Scripts -->
+    <script type="module" src="js/firebase-config-cdn.js?v=20260119"></script>
+    <script type="module" src="js/firebase-database-cdn.js?v=20260119"></script>
+    
+    <style>
+        body { 
+            font-family: 'Cairo', sans-serif; 
+            background-color: #f8f9fa; 
+            padding-top: 70px; 
+        }
+        .navbar { 
+            background-color: #2c3e50; 
+            position: fixed; 
+            top: 0; 
+            width: 100%; 
+            z-index: 1030; 
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .navbar-brand, .nav-link { color: white !important; }
+        .card { 
+            margin-bottom: 20px; 
+            box-shadow: 0 2px 4px rgba(0,0,0,0.08); 
+        }
+        .card-header { 
+            font-weight: 600; 
+        }
+        .quick-action-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 8px;
+            padding: 20px;
+            text-align: center;
+            transition: transform 0.3s ease;
+            cursor: pointer;
+            text-decoration: none;
+            display: block;
+        }
+        .quick-action-card:hover {
+            transform: translateY(-5px);
+            color: white;
+            text-decoration: none;
+        }
+        .quick-action-card i {
+            font-size: 2.5rem;
+            margin-bottom: 15px;
+        }
+        .stats-card {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            text-align: center;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .stats-number {
+            font-size: 2rem;
+            font-weight: bold;
+            color: #2c3e50;
+        }
+        .stats-label {
+            color: #6c757d;
+            font-size: 0.9rem;
+        }
+        .btn-primary { 
+            background-color: #2c3e50; 
+            border-color: #2c3e50; 
+        }
+        .btn-primary:hover { 
+            background-color: #1a252f; 
+            border-color: #1a252f; 
+        }
+        @media (max-width: 768px) {
+            .card-body { padding: 1rem; }
+            h3 { font-size: 1.5rem; }
+            .fa-2x { font-size: 1.5em; }
+        }
+    </style>
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar navbar-expand-lg navbar-dark">
+        <div class="container">
+            <span class="navbar-brand">عبدالملك للاتصالات</span>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav me-auto">
+                    <!-- Navigation will be populated by navigation.js -->
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container-fluid py-4">
+        <!-- Page Header -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <h2 class="text-center mb-3">
+                    <i class="fas fa-tools text-primary"></i> نظام إدارة الصيانة
+                </h2>
+                <p class="text-center text-muted">إدارة شاملة لأعمال الصيانة والمندوبين والفنيين</p>
+            </div>
+        </div>
+
+
+        <!-- Management Sections -->
+        <div class="row mb-5">
+            <div class="col-12">
+                <h4 class="mb-3"><i class="fas fa-cogs"></i> إدارة النظام</h4>
+            </div>
+            <div class="col-md-3 mb-3">
+                <div class="card">
+                    <div class="card-body text-center">
+                        <i class="fas fa-users fa-3x text-primary mb-3"></i>
+                        <h5>إدارة المندوبين</h5>
+                        <p class="text-muted">إضافة وتعديل بيانات المندوبين</p>
+                        <a href="maintenance-reps.html" class="btn btn-primary">
+                            <i class="fas fa-arrow-left"></i> الانتقال
+                        </a>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3 mb-3">
+                <div class="card">
+                    <div class="card-body text-center">
+                        <i class="fas fa-hard-hat fa-3x text-success mb-3"></i>
+                        <h5>إدارة الفنيين</h5>
+                        <p class="text-muted">إضافة وتعديل بيانات الفنيين</p>
+                        <a href="maintenance-technicians.html" class="btn btn-success">
+                            <i class="fas fa-arrow-left"></i> الانتقال
+                        </a>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3 mb-3">
+                <div class="card">
+                    <div class="card-body text-center">
+                        <i class="fas fa-wrench fa-3x text-warning mb-3"></i>
+                        <h5>إدارة الصيانة</h5>
+                        <p class="text-muted">إدارة طلبات الصيانة</p>
+                        <a href="maintenance-jobs.html" class="btn btn-warning">
+                            <i class="fas fa-arrow-left"></i> الانتقال
+                        </a>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3 mb-3">
+                <div class="card">
+                    <div class="card-body text-center">
+                        <i class="fas fa-credit-card fa-3x text-info mb-3"></i>
+                        <h5>الحسابات</h5>
+                        <p class="text-muted">إدارة الحسابات والمدفوعات</p>
+                        <a href="maintenance-accounts.html" class="btn btn-info">
+                            <i class="fas fa-arrow-left"></i> الانتقال
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+
+        <!-- Pending Jobs -->
+        <div class="row mb-5">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header bg-warning text-dark">
+                        <h5 class="mb-0"><i class="fas fa-exclamation-triangle"></i> أعمال الصيانة غير المكتملة</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>التاريخ</th>
+                                        <th>العميل</th>
+                                        <th>المندوب</th>
+                                        <th>الفني</th>
+                                        <th>القطعة</th>
+                                        <th>المبلغ</th>
+                                        <th>الحالة</th>
+                                        <th>الإجراءات</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="pendingJobs">
+                                    <!-- Pending jobs will be loaded here -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Statistics -->
+        <div class="row mb-5">
+            <div class="col-12">
+                <h4 class="mb-3"><i class="fas fa-chart-line"></i> إحصائيات سريعة</h4>
+            </div>
+            <div class="col-md-3 mb-3">
+                <div class="stats-card">
+                    <div class="stats-number" id="totalReps">0</div>
+                    <div class="stats-label">إجمالي المندوبين</div>
+                </div>
+            </div>
+            <div class="col-md-3 mb-3">
+                <div class="stats-card">
+                    <div class="stats-number" id="totalTechs">0</div>
+                    <div class="stats-label">إجمالي الفنيين</div>
+                </div>
+            </div>
+            <div class="col-md-3 mb-3">
+                <div class="stats-card">
+                    <div class="stats-number" id="totalJobs">0</div>
+                    <div class="stats-label">إجمالي الأعمال</div>
+                </div>
+            </div>
+            <div class="col-md-3 mb-3">
+                <div class="stats-card">
+                    <div class="stats-number" id="completedJobs">0</div>
+                    <div class="stats-label">الأعمال المكتملة</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <!-- Navigation Script -->
+    <script src="js/navigation.js"></script>
+    
+    <script>
+        // Initialize page
+        document.addEventListener('DOMContentLoaded', function() {
+            loadStatistics();
+            loadPendingJobs();
+            // Initialize navigation
+            if (typeof initNavigation === 'function') {
+                initNavigation('maintenance');
+            }
+        });
+
+        // Load statistics
+        async function loadStatistics() {
+            try {
+                if (!window.firebaseDatabase) {
+                    console.error('Firebase database not initialized');
+                    return;
+                }
+
+                const [reps, techs, jobs] = await Promise.all([
+                    window.firebaseDatabase.getReps(),
+                    window.firebaseDatabase.getTechnicians(),
+                    window.firebaseDatabase.getMaintenanceJobs()
+                ]);
+
+                const activeReps = reps.filter(rep => rep.active).length;
+                const activeTechs = techs.filter(tech => tech.active).length;
+                const completedJobs = jobs.filter(job => job.status === 'done').length;
+
+                document.getElementById('totalReps').textContent = activeReps;
+                document.getElementById('totalTechs').textContent = activeTechs;
+                document.getElementById('totalJobs').textContent = jobs.length;
+                document.getElementById('completedJobs').textContent = completedJobs;
+            } catch (error) {
+                console.error('Error loading statistics:', error);
+            }
+        }
+
+        // Load pending jobs
+        async function loadPendingJobs() {
+            try {
+                if (!window.firebaseDatabase) {
+                    console.error('Firebase database not initialized');
+                    return;
+                }
+
+                const jobs = await window.firebaseDatabase.getMaintenanceJobs();
+                const pendingJobs = jobs
+                    .filter(job => job.status !== 'done' && job.status !== 'canceled')
+                    .sort((a, b) => new Date(b.visitDate.seconds * 1000) - new Date(a.visitDate.seconds * 1000));
+
+                displayPendingJobs(pendingJobs);
+            } catch (error) {
+                console.error('Error loading pending jobs:', error);
+            }
+        }
+
+        // Display pending jobs
+        function displayPendingJobs(jobs) {
+            const tbody = document.getElementById('pendingJobs');
+            tbody.innerHTML = '';
+
+            if (jobs.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="8" class="text-center">لا توجد أعمال صيانة غير مكتملة</td></tr>';
+                return;
+            }
+
+            jobs.forEach(job => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${job.visitDate ? new Date(job.visitDate.seconds * 1000).toLocaleDateString('ar-SA') : '-'}</td>
+                    <td>${job.customerName}</td>
+                    <td>${job.repName || '-'}</td>
+                    <td>${job.techName || '-'}</td>
+                    <td>${job.partName}</td>
+                    <td>${job.amountCharged.toFixed(2)} ريال</td>
+                    <td>
+                        <span class="badge bg-${getStatusColor(job.status)}">
+                            ${getStatusText(job.status)}
+                        </span>
+                    </td>
+                    <td>
+                        <a href="maintenance-jobs.html" class="btn btn-sm btn-primary">
+                            <i class="fas fa-edit"></i> تعديل
+                        </a>
+                    </td>
+                `;
+                tbody.appendChild(row);
+            });
+        }
+
+        // Get status color
+        function getStatusColor(status) {
+            const colorMap = {
+                'pending': 'warning',
+                'done': 'success',
+                'canceled': 'danger'
+            };
+            return colorMap[status] || 'secondary';
+        }
+
+        // Get status text
+        function getStatusText(status) {
+            const statusMap = {
+                'pending': 'في الانتظار',
+                'done': 'مكتملة',
+                'canceled': 'ملغية'
+            };
+            return statusMap[status] || status;
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,613 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>إضافة أكسسوار جديد — عبدالملك للاتصالات</title>
+
+  <!-- نفس خطوط/مكتبات التصميم التي تستخدمها -->
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&display=swap" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+
+  <style>
+    body { font-family: 'Cairo', sans-serif; background-color: #f8f9fa; padding-top: 70px; }
+    .navbar { 
+      background-color: #2c3e50; 
+      position: fixed; 
+      top: 0; 
+      width: 100%; 
+      z-index: 1030; 
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    .navbar-brand, .nav-link { color: white !important; }
+    .card { margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+    .btn-primary { background-color: #2c3e50; border-color: #2c3e50; }
+    .btn-primary:hover { background-color: #1a252f; border-color: #1a252f; }
+  </style>
+</head>
+<body>
+
+  <!-- شريط التنقل -->
+  <nav class="navbar navbar-expand-lg navbar-dark">
+    <div class="container">
+      <span class="navbar-brand">عبدالملك للاتصالات</span>
+      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+
+      <div class="collapse navbar-collapse" id="navbarNav">
+        <ul class="navbar-nav me-auto">
+          <!-- Navigation will be populated by navigation.js -->
+        </ul>
+      </div>
+    </div>
+  </nav>
+
+  <!-- محتوى الصفحة (نفس تخطيطك الأصلي) -->
+  <div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+      <h2><i class="fas fa-plus"></i> إضافة أكسسوار جديد</h2>
+    </div>
+
+    <div class="row">
+      <div class="col-md-8 mx-auto">
+        <div class="card">
+          <div class="card-header bg-primary text-white">
+            <h5 class="mb-0"><i class="fas fa-box"></i> معلومات الأكسسوار</h5>
+          </div>
+          <div class="card-body">
+            <!-- واجهة فقط: لا إرسال للخادم -->
+            <form action="#" onsubmit="return false;">
+              <div class="row">
+                <div class="col-md-6">
+                  <div class="mb-3">
+                    <label for="name" class="form-label">اسم الأكسسوار *</label>
+                    <input type="text" class="form-control" id="name" required>
+                  </div>
+                </div>
+                <div class="col-md-6">
+                  <div class="mb-3">
+                    <label for="category" class="form-label">الفئة *</label>
+                    <div class="input-group">
+                      <select class="form-select" id="category" required>
+                        <option value="">اختر الفئة</option>
+                        <!-- اتركها فارغة الآن؛ ستملؤها بجافاسكربت لاحقًا -->
+                      </select>
+                      <button class="btn btn-outline-success" type="button" onclick="addCategory()">
+                        <i class="fas fa-plus"></i> إضافة
+                      </button>
+                      <button class="btn btn-outline-danger" type="button" onclick="deleteCategory()">
+                        <i class="fas fa-trash"></i> حذف
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="mb-3">
+                <label for="description" class="form-label">الوصف</label>
+                <textarea class="form-control" id="description" rows="3"></textarea>
+              </div>
+
+              <div class="row">
+                <div class="col-md-4">
+                  <div class="mb-3">
+                    <label for="purchase_price" class="form-label">سعر الشراء (مع الضريبة) *</label>
+                    <input type="text" class="form-control arabic-number-field" id="purchase_price" required>
+                  </div>
+                </div>
+                <div class="col-md-4">
+                  <div class="mb-3">
+                    <label for="selling_price" class="form-label">سعر البيع (مع الضريبة) *</label>
+                    <input type="text" class="form-control arabic-number-field" id="selling_price" required>
+                  </div>
+                </div>
+                <div class="col-md-4">
+                  <div class="mb-3">
+                    <label for="quantity" class="form-label">الكمية *</label>
+                    <input type="text" class="form-control arabic-number-field" id="quantity" value="1" required>
+                  </div>
+                </div>
+              </div>
+
+              <div class="row">
+                <div class="col-md-6">
+                  <div class="mb-3">
+                    <label for="supplier" class="form-label">المورد</label>
+                    <input type="text" class="form-control" id="supplier">
+                  </div>
+                </div>
+                <div class="col-md-6">
+                  <div class="mb-3">
+                    <label for="barcode" class="form-label">الباركود</label>
+                    <div class="input-group">
+                      <input type="text" class="form-control" id="barcode" placeholder="أدخل الباركود أو اضغط توليد">
+                      <button class="btn btn-outline-primary" type="button" onclick="generateBarcode()">
+                        <i class="fas fa-barcode"></i> توليد
+                      </button>
+                    </div>
+                    <small class="form-text text-muted">يمكنك إدخال باركود مخصص أو توليد باركود فريد تلقائياً</small>
+                  </div>
+                </div>
+              </div>
+
+              <div class="mb-3">
+                <label for="notes" class="form-label">ملاحظات</label>
+                <textarea class="form-control" id="notes" rows="3"></textarea>
+              </div>
+
+              <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                <button type="submit" class="btn btn-success btn-lg">
+                  <i class="fas fa-save"></i> حفظ الأكسسوار
+                </button>
+                <button type="button" class="btn btn-primary btn-lg" id="printBarcodeBtn" onclick="printBarcode()" style="display: none;">
+                  <i class="fas fa-print"></i> طباعة الباركود
+                </button>
+              </div>
+            </form>
+            <!-- /form -->
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- مكتبات الواجهة نفسها -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+
+  <!-- Firebase Configuration -->
+  <script type="module" src="js/firebase-config-cdn.js?v=20260119"></script>
+  <script type="module" src="js/firebase-database-cdn.js?v=20260119"></script>
+  <script type="module" src="js/firebase-storage-manager.js?v=20260119"></script>
+
+  <!-- نظام إدارة الأكسسوارات الحقيقي -->
+  <script>
+    // إعدادات النظام
+    const VAT_RATE = 0.15; // 15% ضريبة القيمة المضافة السعودية
+    
+    // تحميل الفئات من Firebase
+    async function loadCategories() {
+      const categorySelect = document.getElementById('category');
+      categorySelect.innerHTML = '<option value="">اختر الفئة</option>';
+      
+      try {
+        // محاولة الحصول على الفئات من Firebase
+        if (window.storage && window.storage.isFirebaseAvailable) {
+          const categories = await window.storage.getAccessoryCategories();
+          if (categories && categories.length > 0) {
+            categories.forEach(cat => {
+              const option = document.createElement('option');
+              option.value = cat.name;
+              option.textContent = cat.arabic_name;
+              categorySelect.appendChild(option);
+            });
+            console.log('✅ تم تحميل فئات الأكسسوارات من Firebase');
+            return;
+          }
+        }
+        
+        // استخدام الفئات الافتراضية كبديل
+        const defaultCategories = [
+          { name: 'case', arabic_name: 'أغلفة' },
+          { name: 'charger', arabic_name: 'شواحن' },
+          { name: 'screen_protector', arabic_name: 'حماية الشاشة' },
+          { name: 'cable', arabic_name: 'كابلات' },
+          { name: 'headphone', arabic_name: 'سماعات' },
+          { name: 'other', arabic_name: 'أخرى' }
+        ];
+        
+        defaultCategories.forEach(cat => {
+          const option = document.createElement('option');
+          option.value = cat.name;
+          option.textContent = cat.arabic_name;
+          categorySelect.appendChild(option);
+        });
+        
+        console.log('⚠️ استخدام الفئات الافتراضية');
+      } catch (error) {
+        console.error('❌ خطأ في تحميل الفئات:', error);
+      }
+    }
+
+    // عرض التنبيهات
+    function showAlert(type, message) {
+      const alertDiv = document.createElement('div');
+      alertDiv.className = `alert alert-${type} alert-dismissible fade show position-fixed`;
+      alertDiv.style.cssText = 'top: 20px; right: 20px; z-index: 9999; min-width: 300px;';
+      alertDiv.innerHTML = `
+        <i class="fas fa-${type === 'success' ? 'check-circle' : type === 'danger' ? 'exclamation-triangle' : 'info-circle'}"></i>
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+      `;
+      
+      document.body.appendChild(alertDiv);
+      
+      setTimeout(() => {
+        if (alertDiv.parentNode) {
+          alertDiv.remove();
+        }
+      }, 5000);
+    }
+
+    // توليد معرف فريد
+    function generateId() {
+      return Date.now().toString(36) + Math.random().toString(36).substr(2);
+    }
+
+    // تحويل الأرقام العربية إلى إنجليزية - طريقة محسنة
+    function convertArabicToEnglishNumbers(str) {
+      if (!str) return '';
+      
+      // خريطة تحويل الأرقام
+      const arabicToEnglish = {
+        '٠': '0', '١': '1', '٢': '2', '٣': '3', '٤': '4',
+        '٥': '5', '٦': '6', '٧': '7', '٨': '8', '٩': '9'
+      };
+      
+      return str.toString().replace(/[٠-٩]/g, function(match) {
+        return arabicToEnglish[match] || match;
+      });
+    }
+
+    // تحويل قيمة الحقل وإرجاع رقم صحيح
+    function parseArabicNumber(value) {
+      if (!value || value.trim() === '') return 0;
+      
+      // تحويل الأرقام العربية أولاً
+      const convertedValue = convertArabicToEnglishNumbers(value.toString());
+      
+      // محاولة تحويل لرقم
+      const number = parseFloat(convertedValue);
+      
+      // التحقق من صحة الرقم
+      if (isNaN(number)) {
+        console.log('فشل في تحويل:', value, '→', convertedValue, '→', number);
+        return 0;
+      }
+      
+      console.log('تحويل ناجح:', value, '→', convertedValue, '→', number);
+      return number;
+    }
+
+
+    async function addCategory() {
+      const name = prompt('أدخل اسم الفئة الجديدة:');
+      if (!name || !name.trim()) return;
+      
+      const categoryName = name.trim();
+
+      try {
+        // إضافة الفئة إلى Firebase
+        if (window.storage && window.storage.isFirebaseAvailable) {
+          const categoryData = {
+            name: categoryName,
+            arabic_name: categoryName,
+            description: `فئة ${categoryName}`
+          };
+          
+          const categoryId = await window.storage.addAccessoryCategory(categoryData);
+          if (categoryId) {
+            console.log('✅ تم إضافة الفئة إلى Firebase:', categoryId);
+          }
+        }
+
+        // إضافة للقائمة المنسدلة
+        const sel = document.getElementById('category');
+        const opt = document.createElement('option');
+        opt.value = categoryName;
+        opt.textContent = categoryName;
+        sel.appendChild(opt);
+        sel.value = categoryName;
+        
+        showAlert('success', `تم إضافة فئة "${categoryName}" بنجاح!`);
+        
+        // إعادة تحميل الفئات من قاعدة البيانات
+        await loadCategories();
+      } catch (error) {
+        console.error('❌ خطأ في إضافة الفئة:', error);
+        showAlert('danger', 'حدث خطأ في إضافة الفئة');
+      }
+    }
+
+    async function deleteCategory() {
+      const sel = document.getElementById('category');
+      if (!sel.value) { 
+        showAlert('warning', 'يرجى اختيار فئة أولاً');
+        return; 
+      }
+      
+      const selectedOption = sel.options[sel.selectedIndex];
+      const categoryText = selectedOption.textContent;
+      const categoryValue = sel.value;
+      
+      if (!confirm(`هل أنت متأكد من حذف فئة "${categoryText}"؟`)) return;
+      
+      try {
+        // حذف من Firebase
+        if (window.storage && window.storage.isFirebaseAvailable) {
+          const success = await window.storage.deleteAccessoryCategory(categoryText);
+          if (success) {
+            console.log('✅ تم حذف الفئة من Firebase:', categoryText);
+          }
+        }
+        
+        // حذف من القائمة
+        selectedOption.remove();
+        sel.value = ''; // إعادة تعيين القيمة المحددة
+        
+        showAlert('success', `تم حذف فئة "${categoryText}" بنجاح!`);
+        
+        // إعادة تحميل الفئات من قاعدة البيانات
+        await loadCategories();
+      } catch (error) {
+        console.error('❌ خطأ في حذف الفئة:', error);
+        showAlert('danger', 'حدث خطأ في حذف الفئة');
+      }
+    }
+
+    // التحقق من تسجيل الدخول
+    function checkLogin() {
+      const currentUser = localStorage.getItem('current_user');
+      if (!currentUser) {
+        alert('يجب تسجيل الدخول أولاً');
+        window.location.href = 'login.html';
+        return false;
+      }
+      return true;
+    }
+
+    // توليد باركود فريد للإكسسوار
+    function generateBarcode() {
+      // التحقق من وجود باركود مخصص أولاً
+      const currentBarcode = document.getElementById('barcode').value.trim();
+      if (currentBarcode) {
+        if (confirm(`يوجد باركود مخصص: "${currentBarcode}". هل تريد استبداله بباركود جديد؟`)) {
+          // المتابعة لتوليد باركود جديد
+        } else {
+          return; // إلغاء العملية
+        }
+      }
+      
+      const today = new Date();
+      const dateStr = today.getFullYear().toString() + 
+                     (today.getMonth() + 1).toString().padStart(2, '0') + 
+                     today.getDate().toString().padStart(2, '0');
+      
+      // الحصول على آخر رقم تسلسلي لهذا التاريخ
+      let lastSerial = localStorage.getItem(`lastAccessorySerial_${dateStr}`) || '0';
+      const nextSerial = (parseInt(lastSerial) + 1).toString().padStart(4, '0');
+      
+      // حفظ الرقم التسلسلي الجديد
+      localStorage.setItem(`lastAccessorySerial_${dateStr}`, nextSerial);
+      
+      const barcode = `ACC-${dateStr}-${nextSerial}`;
+      document.getElementById('barcode').value = barcode;
+      
+      showAlert('success', `تم توليد باركود جديد: ${barcode}`);
+    }
+
+    // طباعة الباركود
+    function printBarcode() {
+      const barcode = document.getElementById('barcode').value.trim();
+      if (!barcode) {
+        showAlert('warning', 'يرجى إدخال باركود أو توليد باركود أولاً');
+        return;
+      }
+      
+      // فتح صفحة طباعة الباركود
+      const printUrl = `print_accessory_barcode.html?barcode=${encodeURIComponent(barcode)}`;
+      window.open(printUrl, '_blank');
+    }
+
+    // حفظ الأكسسوار مع الباركود
+
+
+    // إضافة مستمعات للأرقام العربية - طريقة محسنة
+    function setupArabicNumberSupport() {
+      // جلب جميع الحقول التي تحتوي على كلاس arabic-number-field
+      const numberFields = document.querySelectorAll('.arabic-number-field');
+      
+      numberFields.forEach(field => {
+        field.addEventListener('input', function() {
+          const cursorPosition = this.selectionStart;
+          const originalValue = this.value;
+          const convertedValue = convertArabicToEnglishNumbers(originalValue);
+          
+          // تحديث القيمة إذا تغيرت
+          if (convertedValue !== originalValue) {
+            this.value = convertedValue;
+            this.setSelectionRange(cursorPosition, cursorPosition);
+            
+            // رسالة في Console للتأكد
+            console.log(`تحويل تلقائي في حقل ${this.id}: "${originalValue}" → "${convertedValue}"`);
+          }
+        });
+        
+        // إضافة تأثير بصري عند التركيز
+        field.addEventListener('focus', function() {
+          this.style.borderColor = '#007bff';
+          this.style.boxShadow = '0 0 0 0.2rem rgba(0,123,255,.25)';
+        });
+        
+        field.addEventListener('blur', function() {
+          this.style.borderColor = '';
+          this.style.boxShadow = '';
+        });
+      });
+      
+      console.log(`تم إعداد دعم الأرقام العربية لـ ${numberFields.length} حقل`);
+    }
+
+    // حفظ الأكسسوار في Firebase
+    async function saveAccessoryToFirebase() {
+      try {
+        // جمع بيانات النموذج مع دعم الأرقام العربية
+        const purchasePriceRaw = document.getElementById('purchase_price').value;
+        const sellingPriceRaw = document.getElementById('selling_price').value;
+        const quantityRaw = document.getElementById('quantity').value;
+        
+        const accessoryData = {
+          name: document.getElementById('name').value.trim(),
+          arabic_name: document.getElementById('name').value.trim(), // استخدام نفس الاسم
+          category: document.getElementById('category').value,
+          barcode: document.getElementById('barcode').value.trim(),
+          barcode_id: document.getElementById('barcode').value.trim().replace(/[^a-zA-Z0-9]/g, ''), // للبحث بدون رموز
+          quantity: parseInt(convertArabicToEnglishNumbers(quantityRaw)) || 0,
+          quantity_in_stock: parseInt(convertArabicToEnglishNumbers(quantityRaw)) || 0, // إضافة quantity_in_stock
+          purchase_price: parseArabicNumber(purchasePriceRaw),
+          selling_price: parseArabicNumber(sellingPriceRaw),
+          description: document.getElementById('description').value.trim(),
+          supplier: document.getElementById('supplier').value.trim(),
+          notes: document.getElementById('notes').value.trim(),
+          date_added: new Date().toISOString()
+        };
+
+        // التحقق من البيانات المطلوبة
+        if (!accessoryData.name) {
+          showAlert('danger', 'يرجى إدخال اسم الأكسسوار');
+          return false;
+        }
+
+        if (!accessoryData.category) {
+          showAlert('danger', 'يرجى اختيار الفئة');
+          return false;
+        }
+
+        if (!purchasePriceRaw || accessoryData.purchase_price <= 0) {
+          showAlert('danger', 'يرجى إدخال سعر شراء صحيح (مثال: ١٢٣.٤٥ أو 123.45)');
+          return false;
+        }
+
+        if (!sellingPriceRaw || accessoryData.selling_price <= 0) {
+          showAlert('danger', 'يرجى إدخال سعر بيع صحيح (مثال: ٢٠٠.٧٥ أو 200.75)');
+          return false;
+        }
+
+        if (!quantityRaw || accessoryData.quantity < 0) {
+          showAlert('danger', 'يرجى إدخال كمية صحيحة (مثال: ١٠ أو 10)');
+          return false;
+        }
+
+        if (!accessoryData.barcode) {
+          showAlert('warning', 'يرجى إدخال باركود للإكسسوار أو توليد باركود فريد');
+          return false;
+        }
+
+        // طباعة البيانات المراد حفظها للتشخيص
+        console.log('📦 بيانات الأكسسوار المراد حفظها:', accessoryData);
+
+        // حفظ في Firebase
+        if (window.storage && window.storage.isFirebaseAvailable) {
+          console.log('🔥 محاولة حفظ الأكسسوار في Firebase...');
+          const accessoryId = await window.storage.addAccessory(accessoryData);
+          if (accessoryId) {
+            console.log('✅ تم حفظ الأكسسوار في Firebase بنجاح! ID:', accessoryId);
+            console.log('📂 الفئة:', accessoryData.category);
+            console.log('🏷️ الباركود:', accessoryData.barcode);
+            showAlert('success', `تم إضافة الأكسسوار "${accessoryData.name}" بنجاح!`);
+            
+            // إظهار زر طباعة الباركود
+            document.getElementById('printBarcodeBtn').style.display = 'inline-block';
+            
+            return true;
+          } else {
+            console.log('❌ فشل في حفظ الأكسسوار في Firebase - لم يتم إرجاع ID');
+            showAlert('danger', 'فشل في حفظ الأكسسوار في قاعدة البيانات');
+            return false;
+          }
+        } else {
+          console.log('💾 Firebase غير متاح، حفظ في localStorage...');
+          // حفظ في LocalStorage كبديل
+          const accessories = JSON.parse(localStorage.getItem('accessories') || '[]');
+          accessoryData.id = Date.now().toString();
+          accessories.push(accessoryData);
+          localStorage.setItem('accessories', JSON.stringify(accessories));
+          console.log('✅ تم حفظ الأكسسوار في localStorage');
+          console.log('🏷️ الباركود:', accessoryData.barcode);
+          showAlert('success', 'تم إضافة الأكسسوار بنجاح! (محلي)');
+          
+          // إظهار زر طباعة الباركود
+          document.getElementById('printBarcodeBtn').style.display = 'inline-block';
+          
+          return true;
+        }
+      } catch (error) {
+        console.error('❌ خطأ في حفظ الأكسسوار:', error);
+        showAlert('danger', 'حدث خطأ في حفظ الأكسسوار. حاول مرة أخرى.');
+        return false;
+      }
+    }
+
+    // Check user role and update navigation
+    function updateNavigationForUser() {
+      const currentUser = localStorage.getItem('current_user');
+      if (currentUser) {
+        try {
+          const userData = JSON.parse(currentUser);
+          const navbar = document.querySelector('.navbar-nav.me-auto');
+          
+          if (userData.role === 'user') {
+            // Show simplified navigation for limited users
+            navbar.innerHTML = `
+              <li class="nav-item"><a class="nav-link" href="limited_dashboard.html"><i class="fas fa-home"></i> الرئيسية</a></li>
+              <li class="nav-item"><a class="nav-link" href="#" onclick="logout()"><i class="fas fa-sign-out-alt"></i> تسجيل الخروج</a></li>
+            `;
+          }
+          // Admin users keep the full navigation (default)
+        } catch (error) {
+          console.error('Error parsing user data:', error);
+        }
+      }
+    }
+
+    // تهيئة الصفحة
+    document.addEventListener('DOMContentLoaded', async function() {
+      // Update navigation based on user role
+      updateNavigationForUser();
+      
+      // التحقق من تسجيل الدخول أولاً
+      if (!checkLogin()) return;
+
+      // انتظار تحميل Firebase
+      await new Promise(resolve => setTimeout(resolve, 1000));
+
+      await loadCategories();
+      
+      // إعداد دعم الأرقام العربية
+      setupArabicNumberSupport();
+      
+      // ربط نموذج الإرسال بدالة الحفظ
+      const form = document.querySelector('form');
+      if (form) {
+        form.addEventListener('submit', async (e) => {
+          e.preventDefault();
+          const success = await saveAccessoryToFirebase();
+          if (success) {
+            // إعادة تعيين النموذج
+            form.reset();
+            // إعادة تحميل الفئات
+            await loadCategories();
+          }
+        });
+      }
+      
+      // تركيز على الحقل الأول
+      document.getElementById('name').focus();
+      
+      // توليد باركود تلقائياً عند تحميل الصفحة
+      generateBarcode();
+    });
+  </script>
+
+  <!-- Navigation Script -->
+  <script src="js/navigation.js"></script>
+  <script>
+    // Initialize navigation when page loads
+    document.addEventListener('DOMContentLoaded', function() {
+      initNavigation('add_accessory');
+    });
+  </script>
+</body>
+</html>

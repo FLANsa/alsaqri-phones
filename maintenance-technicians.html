@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta name="requires-role" content="admin">
+  <title>إدارة الفنيين — عبدالملك للاتصالات</title>
+    
+    <!-- Page Guard -->
+    <script src="js/guard.js"></script>
+    
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts - Cairo -->
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Firebase Scripts -->
+    <script type="module" src="js/firebase-config-cdn.js?v=20260119"></script>
+    <script type="module" src="js/firebase-database-cdn.js?v=20260119"></script>
+    
+    <!-- Arabic Numbers Support -->
+    <script src="js/arabic-numbers.js"></script>
+    
+    <style>
+        body { 
+            font-family: 'Cairo', sans-serif; 
+            background-color: #f8f9fa; 
+            padding-top: 70px; 
+        }
+        .navbar { 
+            background-color: #2c3e50; 
+            position: fixed; 
+            top: 0; 
+            width: 100%; 
+            z-index: 1030; 
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .navbar-brand, .nav-link { color: white !important; }
+        .card { 
+            margin-bottom: 20px; 
+            box-shadow: 0 2px 4px rgba(0,0,0,0.08); 
+        }
+        .card-header { 
+            font-weight: 600; 
+        }
+        .table thead.table-dark th { 
+            vertical-align: middle; 
+        }
+        .btn-primary { 
+            background-color: #2c3e50; 
+            border-color: #2c3e50; 
+        }
+        .btn-primary:hover { 
+            background-color: #1a252f; 
+            border-color: #1a252f; 
+        }
+        .status-badge {
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 0.85em;
+            font-weight: 600;
+        }
+        .status-active {
+            background: #d4edda;
+            color: #155724;
+        }
+        .status-inactive {
+            background: #f8d7da;
+            color: #721c24;
+        }
+        .commission-badge {
+            background: #e3f2fd;
+            color: #1565c0;
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 0.8em;
+            font-weight: 600;
+        }
+    </style>
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar navbar-expand-lg navbar-dark">
+        <div class="container">
+            <span class="navbar-brand">عبدالملك للاتصالات</span>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav me-auto">
+                    <!-- Navigation will be populated by navigation.js -->
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container-fluid py-4">
+        <!-- Page Header -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <h2 class="text-center mb-3">
+                    <i class="fas fa-hard-hat text-primary"></i> إدارة الفنيين
+                </h2>
+            </div>
+        </div>
+
+        <!-- Add New Technician Form -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header bg-primary text-white">
+                        <h5 class="mb-0"><i class="fas fa-plus-circle"></i> إضافة فني جديد</h5>
+                    </div>
+                    <div class="card-body">
+                        <form id="addTechnicianForm">
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label for="techName" class="form-label">اسم الفني *</label>
+                                    <input type="text" class="form-control" id="techName" required>
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label for="techPhone" class="form-label">رقم الهاتف *</label>
+                                    <input type="tel" class="form-control" id="techPhone" required>
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label for="techEmail" class="form-label">البريد الإلكتروني</label>
+                                    <input type="email" class="form-control" id="techEmail">
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label for="techCommission" class="form-label">نسبة العمولة الافتراضية (%) *</label>
+                                    <input type="number" class="form-control arabic-number-field" id="techCommission" min="0" max="100" step="0.01" value="50" required>
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label for="techActive" class="form-label">الحالة</label>
+                                    <select class="form-select" id="techActive">
+                                        <option value="true" selected>نشط</option>
+                                        <option value="false">غير نشط</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="mb-3">
+                                <label for="techNotes" class="form-label">ملاحظات</label>
+                                <textarea class="form-control" id="techNotes" rows="3"></textarea>
+                            </div>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-save"></i> حفظ الفني
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Technicians List -->
+        <div class="row">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header bg-info text-white">
+                        <h5 class="mb-0"><i class="fas fa-list"></i> قائمة الفنيين</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead class="table-dark">
+                                    <tr>
+                                        <th>الاسم</th>
+                                        <th>رقم الهاتف</th>
+                                        <th>البريد الإلكتروني</th>
+                                        <th>نسبة العمولة</th>
+                                        <th>الحالة</th>
+                                        <th>تاريخ الإنشاء</th>
+                                        <th>الإجراءات</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="techniciansList">
+                                    <!-- Technicians data will be loaded here -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit Technician Modal -->
+    <div class="modal fade" id="editTechnicianModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">تعديل بيانات الفني</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="editTechnicianForm">
+                        <input type="hidden" id="editTechId">
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="editTechName" class="form-label">اسم الفني *</label>
+                                <input type="text" class="form-control" id="editTechName" required>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label for="editTechPhone" class="form-label">رقم الهاتف *</label>
+                                <input type="tel" class="form-control" id="editTechPhone" required>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="editTechEmail" class="form-label">البريد الإلكتروني</label>
+                                <input type="email" class="form-control" id="editTechEmail">
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label for="editTechCommission" class="form-label">نسبة العمولة الافتراضية (%) *</label>
+                                <input type="number" class="form-control arabic-number-field" id="editTechCommission" min="0" max="100" step="0.01" required>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="editTechActive" class="form-label">الحالة</label>
+                                <select class="form-select" id="editTechActive">
+                                    <option value="true">نشط</option>
+                                    <option value="false">غير نشط</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label for="editTechNotes" class="form-label">ملاحظات</label>
+                            <textarea class="form-control" id="editTechNotes" rows="3"></textarea>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">إلغاء</button>
+                    <button type="button" class="btn btn-primary" onclick="updateTechnician()">حفظ التغييرات</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <!-- Navigation Script -->
+    <script src="js/navigation.js"></script>
+    
+    <script>
+        let techniciansData = [];
+        let currentEditId = null;
+
+        // Initialize page
+        document.addEventListener('DOMContentLoaded', function() {
+            setupArabicNumberSupport(); // ✅ دعم الأرقام العربية والإنجليزية
+            loadTechniciansData();
+            // Initialize navigation
+            if (typeof initNavigation === 'function') {
+                initNavigation('maintenance-technicians');
+            }
+        });
+
+        // Load technicians data from Firebase
+        async function loadTechniciansData() {
+            try {
+                if (!window.firebaseDatabase) {
+                    console.error('Firebase database not initialized');
+                    return;
+                }
+
+                techniciansData = await window.firebaseDatabase.getTechnicians();
+                displayTechnicians();
+            } catch (error) {
+                console.error('Error loading technicians data:', error);
+                showAlert('error', 'حدث خطأ في تحميل بيانات الفنيين');
+            }
+        }
+
+        // Display technicians in table
+        function displayTechnicians() {
+            const tbody = document.getElementById('techniciansList');
+            tbody.innerHTML = '';
+
+            if (techniciansData.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="7" class="text-center">لا توجد بيانات</td></tr>';
+                return;
+            }
+
+            techniciansData.forEach(tech => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${tech.name}</td>
+                    <td>${tech.phone}</td>
+                    <td>${tech.email || '-'}</td>
+                    <td>
+                        <span class="commission-badge">
+                            ${(tech.defaultCommissionPercent * 100).toFixed(1)}%
+                        </span>
+                    </td>
+                    <td>
+                        <span class="status-badge status-${tech.active ? 'active' : 'inactive'}">
+                            ${tech.active ? 'نشط' : 'غير نشط'}
+                        </span>
+                    </td>
+                    <td>${tech.createdAt ? new Date(tech.createdAt.seconds * 1000).toLocaleDateString('ar-SA') : '-'}</td>
+                    <td>
+                        <button class="btn btn-sm btn-warning me-1" onclick="editTechnician('${tech.id}')">
+                            <i class="fas fa-edit"></i>
+                        </button>
+                        <button class="btn btn-sm btn-danger" onclick="deleteTechnician('${tech.id}')">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </td>
+                `;
+                tbody.appendChild(row);
+            });
+        }
+
+        // Add new technician
+        document.getElementById('addTechnicianForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const techData = {
+                name: document.getElementById('techName').value,
+                phone: document.getElementById('techPhone').value,
+                email: document.getElementById('techEmail').value,
+                defaultCommissionPercent: parseArabicNumber(document.getElementById('techCommission').value) / 100,
+                active: document.getElementById('techActive').value === 'true',
+                notes: document.getElementById('techNotes').value
+            };
+
+            try {
+                await window.firebaseDatabase.addTechnician(techData);
+                showAlert('success', 'تم إضافة الفني بنجاح');
+                document.getElementById('addTechnicianForm').reset();
+                loadTechniciansData();
+            } catch (error) {
+                console.error('Error adding technician:', error);
+                showAlert('error', 'حدث خطأ في إضافة الفني');
+            }
+        });
+
+        // Edit technician
+        function editTechnician(techId) {
+            const tech = techniciansData.find(t => t.id === techId);
+            if (!tech) return;
+
+            currentEditId = techId;
+            document.getElementById('editTechId').value = techId;
+            document.getElementById('editTechName').value = tech.name;
+            document.getElementById('editTechPhone').value = tech.phone;
+            document.getElementById('editTechEmail').value = tech.email || '';
+            document.getElementById('editTechCommission').value = (tech.defaultCommissionPercent * 100).toFixed(1);
+            document.getElementById('editTechActive').value = tech.active ? 'true' : 'false';
+            document.getElementById('editTechNotes').value = tech.notes || '';
+
+            new bootstrap.Modal(document.getElementById('editTechnicianModal')).show();
+        }
+
+        // Update technician
+        async function updateTechnician() {
+            if (!currentEditId) return;
+
+            const techData = {
+                name: document.getElementById('editTechName').value,
+                phone: document.getElementById('editTechPhone').value,
+                email: document.getElementById('editTechEmail').value,
+                defaultCommissionPercent: parseArabicNumber(document.getElementById('editTechCommission').value) / 100,
+                active: document.getElementById('editTechActive').value === 'true',
+                notes: document.getElementById('editTechNotes').value
+            };
+
+            try {
+                await window.firebaseDatabase.updateTechnician(currentEditId, techData);
+                showAlert('success', 'تم تحديث بيانات الفني بنجاح');
+                bootstrap.Modal.getInstance(document.getElementById('editTechnicianModal')).hide();
+                loadTechniciansData();
+            } catch (error) {
+                console.error('Error updating technician:', error);
+                showAlert('error', 'حدث خطأ في تحديث بيانات الفني');
+            }
+        }
+
+        // Delete technician
+        async function deleteTechnician(techId) {
+            if (!confirm('هل أنت متأكد من حذف هذا الفني؟')) return;
+
+            try {
+                await window.firebaseDatabase.deleteTechnician(techId);
+                showAlert('success', 'تم حذف الفني بنجاح');
+                loadTechniciansData();
+            } catch (error) {
+                console.error('Error deleting technician:', error);
+                showAlert('error', 'حدث خطأ في حذف الفني');
+            }
+        }
+
+        // ===== دعم الأرقام العربية والإنجليزية =====
+        function convertArabicToEnglishNumbers(str) {
+            if (!str) return '';
+            const map = {
+                '٠': '0', '١': '1', '٢': '2', '٣': '3', '٤': '4',
+                '٥': '5', '٦': '6', '٧': '7', '٨': '8', '٩': '9'
+            };
+            return str.toString().replace(/[٠-٩]/g, m => map[m] || m);
+        }
+
+        function convertEnglishToArabicNumbers(str) {
+            if (!str) return '';
+            const map = {
+                '0': '٠', '1': '١', '2': '٢', '3': '٣', '4': '٤',
+                '5': '٥', '6': '٦', '7': '٧', '8': '٨', '9': '٩'
+            };
+            return str.toString().replace(/[0-9]/g, m => map[m] || m);
+        }
+
+        function setupArabicNumberSupport() {
+            document.querySelectorAll('.arabic-number-field').forEach(field => {
+                field.addEventListener('input', function() {
+                    const pos = this.selectionStart;
+                    const cv = convertArabicToEnglishNumbers(this.value);
+                    if (cv !== this.value) {
+                        this.value = cv;
+                        this.setSelectionRange(pos, pos);
+                    }
+                });
+            });
+        }
+
+        // Show alert
+        function showAlert(type, message) {
+            const alertDiv = document.createElement('div');
+            alertDiv.className = `alert alert-${type === 'error' ? 'danger' : type} alert-dismissible fade show`;
+            alertDiv.innerHTML = `
+                ${message}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            `;
+            
+            document.body.insertBefore(alertDiv, document.body.firstChild);
+            
+            setTimeout(() => {
+                alertDiv.remove();
+            }, 5000);
+        }
+    </script>
+</body>
+</html>

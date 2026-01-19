@@ -1,0 +1,820 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>لوحة التحكم — عبدالملك للاتصالات</title>
+
+  <!-- نفس الخط/المكتبات المستخدمة في القالب -->
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&display=swap" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+
+  <style>
+    body { font-family: 'Cairo', sans-serif; background-color: #f8f9fa; padding-top: 70px; }
+    .navbar { 
+      background-color: #2c3e50; 
+      position: fixed; 
+      top: 0; 
+      width: 100%; 
+      z-index: 1030; 
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    .navbar-brand, .nav-link { color: white !important; }
+    /* نفس التنسيقات المخصصة في الملف الأصلي */
+    .card { border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); transition: transform 0.2s ease-in-out; }
+    .card:hover { transform: translateY(-2px); box-shadow: 0 4px 8px rgba(0,0,0,0.15); }
+    .card-body { padding: 1.25rem; }
+    .card-header { border-radius: 8px 8px 0 0 !important; font-weight: 600; }
+    .card.bg-primary, .card.bg-success, .card.bg-info, .card.bg-warning {
+      border: none; box-shadow: 0 3px 6px rgba(0,0,0,0.16);
+    }
+    .card.bg-primary:hover, .card.bg-success:hover, .card.bg-info:hover, .card.bg-warning:hover {
+      transform: translateY(-3px); box-shadow: 0 6px 12px rgba(0,0,0,0.2);
+    }
+    @media (max-width: 768px) {
+      .card-body { padding: 1rem; }
+      h3 { font-size: 1.5rem; }
+      .fa-2x { font-size: 1.5em; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- شريط التنقل -->
+  <nav class="navbar navbar-expand-lg navbar-dark">
+    <div class="container">
+      <span class="navbar-brand">عبدالملك للاتصالات</span>
+      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+
+      <div class="collapse navbar-collapse" id="navbarNav">
+        <ul class="navbar-nav me-auto">
+          <!-- Navigation will be populated by navigation.js -->
+        </ul>
+      </div>
+    </div>
+  </nav>
+
+<div class="container-fluid mt-4">
+  <!-- Main Header -->
+  <div class="row mb-4">
+    <div class="col-12">
+      <h2 class="text-center mb-3">
+        <i class="fas fa-tachometer-alt text-primary"></i> لوحة التحكم
+      </h2>
+    </div>
+  </div>
+
+  <!-- Date Range Picker -->
+  <div class="row mb-4">
+    <div class="col-12">
+      <div class="card">
+        <div class="card-header bg-secondary text-white">
+          <h5 class="mb-0"><i class="fas fa-calendar-alt"></i> اختيار الفترة الزمنية</h5>
+        </div>
+        <div class="card-body">
+          <div class="row align-items-end">
+            <div class="col-md-3">
+              <label for="start_date" class="form-label">من تاريخ</label>
+              <input type="date" class="form-control" id="start_date" />
+            </div>
+            <div class="col-md-3">
+              <label for="end_date" class="form-label">إلى تاريخ</label>
+              <input type="date" class="form-control" id="end_date" />
+            </div>
+            <div class="col-md-3">
+              <label class="form-label">&nbsp;</label>
+              <div class="d-grid">
+                <button class="btn btn-primary" onclick="applyDateFilter()">
+                  <i class="fas fa-filter"></i> تطبيق الفلتر
+                </button>
+              </div>
+            </div>
+            <div class="col-md-3">
+              <label class="form-label">&nbsp;</label>
+              <div class="d-grid">
+                <button class="btn btn-outline-secondary" onclick="resetToCurrentMonth()">
+                  <i class="fas fa-calendar-week"></i> الشهر الحالي
+                </button>
+              </div>
+            </div>
+          </div>
+          <div class="row mt-2">
+            <div class="col-12">
+              <small class="text-muted" id="period_indicator">الفترة: الشهر الحالي</small>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Inventory Overview Cards -->
+  <div class="row mb-4">
+    <div class="col-md-3">
+      <div class="card bg-primary text-white h-100">
+        <div class="card-body text-center py-3">
+          <i class="fas fa-mobile-alt fa-2x mb-2"></i>
+          <h6 class="card-title mb-1">إجمالي الهواتف</h6>
+          <h3 class="mb-0" id="total_phones">0</h3>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card bg-success text-white h-100">
+        <div class="card-body text-center py-3">
+          <i class="fas fa-cash-register fa-2x mb-2"></i>
+          <h6 class="card-title mb-1">عدد المبيعات</h6>
+          <h3 class="mb-0" id="total_sales_count">0</h3>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card bg-info text-white h-100">
+        <div class="card-body text-center py-3">
+          <i class="fas fa-money-bill-wave fa-2x mb-2"></i>
+          <h6 class="card-title mb-1">إجمالي المبيعات</h6>
+          <h3 class="mb-0" id="total_sales_amount">0</h3>
+          <small>ريال</small>
+          <small class="d-block mt-1" style="opacity: 0.8;" id="sales_period_label">للشهر الحالي</small>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card bg-warning text-white h-100">
+        <div class="card-body text-center py-3">
+          <i class="fas fa-coins fa-2x mb-2"></i>
+          <h6 class="card-title mb-1">الربح الفعلي</h6>
+          <h3 class="mb-0" id="total_actual_profit">0</h3>
+          <small>ريال</small>
+          <small class="d-block mt-1" style="opacity: 0.8;" id="profit_period_label">للشهر الحالي</small>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Financial Details Cards -->
+  <div class="row mb-4">
+    <div class="col-md-4">
+      <div class="card bg-light h-100">
+        <div class="card-header bg-primary text-white">
+          <h5 class="mb-0"><i class="fas fa-shopping-cart"></i> القيم الشرائية</h5>
+        </div>
+        <div class="card-body text-center">
+          <h3 class="text-primary" id="total_purchase_value">0.00 ريال</h3>
+          <p class="text-muted">إجمالي قيمة شراء المخزون المتاح</p>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-4">
+      <div class="card bg-light h-100">
+        <div class="card-header bg-success text-white">
+          <h5 class="mb-0"><i class="fas fa-tags"></i> القيم البيعية</h5>
+        </div>
+        <div class="card-body text-center">
+          <h3 class="text-success" id="total_selling_value">0.00 ريال</h3>
+          <p class="text-muted">إجمالي قيمة بيع المخزون المتاح</p>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-4">
+      <div class="card bg-light h-100">
+        <div class="card-header bg-warning text-white">
+          <h5 class="mb-0"><i class="fas fa-chart-line"></i> الربح المتوقع</h5>
+        </div>
+        <div class="card-body text-center">
+          <h3 class="text-warning" id="total_expected_profit">0.00 ريال</h3>
+          <p class="text-muted">الربح المتوقع من المخزون المتاح</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- Sales Performance Cards -->
+  <div class="row mb-4">
+    <div class="col-md-6">
+      <div class="card bg-light h-100">
+        <div class="card-header bg-primary text-white">
+          <h5 class="mb-0"><i class="fas fa-chart-line"></i> إجمالي المبيعات</h5>                                                                            
+        </div>
+        <div class="card-body text-center">
+          <h3 class="text-primary" id="total_sales_amount_period">0.00 ريال</h3>
+          <p class="text-muted">إجمالي المبيعات للفترة المحددة</p>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-6">
+      <div class="card bg-light h-100">
+        <div class="card-header bg-info text-white">
+          <h5 class="mb-0"><i class="fas fa-chart-pie"></i> نسبة الربح</h5>
+        </div>
+        <div class="card-body text-center">
+          <h3 class="text-info" id="profit_ratio">0%</h3>
+          <p class="text-muted">نسبة الربح من المبيعات</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Quick Actions -->
+  <div class="row mb-4">
+    <div class="col-12">
+      <div class="card">
+        <div class="card-header bg-primary text-white">
+          <h5 class="mb-0"><i class="fas fa-bolt"></i> إجراءات سريعة</h5>
+        </div>
+        <div class="card-body">
+          <div class="row">
+            <div class="col-md-3 mb-2">
+              <a href="create_sale.html" class="btn btn-success btn-lg w-100">
+                <i class="fas fa-plus-circle"></i><br>إنشاء عملية بيع
+              </a>
+            </div>
+            <div class="col-md-3 mb-2">
+              <a href="add_new_phone.html" class="btn btn-primary btn-lg w-100">
+                <i class="fas fa-mobile"></i><br>إضافة هاتف جديد
+              </a>
+            </div>
+            <div class="col-md-3 mb-2">
+              <a href="add_accessory.html" class="btn btn-info btn-lg w-100">
+                <i class="fas fa-box"></i><br>إضافة أكسسوار
+              </a>
+            </div>
+            <div class="col-md-3 mb-2">
+              <a href="search.html" class="btn btn-warning btn-lg w-100">
+                <i class="fas fa-search"></i><br>البحث في المخزون
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Recent Sales -->
+  <div class="row">
+    <div class="col-md-12">
+      <div class="card">
+        <div class="card-header bg-success text-white">
+          <h5 class="mb-0"><i class="fas fa-history"></i> آخر المبيعات</h5>
+        </div>
+        <div class="card-body" id="recent_sales_wrap">
+          <!-- واجهة فقط: اعرض رسالة فارغة. يمكنك لاحقًا ملؤها عبر JS من API -->
+          <div class="text-center py-4">
+            <i class="fas fa-shopping-cart fa-3x text-muted mb-3"></i>
+            <h5 class="text-muted">لا توجد مبيعات حديثة</h5>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- مكتبات JS نفسها -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+
+<!-- Firebase Configuration -->
+<script type="module" src="js/firebase-config-cdn.js?v=20260119"></script>
+<script type="module" src="js/firebase-database-cdn.js?v=20260119"></script>
+<script type="module" src="js/firebase-storage-manager.js?v=20260119"></script>
+
+<!-- نظام لوحة التحكم مع التحقق من تسجيل الدخول -->
+<script>
+  // التحقق من تسجيل الدخول
+  function checkLogin() {
+    const currentUser = localStorage.getItem('current_user');
+    if (!currentUser) {
+      // إعادة توجيه لصفحة تسجيل الدخول
+      alert('يجب تسجيل الدخول أولاً');
+      window.location.href = 'login.html';
+      return false;
+    }
+    
+    try {
+      const userData = JSON.parse(currentUser);
+      
+      // التحقق من أن المستخدم مدير
+      if (userData.role !== 'admin') {
+        window.location.href = 'limited_dashboard.html';
+        return false;
+      }
+      
+      return true;
+    } catch (error) {
+      console.error('Error parsing user data:', error);
+      localStorage.removeItem('current_user');
+      window.location.href = 'login.html';
+      return false;
+    }
+  }
+
+  // تسجيل الخروج
+  function logout() {
+    if (confirm('هل أنت متأكد من تسجيل الخروج؟')) {
+      localStorage.removeItem('current_user');
+      alert('تم تسجيل الخروج بنجاح');
+      window.location.href = 'index.html';
+    }
+  }
+
+  // ---------- أدوات مساعدة للوقت/التاريخ ----------
+  // يحوّل أي مدخل تاريخ (Date | ISO string | number | Firestore Timestamp | {seconds/_seconds, nanoseconds/_nanoseconds}) إلى Date صالح
+  function normalizeToDate(v) {
+    if (v == null) return null;
+
+    // 1) Date جاهز
+    if (v instanceof Date) {
+      return isNaN(v.getTime()) ? null : v;
+    }
+
+    // 2) Firestore Timestamp: toDate()
+    if (typeof v === 'object') {
+      if (typeof v.toDate === 'function') {
+        const d = v.toDate();
+        return isNaN(d?.getTime()) ? null : d;
+      }
+      // 3) شكل seconds/nanoseconds أو _seconds/_nanoseconds
+      if ('seconds' in v || '_seconds' in v) {
+        const sec  = Number(v.seconds ?? v._seconds ?? 0);
+        const nsec = Number(v.nanoseconds ?? v._nanoseconds ?? 0);
+        const ms = (sec * 1000) + Math.floor(nsec / 1e6);
+        const d = new Date(ms);
+        return isNaN(d.getTime()) ? null : d;
+      }
+    }
+
+    // 4) رقم: ms أو s
+    if (typeof v === 'number') {
+      const ms = v > 1e12 ? v : v * 1000; // إذا أقل من 1e12 نفترض ثواني
+      const d = new Date(ms);
+      return isNaN(d.getTime()) ? null : d;
+    }
+
+    // 5) سترنق: ISO أو رقمية
+    if (typeof v === 'string') {
+      const s = v.trim();
+      if (/^\d+$/.test(s)) {
+        const n = parseInt(s, 10);
+        const ms = n > 1e12 ? n : n * 1000;
+        const d = new Date(ms);
+        return isNaN(d.getTime()) ? null : d;
+      }
+      const d = new Date(s); // مثل "2025-09-20T11:34:48.797Z"
+      return isNaN(d.getTime()) ? null : d;
+    }
+
+    return null;
+  }
+
+  // يرجّع أفضل تاريخ موجود في السجل
+  function getSaleDateValue(sale) {
+    return (
+      normalizeToDate(sale?.date_created) ||
+      normalizeToDate(sale?.date_added)   ||
+      normalizeToDate(sale?.createdAt)    ||
+      normalizeToDate(sale?.created_at)   ||
+      null
+    );
+  }
+
+  // تحويل الأرقام العربية إلى لاتينية — يدعم المدخلات الرقمية
+  function convertToLatinNumbers(input) {
+    if (input == null) return '';
+    const str = String(input);
+    const map = {'٠':'0','١':'1','٢':'2','٣':'3','٤':'4','٥':'5','٦':'6','٧':'7','٨':'8','٩':'9'};
+    return str.replace(/[٠-٩]/g, d => map[d] || d);
+  }
+
+  // التحقق من بيع الهاتف
+  function isPhoneSold(phoneId, salesData = []) {
+    try {
+      const rawSales = salesData.length > 0 ? salesData : JSON.parse(localStorage.getItem('sales') || '[]');
+      const sales = (rawSales || []).filter(s => s && s.returned !== true && s.status !== 'مسترجعة');
+      return sales.some(sale =>
+        Array.isArray(sale.items) &&
+        sale.items.some(item => item.type === 'phone' && (item.id === phoneId || item.phone_id === phoneId))
+      );
+    } catch (error) {
+      console.error('❌ خطأ في التحقق من بيع الهاتف:', error);
+      return false;
+    }
+  }
+
+  // الحصول على الفترة الزمنية المحددة
+  function getDateRange() {
+    const startDateInput = document.getElementById('start_date');
+    const endDateInput = document.getElementById('end_date');
+    
+    let startDate, endDate;
+    
+    if (startDateInput.value && endDateInput.value) {
+      startDate = new Date(startDateInput.value);
+      endDate = new Date(endDateInput.value);
+      // تعيين الوقت إلى بداية اليوم ونهاية اليوم
+      startDate.setHours(0, 0, 0, 0);
+      endDate.setHours(23, 59, 59, 999);
+    } else {
+      // افتراضي: الشهر الحالي
+      const now = new Date();
+      startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+      endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+    }
+    
+    return { startDate, endDate };
+  }
+
+  // تصفية المبيعات حسب الفترة الزمنية
+  function filterSalesByDateRange(sales, startDate, endDate) {
+    return sales.filter(sale => {
+      const saleDate = getSaleDateValue(sale);
+      if (!saleDate) return false;
+      
+      return saleDate >= startDate && saleDate <= endDate;
+    });
+  }
+
+  // تحديث مؤشر الفترة
+  function updatePeriodIndicator() {
+    const { startDate, endDate } = getDateRange();
+    const indicator = document.getElementById('period_indicator');
+    const salesLabel = document.getElementById('sales_period_label');
+    const profitLabel = document.getElementById('profit_period_label');
+    
+    const formatDate = (date) => {
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    };
+    
+    const startStr = formatDate(startDate);
+    const endStr = formatDate(endDate);
+    
+    // التحقق إذا كانت الفترة هي الشهر الحالي
+    const now = new Date();
+    const currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const currentMonthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+    
+    let periodText = '';
+    if (startDate.getTime() === currentMonthStart.getTime() && 
+        endDate.getTime() === currentMonthEnd.getTime()) {
+      periodText = 'للشهر الحالي';
+      if (indicator) indicator.textContent = 'الفترة: الشهر الحالي';
+    } else {
+      periodText = `من ${startStr} إلى ${endStr}`;
+      if (indicator) indicator.textContent = `الفترة: ${periodText}`;
+    }
+    
+    // تحديث التسميات في البطاقات
+    if (salesLabel) salesLabel.textContent = periodText;
+    if (profitLabel) profitLabel.textContent = periodText;
+  }
+
+  // تهيئة التواريخ إلى الشهر الحالي
+  function initializeDateRange() {
+    const now = new Date();
+    const startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+    const endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+    
+    const startDateInput = document.getElementById('start_date');
+    const endDateInput = document.getElementById('end_date');
+    
+    if (startDateInput && endDateInput) {
+      startDateInput.value = startDate.toISOString().split('T')[0];
+      endDateInput.value = endDate.toISOString().split('T')[0];
+      updatePeriodIndicator();
+    }
+  }
+
+  // تطبيق الفلتر
+  function applyDateFilter() {
+    updateDashboard();
+  }
+
+  // إعادة تعيين إلى الشهر الحالي
+  function resetToCurrentMonth() {
+    initializeDateRange();
+    updateDashboard();
+  }
+
+  // تحديث لوحة التحكم بالبيانات الحقيقية
+  async function updateDashboard() {
+    try {
+      // جلب البيانات من Firebase أو التخزين المحلي
+      let phones = [];
+      let accessories = [];
+      let sales = [];
+      
+      if (window.storage && window.storage.isFirebaseAvailable) {
+        // استخدام Firebase
+        phones = await window.storage.getPhones();
+        accessories = await window.storage.getAccessories();
+        sales = await window.storage.getSales();
+      } else {
+        // استخدام LocalStorage كبديل
+        phones = JSON.parse(localStorage.getItem('phones') || '[]');
+        accessories = JSON.parse(localStorage.getItem('accessories') || '[]');
+        sales = JSON.parse(localStorage.getItem('sales') || '[]');
+      }
+
+      // تصفية الهواتف المباعة - إبقاء الهواتف المتاحة فقط
+      const availablePhones = phones.filter(phone => {
+        const phoneId = phone.id || phone.phone_number;
+        return phoneId && !isPhoneSold(phoneId, sales);
+      });
+
+      console.log('📱 الهواتف المتاحة:', availablePhones.length, 'من أصل', phones.length);
+
+      // تحديث إحصائيات الهواتف (الهواتف المتاحة فقط)
+      const totalPhones = availablePhones.length;
+      
+      // حساب القيم للهواتف المتاحة فقط
+      const phonesPurchaseValue = availablePhones.reduce((sum, phone) => sum + (phone.purchase_price || 0), 0);
+      const phonesSellingValue = availablePhones.reduce((sum, phone) => sum + (phone.selling_price || 0), 0);
+      
+      // حساب القيم للأكسسوارات المتاحة (الكمية > 0)
+      const availableAccessories = accessories.filter(acc => (acc.quantity_in_stock || acc.quantity || 0) > 0);
+      const accessoriesPurchaseValue = availableAccessories.reduce((sum, acc) => sum + (acc.purchase_price || 0) * (acc.quantity_in_stock || acc.quantity || 0), 0);
+      const accessoriesSellingValue = availableAccessories.reduce((sum, acc) => sum + (acc.selling_price || 0) * (acc.quantity_in_stock || acc.quantity || 0), 0);
+      
+      // إجمالي القيم (هواتف + أكسسوارات)
+      const totalPurchaseValue = phonesPurchaseValue + accessoriesPurchaseValue;
+      const totalSellingValue = phonesSellingValue + accessoriesSellingValue;
+      const totalExpectedProfit = totalSellingValue - totalPurchaseValue;
+
+      console.log('📱 الهواتف المتاحة:', availablePhones.length, 'من أصل', phones.length);
+      console.log('📦 الأكسسوارات المتاحة:', availableAccessories.length, 'من أصل', accessories.length);
+      console.log('💰 قيمة شراء الهواتف:', phonesPurchaseValue);
+      console.log('💰 قيمة شراء الأكسسوارات:', accessoriesPurchaseValue);
+      console.log('💰 إجمالي القيمة الشرائية:', totalPurchaseValue);
+
+      document.getElementById('total_phones').textContent = convertToLatinNumbers(totalPhones);
+      document.getElementById('total_purchase_value').textContent = convertToLatinNumbers(totalPurchaseValue.toFixed(2)) + ' ريال';
+      document.getElementById('total_selling_value').textContent = convertToLatinNumbers(totalSellingValue.toFixed(2)) + ' ريال';
+      document.getElementById('total_expected_profit').textContent = convertToLatinNumbers(totalExpectedProfit.toFixed(2)) + ' ريال';
+
+
+      // تحديث إحصائيات المبيعات (استثناء المبيعات المسترجعة)
+      let effectiveSales = (sales || []).filter(s => s && s.returned !== true && s.status !== 'مسترجعة');
+      
+      // تصفية المبيعات حسب الفترة الزمنية المحددة
+      const { startDate, endDate } = getDateRange();
+      effectiveSales = filterSalesByDateRange(effectiveSales, startDate, endDate);
+      
+      // تحديث مؤشر الفترة
+      updatePeriodIndicator();
+      
+      const totalSales = effectiveSales.length;
+      const totalSalesAmount = effectiveSales.reduce((sum, sale) => sum + (sale.total_amount || 0), 0);
+
+      // حساب الربح الفعلي: سعر البيع - سعر الشراء
+      let totalActualProfit = 0;
+      let totalPurchaseCost = 0;
+      
+      effectiveSales.forEach(sale => {
+        if (sale.items && Array.isArray(sale.items)) {
+          sale.items.forEach(item => {
+            // سعر البيع (من المبيعات)
+            const sellingPrice = item.unitPrice || item.unit_price || 0;                                                                            
+            const quantity = item.quantity || 1;
+            const totalSellingPrice = sellingPrice * quantity;                                                                              
+            
+            // سعر الشراء (من قاعدة البيانات)
+            let purchasePrice = 0;
+            if (item.type === 'phone') {
+              const phone = phones.find(p => (p.id === item.id || p.phone_id === item.id || p.phone_number === item.id));
+              if (phone) {
+                purchasePrice = (phone.purchase_price_with_vat || phone.purchase_price || 0);
+              }
+            } else {
+              const accessory = accessories.find(a => (a.id === item.id || a.sku === item.id));
+              if (accessory) {
+                purchasePrice = (accessory.purchase_price_with_vat || accessory.purchase_price || 0);
+              }
+            }
+            
+            const totalPurchasePrice = purchasePrice * quantity;
+            const itemProfit = totalSellingPrice - totalPurchasePrice;
+            
+            totalActualProfit += itemProfit;
+            totalPurchaseCost += totalPurchasePrice;
+          });
+        }
+      });
+
+      // جلب أرباح الصيانة من قاعدة البيانات وتصفيتها حسب الفترة
+      let maintenanceProfit = 0;
+      let maintenanceJobs = [];
+      try {
+        console.log('🔍 جلب أرباح الصيانة...');
+        const allMaintenanceJobs = await window.firebaseDatabase.getMaintenanceJobs({ status: 'done' });
+        console.log('🔍 تم جلب أعمال الصيانة:', allMaintenanceJobs.length, 'عمل');
+        
+        // تصفية أعمال الصيانة حسب الفترة الزمنية
+        maintenanceJobs = allMaintenanceJobs.filter(job => {
+          const jobDate = normalizeToDate(job.dateCompleted || job.date_completed || job.createdAt || job.created_at);
+          if (!jobDate) return false;
+          return jobDate >= startDate && jobDate <= endDate;
+        });
+        
+        maintenanceProfit = maintenanceJobs.reduce((sum, job) => {
+          const shopProfit = job.shopProfit || 0;
+          console.log(`🔧 أرباح الصيانة: ${job.customerName} = ${shopProfit} ريال`);
+          return sum + shopProfit;
+        }, 0);
+        
+        console.log('🔧 إجمالي أرباح الصيانة للفترة:', maintenanceProfit, 'ريال');
+      } catch (error) {
+        console.error('❌ خطأ في جلب أرباح الصيانة:', error);
+        maintenanceProfit = 0;
+        maintenanceJobs = [];
+      }
+
+      // إضافة أرباح الصيانة إلى الربح الفعلي
+      totalActualProfit += maintenanceProfit;
+      console.log('💰 ربح المبيعات:', totalActualProfit - maintenanceProfit);
+      console.log('💰 أرباح الصيانة:', maintenanceProfit);
+      console.log('💰 إجمالي الربح الفعلي (مبيعات + صيانة):', totalActualProfit);
+
+      // حساب نسبة الربح الفعلية (الربح الفعلي ÷ إجمالي المبيعات)
+      const salesProfit = totalActualProfit - maintenanceProfit;
+      const actualProfitRatio = totalSalesAmount > 0 ? (totalActualProfit / totalSalesAmount) * 100 : 0;
+      
+      // حساب نسبة الربح الإجمالية (مبيعات + صيانة)
+      const maintenanceRevenue = maintenanceJobs ? maintenanceJobs.reduce((sum, job) => sum + (job.amountCharged || 0), 0) : 0;
+      const totalRevenue = totalSalesAmount + maintenanceRevenue;
+      const totalProfitRatio = totalRevenue > 0 ? (totalActualProfit / totalRevenue) * 100 : 0;
+
+      console.log('💰 إجمالي سعر البيع:', totalSalesAmount);
+      console.log('💰 إجمالي سعر الشراء:', totalPurchaseCost);
+      console.log('💰 ربح المبيعات فقط:', salesProfit);
+      console.log('💰 إجمالي الربح الفعلي (مبيعات + صيانة):', totalActualProfit);
+      console.log('💰 نسبة الربح الفعلية (الربح ÷ المبيعات):', actualProfitRatio.toFixed(2) + '%');
+      console.log('💰 إجمالي الإيرادات (مبيعات + صيانة):', totalRevenue);
+      console.log('💰 نسبة الربح الإجمالية:', totalProfitRatio.toFixed(2) + '%');
+
+      document.getElementById('total_sales_count').textContent = convertToLatinNumbers(totalSales);                                                         
+      document.getElementById('total_sales_amount').textContent = convertToLatinNumbers(totalSalesAmount.toFixed(0));                                       
+      document.getElementById('total_actual_profit').textContent = convertToLatinNumbers(totalActualProfit.toFixed(2));
+      
+      // تحديث إجمالي المبيعات للفترة المحددة
+      const totalSalesAmountElement = document.getElementById('total_sales_amount_period');
+      if (totalSalesAmountElement) {
+        totalSalesAmountElement.textContent = convertToLatinNumbers(totalSalesAmount.toFixed(0)) + ' ريال';
+      }
+
+      // حساب نسبة الربح
+      document.getElementById('profit_ratio').textContent = convertToLatinNumbers(actualProfitRatio.toFixed(1)) + '%';
+
+      // إضافة معلومات إضافية للتشخيص
+      console.log('💰 ربح المبيعات:', salesProfit);
+      console.log('💰 أرباح الصيانة:', maintenanceProfit);
+      console.log('💰 إجمالي الربح الفعلي:', totalActualProfit);
+      console.log('💰 إيرادات المبيعات:', totalSalesAmount);
+      console.log('💰 إجمالي الإيرادات:', totalRevenue);
+      console.log('💰 نسبة الربح الفعلية (الربح ÷ المبيعات):', actualProfitRatio.toFixed(2) + '%');
+      console.log('💰 نسبة الربح الإجمالية:', totalProfitRatio.toFixed(2) + '%');
+
+      // تحديث آخر المبيعات (عرض آخر 5 مبيعات من الفترة المحددة)
+      updateRecentSales(effectiveSales);
+
+    } catch (error) {
+      console.error('خطأ في تحديث لوحة التحكم:', error);
+    }
+  }
+
+  // تحديث قسم آخر المبيعات
+  function updateRecentSales(sales) {
+    const recentSalesContainer = document.getElementById('recent_sales_wrap');
+    
+    if (!sales || sales.length === 0) {
+      recentSalesContainer.innerHTML = `
+        <div class="text-center py-4">
+          <i class="fas fa-shopping-cart fa-3x text-muted mb-3"></i>
+          <h5 class="text-muted">لا توجد مبيعات حديثة</h5>
+        </div>
+      `;
+      return;
+    }
+
+    // ترتيب المبيعات حسب التاريخ (الأحدث أولاً) واختيار آخر 5
+    const sortedSales = sales
+      .sort((a, b) => {
+        const dateA = getSaleDateValue(a) || new Date(0);
+        const dateB = getSaleDateValue(b) || new Date(0);
+        return dateB - dateA;
+      })
+      .slice(0, 5);
+
+    let salesHTML = '';
+    
+    sortedSales.forEach(sale => {
+      const saleDate = getSaleDateValue(sale) || new Date();
+      const formattedDate = formatDate(saleDate);
+      const customerName = sale.customer_name || 'عميل نقدي';
+      const totalAmount = sale.total_amount || 0;
+      const itemCount = sale.items ? sale.items.length : 0;
+      const status = sale.status || 'مكتمل';
+      
+      // تحديد لون الحالة
+      let statusBadge = 'bg-warning';
+      if (status === 'مكتمل') statusBadge = 'bg-success';
+      else if (status === 'ملغي') statusBadge = 'bg-danger';
+
+      salesHTML += `
+        <div class="row align-items-center py-2 border-bottom">
+          <div class="col-md-2">
+            <span class="badge bg-primary">${sale.sale_number || sale.id || 'غير محدد'}</span>
+          </div>
+          <div class="col-md-2">
+            <small class="text-muted">${formattedDate}</small>
+          </div>
+          <div class="col-md-3">
+            <strong>${customerName}</strong>
+          </div>
+          <div class="col-md-2">
+            <span class="badge bg-info">${convertToLatinNumbers(itemCount)} منتج</span>
+          </div>
+          <div class="col-md-2">
+            <strong class="text-success">${convertToLatinNumbers(totalAmount.toFixed(2))} ريال</strong>
+          </div>
+          <div class="col-md-1">
+            <span class="badge ${statusBadge}">${status}</span>
+          </div>
+        </div>
+      `;
+    });
+
+    recentSalesContainer.innerHTML = `
+      <div class="table-responsive">
+        <div class="row fw-bold text-muted border-bottom pb-2 mb-2">
+          <div class="col-md-2">رقم العملية</div>
+          <div class="col-md-2">التاريخ</div>
+          <div class="col-md-3">العميل</div>
+          <div class="col-md-2">المنتجات</div>
+          <div class="col-md-2">المبلغ</div>
+          <div class="col-md-1">الحالة</div>
+        </div>
+        ${salesHTML}
+      </div>
+      <div class="text-center mt-3">
+        <a href="list_sales.html" class="btn btn-outline-success">
+          <i class="fas fa-list"></i> عرض جميع المبيعات
+        </a>
+      </div>
+    `;
+  }
+
+  // تنسيق التاريخ للعرض
+  function formatDate(anyDate) {
+    const d = normalizeToDate(anyDate);
+    if (!d) return '-';
+    
+    try {
+      const pad = x => String(x).padStart(2,'0');
+      const year    = d.getFullYear();
+      const month   = pad(d.getMonth() + 1);
+      const day     = pad(d.getDate());
+      const hours   = pad(d.getHours());
+      const minutes = pad(d.getMinutes());
+      
+      return `${convertToLatinNumbers(year)}-${convertToLatinNumbers(month)}-${convertToLatinNumbers(day)} ${convertToLatinNumbers(hours)}:${convertToLatinNumbers(minutes)}`;
+    } catch {
+      return '-';
+    }
+  }
+
+  // تهيئة الصفحة
+  document.addEventListener('DOMContentLoaded', async function() {
+    // التحقق من تسجيل الدخول أولاً
+    if (!checkLogin()) return;
+
+    // تهيئة التواريخ إلى الشهر الحالي
+    initializeDateRange();
+
+    // انتظار تحميل Firebase
+    await new Promise(resolve => setTimeout(resolve, 1000));
+
+    // تحديث لوحة التحكم
+    await updateDashboard();
+
+    // تحديث البيانات كل 10 ثوانِ
+    setInterval(async () => {
+      await updateDashboard();
+    }, 10000);
+  });
+</script>
+
+<!-- Navigation Script -->
+<script src="js/navigation.js"></script>
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    initNavigation('dashboard');
+  });
+</script>
+</body>
+</html>

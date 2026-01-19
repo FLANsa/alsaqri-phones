@@ -1,0 +1,1229 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>إدارة أعمال الصيانة — عبدالملك للاتصالات</title>
+    
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts - Cairo -->
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Firebase Scripts -->
+    <script type="module" src="js/firebase-config-cdn.js?v=20260119"></script>
+    <script type="module" src="js/firebase-database-cdn.js?v=20260119"></script>
+    
+    <!-- Arabic Numbers Support -->
+    <script src="js/arabic-numbers.js"></script>
+    
+    <style>
+        body { 
+            font-family: 'Cairo', sans-serif; 
+            background-color: #f8f9fa; 
+            padding-top: 70px; 
+        }
+        .navbar { 
+            background-color: #2c3e50; 
+            position: fixed; 
+            top: 0; 
+            width: 100%; 
+            z-index: 1030; 
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .navbar-brand, .nav-link { color: white !important; }
+        .card { 
+            margin-bottom: 20px; 
+            box-shadow: 0 2px 4px rgba(0,0,0,0.08); 
+        }
+        .card-header { 
+            font-weight: 600; 
+        }
+        .table thead.table-dark th { 
+            vertical-align: middle; 
+        }
+        .btn-primary { 
+            background-color: #2c3e50; 
+            border-color: #2c3e50; 
+        }
+        .btn-primary:hover { 
+            background-color: #1a252f; 
+            border-color: #1a252f; 
+        }
+        .status-badge {
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 0.85em;
+            font-weight: 600;
+        }
+        .status-pending {
+            background: #fff3cd;
+            color: #856404;
+        }
+        .status-done {
+            background: #d4edda;
+            color: #155724;
+        }
+        .status-canceled {
+            background: #f8d7da;
+            color: #721c24;
+        }
+        .profit-card {
+            background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+            color: white;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 15px;
+        }
+        .profit-item {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 5px;
+        }
+        .profit-item:last-child {
+            margin-bottom: 0;
+            font-weight: bold;
+            border-top: 1px solid rgba(255,255,255,0.3);
+            padding-top: 5px;
+        }
+        .btn-success {
+            background-color: #28a745;
+            border-color: #28a745;
+        }
+        .btn-success:hover {
+            background-color: #218838;
+            border-color: #1e7e34;
+        }
+        .complete-job-btn {
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
+        }
+    </style>
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar navbar-expand-lg navbar-dark">
+        <div class="container">
+            <span class="navbar-brand">عبدالملك للاتصالات</span>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav me-auto">
+                    <!-- Navigation will be populated by navigation.js -->
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container-fluid py-4">
+        <!-- Page Header -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <h2 class="text-center mb-3">
+                    <i class="fas fa-wrench text-primary"></i> إدارة أعمال الصيانة
+                </h2>
+            </div>
+        </div>
+
+        <!-- Filters -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header bg-secondary text-white">
+                        <h5 class="mb-0"><i class="fas fa-filter"></i> فلاتر البحث</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-3 mb-3">
+                                <label for="filterStatus" class="form-label">الحالة</label>
+                                <select class="form-select" id="filterStatus">
+                                    <option value="">جميع الحالات</option>
+                                    <option value="pending">قيد الصيانة</option>
+                                    <option value="done">مكتملة</option>
+                                    <option value="canceled">ملغية</option>
+                                </select>
+                            </div>
+                            <div class="col-md-3 mb-3">
+                                <label for="filterRep" class="form-label">المندوب</label>
+                                <select class="form-select" id="filterRep">
+                                    <option value="">جميع المندوبين</option>
+                                </select>
+                            </div>
+                            <div class="col-md-3 mb-3">
+                                <label for="filterTech" class="form-label">الفني</label>
+                                <select class="form-select" id="filterTech">
+                                    <option value="">جميع الفنيين</option>
+                                </select>
+                            </div>
+                            <div class="col-md-3 mb-3">
+                                <label for="filterDateFrom" class="form-label">من تاريخ</label>
+                                <input type="date" class="form-control" id="filterDateFrom">
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-3 mb-3">
+                                <label for="filterDateTo" class="form-label">إلى تاريخ</label>
+                                <input type="date" class="form-control" id="filterDateTo">
+                            </div>
+                            <div class="col-md-9 mb-3 d-flex align-items-end">
+                                <button class="btn btn-primary me-2" onclick="applyFilters()">
+                                    <i class="fas fa-search"></i> تطبيق الفلاتر
+                                </button>
+                                <button class="btn btn-secondary me-2" onclick="clearFilters()">
+                                    <i class="fas fa-times"></i> مسح الفلاتر
+                                </button>
+                                <button class="btn btn-success me-2" onclick="printReport()">
+                                    <i class="fas fa-file-pdf"></i> طباعة التقرير
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Add New Job Button -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <button class="btn btn-primary btn-lg" onclick="openAddJobModal()">
+                    <i class="fas fa-plus"></i> إضافة عمل صيانة جديد
+                </button>
+            </div>
+        </div>
+
+        <!-- Jobs List -->
+        <div class="row">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header bg-info text-white">
+                        <h5 class="mb-0"><i class="fas fa-list"></i> قائمة أعمال الصيانة</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead class="table-dark">
+                                    <tr>
+                                        <th>التاريخ</th>
+                                        <th>العميل</th>
+                                        <th>المندوب</th>
+                                        <th>الفني</th>
+                                        <th>القطعة</th>
+                                        <th>تكلفة القطعة</th>
+                                        <th>المبلغ المحصل</th>
+                                        <th>الربح</th>
+                                        <th>عمولة الفني</th>
+                                        <th>ربح المحل</th>
+                                        <th>الحالة</th>
+                                        <th>الإجراءات</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="jobsList">
+                                    <!-- Jobs data will be loaded here -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add/Edit Job Modal -->
+    <div class="modal fade" id="jobModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="jobModalTitle">إضافة عمل صيانة جديد</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="jobForm">
+                        <input type="hidden" id="jobId">
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="customerName" class="form-label">اسم العميل *</label>
+                                <input type="text" class="form-control" id="customerName" required>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label for="customerPhone" class="form-label">رقم هاتف العميل</label>
+                                <input type="tel" class="form-control" id="customerPhone">
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="visitDate" class="form-label">تاريخ الزيارة *</label>
+                                <input type="date" class="form-control" id="visitDate" required>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label for="techId" class="form-label">الفني *</label>
+                                <select class="form-select" id="techId" required>
+                                    <option value="">اختر الفني</option>
+                                </select>
+                            </div>
+                        </div>
+                        
+                        <!-- قسم القطع المتعددة -->
+                        <div class="row mb-3">
+                            <div class="col-12">
+                                <div class="card">
+                                    <div class="card-header bg-info text-white d-flex justify-content-between align-items-center">
+                                        <h6 class="mb-0"><i class="fas fa-cogs"></i> القطع المستخدمة</h6>
+                                        <button type="button" class="btn btn-sm btn-light" onclick="addPart()">
+                                            <i class="fas fa-plus"></i> إضافة قطعة
+                                        </button>
+                                    </div>
+                                    <div class="card-body">
+                                        <div id="partsContainer">
+                                            <!-- القطع ستُضاف هنا ديناميكياً -->
+                                        </div>
+                                        <div class="mt-3 p-2 bg-light rounded">
+                                            <strong>إجمالي تكلفة القطع: <span id="totalPartCostDisplay">0.00</span> ريال</strong>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="amountCharged" class="form-label">المبلغ المحصل (ريال) *</label>
+                                <input type="number" class="form-control arabic-number-field" id="amountCharged" min="0" step="0.01" required>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="status" class="form-label">الحالة</label>
+                                <select class="form-select" id="status">
+                                    <option value="pending">قيد الصيانة</option>
+                                    <option value="done">مكتملة</option>
+                                    <option value="canceled">ملغية</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="deviceType" class="form-label">نوع الجهاز *</label>
+                                <select class="form-select" id="deviceType" required>
+                                    <option value="">اختر نوع الجهاز</option>
+                                    <option value="mobile">جوال</option>
+                                    <option value="tablet">تابلت</option>
+                                    <option value="laptop">لابتوب</option>
+                                    <option value="other">أخرى</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label for="deviceModel" class="form-label">موديل الجهاز *</label>
+                                <input type="text" class="form-control" id="deviceModel" required>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="warrantyPeriod" class="form-label">فترة الضمان (أيام)</label>
+                                <select class="form-select" id="warrantyPeriod" onchange="toggleCustomWarranty()">
+                                    <option value="0">بدون ضمان</option>
+                                    <option value="7">7 أيام</option>
+                                    <option value="15" selected>15 يوم</option>
+                                    <option value="30">30 يوم (شهر)</option>
+                                    <option value="60">60 يوم (شهرين)</option>
+                                    <option value="90">90 يوم (3 شهور)</option>
+                                    <option value="سنة">سنة</option>
+                                    <option value="سنتين">سنتين</option>
+                                    <option value="custom">مخصص</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label for="customWarrantyText" class="form-label" id="customWarrantyLabel" style="display: none;"> الضمان المخصص</label>
+                                <input type="text" class="form-control" id="customWarrantyText" placeholder="مثال: سنة، سنتين، 6 شهور" style="display: none;">
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-12 mb-3">
+                                <label for="warrantyNotes" class="form-label">ملاحظات الضمان</label>
+                                <input type="text" class="form-control" id="warrantyNotes" placeholder="ملاحظات إضافية عن الضمان">
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label for="notes" class="form-label">ملاحظات</label>
+                            <textarea class="form-control" id="notes" rows="3"></textarea>
+                        </div>
+                        
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">إلغاء</button>
+                    <button type="button" class="btn btn-primary" onclick="saveJob()">حفظ</button>
+                    <button type="button" class="btn btn-success complete-job-btn" id="completeJobBtn" onclick="completeJob()" style="display: none;">
+                        <i class="fas fa-check-circle"></i> إتمام العملية
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <!-- Navigation Script -->
+    <script src="js/navigation.js"></script>
+    
+    <script>
+        // دالة إظهار/إخفاء حقل الضمان المخصص
+        function toggleCustomWarranty() {
+            const warrantySelect = document.getElementById('warrantyPeriod');
+            const customWarrantyLabel = document.getElementById('customWarrantyLabel');
+            const customWarrantyText = document.getElementById('customWarrantyText');
+            
+            if (warrantySelect.value === 'custom') {
+                customWarrantyLabel.style.display = 'block';
+                customWarrantyText.style.display = 'block';
+                customWarrantyText.focus();
+            } else {
+                customWarrantyLabel.style.display = 'none';
+                customWarrantyText.style.display = 'none';
+                customWarrantyText.value = '';
+            }
+        }
+
+        // دالة الحصول على فترة الضمان المحددة
+        function getWarrantyPeriod() {
+            const warrantySelect = document.getElementById('warrantyPeriod');
+            const customWarrantyText = document.getElementById('customWarrantyText');
+            
+            if (warrantySelect.value === 'custom') {
+                const customText = customWarrantyText.value.trim();
+                if (customText) {
+                    return customText; // إرجاع النص كما هو
+                } else {
+                    showAlert('error', 'يرجى إدخال  الضمان المخصص');
+                    return null;
+                }
+            } else {
+                // التحقق إذا كانت القيمة رقم أو نص
+                const value = warrantySelect.value;
+                const numValue = parseInt(value);
+                if (!isNaN(numValue)) {
+                    return numValue; // رقم
+                } else {
+                    return value; // نص (سنة، سنتين)
+                }
+            }
+        }
+
+        // ✅ دالة موحّدة لحساب القيم المشتقة
+        function computeDerived(partCost, amountCharged, techPercent) {
+            const pc = Number(partCost) || 0;
+            const ac = Number(amountCharged) || 0;
+            const tp = (typeof techPercent === 'number' && !isNaN(techPercent)) ? techPercent : 0; // افتراضي 0%
+            const profit = ac - pc;                                // الربح الإجمالي
+            const techCommission = Math.max(0, profit * tp);       // عمولة الفني
+            const shopProfit = profit - techCommission;            // أرباح المحل
+            return { profit, techCommission, shopProfit };
+        }
+
+        let jobsData = [];
+        let repsData = [];
+        let techniciansData = [];
+        let currentEditId = null;
+        let currentFilters = {};
+        let selectedTechPercent = 0; // Default commission percentage
+
+        // Initialize page
+        document.addEventListener('DOMContentLoaded', function() {
+            setupArabicNumberSupport(); // ✅ دعم الأرقام العربية والإنجليزية
+            loadData();
+            setupEventListeners();
+            // Initialize navigation
+            if (typeof initNavigation === 'function') {
+                initNavigation('maintenance-jobs');
+            }
+        });
+
+        // Load all data
+        async function loadData() {
+            try {
+                console.log('🔄 بدء تحميل البيانات...');
+                
+                if (!window.firebaseDatabase) {
+                    console.error('❌ Firebase database not initialized');
+                    showAlert('error', 'قاعدة البيانات غير متاحة');
+                    return;
+                }
+
+                [repsData, techniciansData, jobsData] = await Promise.all([
+                    window.firebaseDatabase.getReps(),
+                    window.firebaseDatabase.getTechnicians(),
+                    window.firebaseDatabase.getMaintenanceJobs()
+                ]);
+
+                console.log('✅ تم تحميل البيانات:', {
+                    reps: repsData.length,
+                    technicians: techniciansData.length,
+                    jobs: jobsData.length
+                });
+
+                populateDropdowns();
+                displayJobs();
+            } catch (error) {
+                console.error('❌ خطأ في تحميل البيانات:', error);
+                console.error('❌ تفاصيل الخطأ:', error.stack);
+                showAlert('error', 'حدث خطأ في تحميل البيانات: ' + (error.message || 'خطأ غير معروف'));
+            }
+        }
+
+        // Populate dropdowns
+        function populateDropdowns() {
+            const techSelect = document.getElementById('techId');
+            const filterRepSelect = document.getElementById('filterRep');
+            const filterTechSelect = document.getElementById('filterTech');
+
+            // Clear existing options
+            if (techSelect) {
+                techSelect.innerHTML = '<option value="">اختر الفني</option>';
+            }
+            if (filterRepSelect) {
+                filterRepSelect.innerHTML = '<option value="">جميع المندوبين</option>';
+            }
+            if (filterTechSelect) {
+                filterTechSelect.innerHTML = '<option value="">جميع الفنيين</option>';
+            }
+
+            // Add reps to filter dropdown only (no longer in form)
+            if (filterRepSelect) {
+                repsData.forEach(rep => {
+                    if (rep.active) {
+                        const option = document.createElement('option');
+                        option.value = rep.id;
+                        option.textContent = rep.name;
+                        filterRepSelect.appendChild(option);
+                    }
+                });
+            }
+
+            // Add technicians to both form and filter dropdowns
+            if (techSelect) {
+                techniciansData.forEach(tech => {
+                    if (tech.active) {
+                        const option = document.createElement('option');
+                        option.value = tech.id;
+                        option.textContent = tech.name;
+                        techSelect.appendChild(option);
+                    }
+                });
+            }
+            
+            if (filterTechSelect) {
+                techniciansData.forEach(tech => {
+                    if (tech.active) {
+                        const option = document.createElement('option');
+                        option.value = tech.id;
+                        option.textContent = tech.name;
+                        filterTechSelect.appendChild(option);
+                    }
+                });
+            }
+        }
+
+        // Setup event listeners
+        function setupEventListeners() {
+            // Financial calculation listeners
+            const amountChargedField = document.getElementById('amountCharged');
+            if (amountChargedField) {
+                amountChargedField.addEventListener('input', calculateProfit);
+            }
+
+            // Tech selection listener
+            const techSelect = document.getElementById('techId');
+            if (techSelect) {
+                techSelect.addEventListener('change', function() {
+                    const selectedTech = techniciansData.find(tech => tech.id === this.value);
+                    if (selectedTech) {
+                        selectedTechPercent = selectedTech.defaultCommissionPercent;
+                        const techPercentDisplay = document.getElementById('techPercentDisplay');
+                        if (techPercentDisplay) {
+                            techPercentDisplay.textContent = 
+                                `نسبة العمولة: ${(selectedTechPercent * 100).toFixed(1)}%`;
+                        }
+                        calculateProfit();
+                    } else {
+                        selectedTechPercent = 0; // Default
+                        const techPercentDisplay = document.getElementById('techPercentDisplay');
+                        if (techPercentDisplay) {
+                            techPercentDisplay.textContent = 
+                                'سيتم تحديدها تلقائياً عند اختيار الفني';
+                        }
+                    }
+                });
+            }
+        }
+
+        // Calculate profit
+        function calculateProfit() {
+            // حساب إجمالي تكلفة القطع
+            const parts = getPartsData();
+            const totalPartCost = parts.reduce((sum, part) => sum + part.partCost, 0);
+            
+            const amountCharged = parseArabicNumber(document.getElementById('amountCharged')?.value || 0);
+
+            if (totalPartCost > 0 && amountCharged > 0 && selectedTechPercent > 0) {
+                const { profit, techCommission, shopProfit } = computeDerived(totalPartCost, amountCharged, selectedTechPercent);
+                
+                // تحديث القيم في النموذج إذا كانت العناصر موجودة
+                const totalProfitEl = document.getElementById('totalProfit');
+                const techCommissionEl = document.getElementById('techCommission');
+                const shopProfitEl = document.getElementById('shopProfit');
+                const profitCalculationEl = document.getElementById('profitCalculation');
+                
+                if (totalProfitEl) totalProfitEl.textContent = profit.toFixed(2) + ' ريال';
+                if (techCommissionEl) techCommissionEl.textContent = techCommission.toFixed(2) + ' ريال';
+                if (shopProfitEl) shopProfitEl.textContent = shopProfit.toFixed(2) + ' ريال';
+                if (profitCalculationEl) profitCalculationEl.style.display = 'block';
+                
+                console.log('💰 تم حساب الأرباح:', { profit, techCommission, shopProfit });
+            } else {
+                const profitCalculationEl = document.getElementById('profitCalculation');
+                if (profitCalculationEl) profitCalculationEl.style.display = 'none';
+            }
+        }
+
+        // Display jobs in table
+        function displayJobs() {
+            const tbody = document.getElementById('jobsList');
+            tbody.innerHTML = '';
+
+            if (jobsData.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="12" class="text-center">لا توجد بيانات</td></tr>';
+                return;
+            }
+
+            jobsData.forEach(job => {
+                try {
+                    // ✅ استخراج القطع والمندوبين (القطع غير إلزامية)
+                    let partsDisplay = 'لا توجد قطع';
+                    let repsDisplay = '-';
+                    let totalPartCost = 0;
+                    
+                    if (job.parts && Array.isArray(job.parts) && job.parts.length > 0) {
+                        // الهيكل الجديد: عرض جميع القطع
+                        partsDisplay = job.parts.map(p => p.partName || '').filter(n => n).join('، ') || 'لا توجد قطع';
+                        repsDisplay = [...new Set(job.parts.map(p => p.repName || '').filter(n => n))].join('، ') || '-';
+                        totalPartCost = job.parts.reduce((sum, p) => sum + (Number(p.partCost) || 0), 0);
+                    } else if (job.partName) {
+                        // الهيكل القديم: عرض القطعة الواحدة
+                        partsDisplay = job.partName || 'لا توجد قطع';
+                        repsDisplay = job.repName || '-';
+                        totalPartCost = Number(job.partCost) || 0;
+                    } else if (job.totalPartCost !== undefined && job.totalPartCost !== null) {
+                        totalPartCost = Number(job.totalPartCost) || 0;
+                        // إذا كان totalPartCost = 0 وليس هناك parts، فهذا يعني لا توجد قطع
+                        if (totalPartCost === 0 && (!job.parts || job.parts.length === 0)) {
+                            partsDisplay = 'لا توجد قطع';
+                        }
+                    } else {
+                        // لا توجد بيانات قطع على الإطلاق
+                        partsDisplay = 'لا توجد قطع';
+                        totalPartCost = 0;
+                    }
+                    
+                    // معالجة التاريخ
+                    let visitDateStr = '-';
+                    if (job.visitDate) {
+                        try {
+                            if (job.visitDate.seconds) {
+                                visitDateStr = new Date(job.visitDate.seconds * 1000).toLocaleDateString('ar-SA');
+                            } else if (job.visitDate instanceof Date) {
+                                visitDateStr = job.visitDate.toLocaleDateString('ar-SA');
+                            } else {
+                                visitDateStr = new Date(job.visitDate).toLocaleDateString('ar-SA');
+                            }
+                        } catch (e) {
+                            visitDateStr = '-';
+                        }
+                    }
+                    
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                        <td>${visitDateStr}</td>
+                        <td>${job.customerName || '-'}</td>
+                        <td>${repsDisplay}</td>
+                        <td>${job.techName || '-'}</td>
+                        <td>${partsDisplay}</td>
+                        <td>${totalPartCost.toFixed(2)} ريال</td>
+                        <td>${job.amountCharged ? Number(job.amountCharged).toFixed(2) : '0.00'} ريال</td>
+                        <td>${job.profit ? Number(job.profit).toFixed(2) : '0.00'} ريال</td>
+                        <td>${job.techCommission ? Number(job.techCommission).toFixed(2) : '0.00'} ريال</td>
+                        <td>${job.shopProfit ? Number(job.shopProfit).toFixed(2) : '0.00'} ريال</td>
+                        <td>
+                            <span class="status-badge status-${job.status || 'pending'}">
+                                ${getStatusText(job.status || 'pending')}
+                            </span>
+                        </td>
+                        <td>
+                            <button class="btn btn-sm btn-info me-1" onclick="printInvoice('${job.id.replace(/'/g, "\\'")}')" title="طباعة الفاتورة">
+                                <i class="fas fa-print"></i>
+                            </button>
+                            <button class="btn btn-sm btn-warning me-1" onclick="editJob('${job.id.replace(/'/g, "\\'")}')">
+                                <i class="fas fa-edit"></i>
+                            </button>
+                            <button class="btn btn-sm btn-danger" onclick="deleteJob('${job.id.replace(/'/g, "\\'")}')">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </td>
+                    `;
+                    tbody.appendChild(row);
+                } catch (error) {
+                    console.error('❌ Error displaying job:', error, job);
+                }
+            });
+        }
+
+        // Get status text
+        function getStatusText(status) {
+            const statusMap = {
+                'pending': 'قيد الصيانة',
+                'done': 'مكتملة',
+                'canceled': 'ملغية'
+            };
+            return statusMap[status] || status;
+        }
+
+        // Open add job modal
+        function openAddJobModal() {
+            currentEditId = null;
+            document.getElementById('jobModalTitle').textContent = 'إضافة عمل صيانة جديد';
+            document.getElementById('jobForm').reset();
+            document.getElementById('visitDate').value = new Date().toISOString().split('T')[0];
+            selectedTechPercent = 0.5; // Reset to default
+            
+            // مسح القطع السابقة (القطع غير إلزامية)
+            document.getElementById('partsContainer').innerHTML = '';
+            partCounter = 0;
+            calculateTotalPartCost(); // تحديث الإجمالي إلى 0
+            
+            // Hide complete button for new jobs
+            document.getElementById('completeJobBtn').style.display = 'none';
+            
+            new bootstrap.Modal(document.getElementById('jobModal')).show();
+        }
+
+        // Edit job
+        function editJob(jobId) {
+            console.log('🔧 محاولة تعديل عمل الصيانة:', jobId);
+            
+            const job = jobsData.find(j => j.id === jobId);
+            if (!job) {
+                console.error('❌ لم يتم العثور على عمل الصيانة:', jobId);
+                showAlert('error', 'لم يتم العثور على عمل الصيانة المطلوب');
+                return;
+            }
+
+            console.log('✅ تم العثور على عمل الصيانة:', job);
+
+            try {
+                currentEditId = jobId;
+                
+                // تحديث عنوان النافذة
+                const modalTitle = document.getElementById('jobModalTitle');
+                if (modalTitle) modalTitle.textContent = 'تعديل عمل الصيانة';
+                
+                // ملء البيانات في النموذج
+                const jobIdField = document.getElementById('jobId');
+                if (jobIdField) jobIdField.value = jobId;
+                
+                const customerNameField = document.getElementById('customerName');
+                if (customerNameField) customerNameField.value = job.customerName || '';
+                
+                const customerPhoneField = document.getElementById('customerPhone');
+                if (customerPhoneField) customerPhoneField.value = job.customerPhone || '';
+                
+                const visitDateField = document.getElementById('visitDate');
+                if (visitDateField) {
+                    visitDateField.value = job.visitDate ? new Date(job.visitDate.seconds * 1000).toISOString().split('T')[0] : '';
+                }
+                
+                const techIdField = document.getElementById('techId');
+                if (techIdField) techIdField.value = job.techId || '';
+                
+                const amountChargedField = document.getElementById('amountCharged');
+                if (amountChargedField) amountChargedField.value = job.amountCharged || 0;
+                
+                // ✅ تحميل القطع المتعددة (القطع غير إلزامية)
+                const partsContainer = document.getElementById('partsContainer');
+                if (partsContainer) {
+                    partsContainer.innerHTML = '';
+                    partCounter = 0;
+                    
+                    // استخدام مصفوفة القطع الجديدة أو تحويل البيانات القديمة
+                    if (job.parts && Array.isArray(job.parts) && job.parts.length > 0) {
+                        job.parts.forEach(part => {
+                            addPart(part);
+                        });
+                    } else if (job.partName) {
+                        // تحويل البيانات القديمة
+                        addPart({
+                            partName: job.partName,
+                            partCost: job.partCost || 0,
+                            repId: job.repId || '',
+                            repName: job.repName || ''
+                        });
+                    }
+                    // إذا لم تكن هناك قطع، نترك الحاوية فارغة (القطع غير إلزامية)
+                    calculateTotalPartCost(); // تحديث الإجمالي
+                }
+                
+                const statusField = document.getElementById('status');
+                if (statusField) statusField.value = job.status || 'pending';
+                
+                const notesField = document.getElementById('notes');
+                if (notesField) notesField.value = job.notes || '';
+
+                // ✅ حقول الجهاز والضمان الجديدة
+                const deviceTypeField = document.getElementById('deviceType');
+                if (deviceTypeField) deviceTypeField.value = job.deviceType || '';
+                
+                const deviceModelField = document.getElementById('deviceModel');
+                if (deviceModelField) deviceModelField.value = job.deviceModel || '';
+                
+                // معالجة الضمان المخصص
+                const warrantyPeriod = job.warrantyPeriod || 0;
+                const warrantySelect = document.getElementById('warrantyPeriod');
+                const customWarrantyText = document.getElementById('customWarrantyText');
+                
+                if (warrantySelect && customWarrantyText) {
+                    // التحقق من وجود الضمان في الخيارات المحددة مسبقاً
+                    const predefinedOptions = ['0', '7', '15', '30', '60', '90', 'سنة', 'سنتين'];
+                    if (predefinedOptions.includes(warrantyPeriod.toString())) {
+                        warrantySelect.value = warrantyPeriod.toString();
+                        customWarrantyText.style.display = 'none';
+                        document.getElementById('customWarrantyLabel').style.display = 'none';
+                    } else {
+                        // ضمان مخصص (نص)
+                        warrantySelect.value = 'custom';
+                        customWarrantyText.value = warrantyPeriod;
+                        customWarrantyText.style.display = 'block';
+                        document.getElementById('customWarrantyLabel').style.display = 'block';
+                    }
+                }
+                
+                const warrantyNotesField = document.getElementById('warrantyNotes');
+                if (warrantyNotesField) warrantyNotesField.value = job.warrantyNotes || '';
+
+                // Set the tech percent for editing
+                selectedTechPercent = job.techPercent !== undefined ? job.techPercent : 0;
+                console.log('💰 نسبة عمولة الفني:', selectedTechPercent);
+
+                // Show complete button only if job is not done
+                const completeBtn = document.getElementById('completeJobBtn');
+                if (completeBtn) {
+                    if (job.status !== 'done') {
+                        completeBtn.style.display = 'inline-block';
+                    } else {
+                        completeBtn.style.display = 'none';
+                    }
+                }
+
+                // إعادة حساب الأرباح
+                calculateProfit();
+                
+                // فتح النافذة
+                const modal = document.getElementById('jobModal');
+                if (modal) {
+                    new bootstrap.Modal(modal).show();
+                    console.log('✅ تم فتح نافذة التعديل بنجاح');
+                } else {
+                    console.error('❌ لم يتم العثور على نافذة التعديل');
+                }
+                
+            } catch (error) {
+                console.error('❌ خطأ في تعديل عمل الصيانة:', error);
+                showAlert('error', 'حدث خطأ في فتح نافذة التعديل');
+            }
+        }
+
+        // ===== إدارة القطع المتعددة =====
+        let partCounter = 0;
+
+        function addPart(partData = null) {
+            partCounter++;
+            const partId = `part_${partCounter}`;
+            const container = document.getElementById('partsContainer');
+            
+            const partDiv = document.createElement('div');
+            partDiv.className = 'part-item mb-3 p-3 border rounded';
+            partDiv.id = partId;
+            partDiv.innerHTML = `
+                <div class="row">
+                    <div class="col-md-4 mb-2">
+                        <label class="form-label">اسم القطعة </label>
+                        <input type="text" class="form-control part-name" value="${partData?.partName || ''}" required>
+                    </div>
+                    <div class="col-md-3 mb-2">
+                        <label class="form-label">تكلفة القطعة (ريال) </label>
+                        <input type="number" class="form-control arabic-number-field part-cost" 
+                               value="${partData?.partCost || ''}" min="0" step="0.01" required 
+                               oninput="calculateTotalPartCost()">
+                    </div>
+                    <div class="col-md-4 mb-2">
+                        <label class="form-label">المندوب </label>
+                        <select class="form-select part-rep" required>
+                            <option value="">اختر المندوب</option>
+                            ${repsData.filter(r => r.active).map(rep => 
+                                `<option value="${rep.id}" ${partData?.repId === rep.id ? 'selected' : ''}>${rep.name}</option>`
+                            ).join('')}
+                        </select>
+                    </div>
+                    <div class="col-md-1 mb-2 d-flex align-items-end">
+                        <button type="button" class="btn btn-danger btn-sm" onclick="removePart('${partId}')" title="حذف القطعة">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
+                </div>
+            `;
+            
+            container.appendChild(partDiv);
+            
+            // إعداد دعم الأرقام العربية للقطعة الجديدة
+            setupArabicNumberSupport();
+            
+            // إعادة حساب الإجمالي
+            calculateTotalPartCost();
+        }
+
+        function removePart(partId) {
+            const partDiv = document.getElementById(partId);
+            if (partDiv) {
+                partDiv.remove();
+                calculateTotalPartCost();
+            }
+        }
+
+        function calculateTotalPartCost() {
+            const partItems = document.querySelectorAll('.part-item');
+            let total = 0;
+            
+            partItems.forEach(item => {
+                const costInput = item.querySelector('.part-cost');
+                if (costInput) {
+                    const cost = parseArabicNumber(costInput.value) || 0;
+                    total += cost;
+                }
+            });
+            
+            document.getElementById('totalPartCostDisplay').textContent = total.toFixed(2);
+            
+            // إعادة حساب الأرباح إذا كان المبلغ المحصل موجود
+            calculateProfit();
+        }
+
+        function getPartsData() {
+            const partItems = document.querySelectorAll('.part-item');
+            const parts = [];
+            
+            partItems.forEach(item => {
+                const partName = item.querySelector('.part-name')?.value.trim();
+                const partCost = parseArabicNumber(item.querySelector('.part-cost')?.value) || 0;
+                const repId = item.querySelector('.part-rep')?.value || '';
+                
+                if (partName && partCost > 0 && repId) {
+                    const rep = repsData.find(r => r.id === repId);
+                    parts.push({
+                        partName,
+                        partCost,
+                        repId,
+                        repName: rep ? rep.name : ''
+                    });
+                }
+            });
+            
+            return parts;
+        }
+
+        // Save job
+        async function saveJob() {
+            const parts = getPartsData();
+            const amountCharged = parseArabicNumber(document.getElementById('amountCharged').value);
+            const techId = document.getElementById('techId').value;
+
+            // تحقق أساسي - القطع غير إلزامية
+            if (!techId || amountCharged <= 0) {
+                showAlert('error', 'يرجى تعبئة الفني والمبلغ المحصل');
+                return;
+            }
+
+            // حساب إجمالي تكلفة القطع (يمكن أن يكون 0 إذا لم تكن هناك قطع)
+            const totalPartCost = parts.length > 0 ? parts.reduce((sum, part) => sum + part.partCost, 0) : 0;
+
+            // أسماء الفني
+            const tech = techniciansData.find(t => t.id === techId);
+
+            // ✅ احسب القيم المشتقة
+            const { profit, techCommission, shopProfit } = computeDerived(totalPartCost, amountCharged, selectedTechPercent);
+
+            // ✅ التحقق من صحة الضمان المخصص
+            const warrantyPeriod = getWarrantyPeriod();
+            if (warrantyPeriod === null) {
+                return; // توقف إذا كان هناك خطأ في الضمان المخصص
+            }
+
+            const jobData = {
+                customerName: document.getElementById('customerName').value,
+                customerPhone: document.getElementById('customerPhone').value,
+                visitDate: new Date(document.getElementById('visitDate').value),
+                parts, // مصفوفة القطع
+                totalPartCost, // إجمالي تكلفة القطع
+                techId,
+                techName: tech ? tech.name : '',
+                amountCharged,
+                techPercent: selectedTechPercent,      // نخزّن النسبة لاستخدامها لاحقاً
+                // ✅ القيم المحسوبة
+                profit,
+                techCommission,
+                shopProfit,
+                status: document.getElementById('status').value,
+                notes: document.getElementById('notes').value,
+                // ✅ حقول الجهاز والضمان الجديدة
+                deviceType: document.getElementById('deviceType').value,
+                deviceModel: document.getElementById('deviceModel').value,
+                warrantyPeriod: warrantyPeriod,
+                warrantyNotes: document.getElementById('warrantyNotes').value
+            };
+
+            try {
+                if (currentEditId) {
+                    await window.firebaseDatabase.updateMaintenanceJob(currentEditId, jobData);
+                    showAlert('success', 'تم تحديث عمل الصيانة بنجاح');
+                } else {
+                    await window.firebaseDatabase.addMaintenanceJob(jobData);
+                    showAlert('success', 'تم إضافة عمل الصيانة بنجاح');
+                }
+
+                bootstrap.Modal.getInstance(document.getElementById('jobModal')).hide();
+                loadData();
+            } catch (error) {
+                console.error('Error saving job:', error);
+                showAlert('error', 'حدث خطأ في حفظ عمل الصيانة');
+            }
+        }
+
+        // Delete job
+        async function deleteJob(jobId) {
+            console.log('🗑️ محاولة حذف عمل الصيانة:', jobId);
+            
+            if (!jobId) {
+                console.error('❌ معرف عمل الصيانة غير صالح');
+                showAlert('error', 'معرف عمل الصيانة غير صالح');
+                return;
+            }
+            
+            if (!confirm('هل أنت متأكد من حذف عمل الصيانة هذا؟')) return;
+
+            try {
+                await window.firebaseDatabase.deleteMaintenanceJob(jobId);
+                showAlert('success', 'تم حذف عمل الصيانة بنجاح');
+                loadData();
+                console.log('✅ تم حذف عمل الصيانة بنجاح');
+            } catch (error) {
+                console.error('❌ خطأ في حذف عمل الصيانة:', error);
+                showAlert('error', 'حدث خطأ في حذف عمل الصيانة');
+            }
+        }
+
+        // Complete job
+        async function completeJob() {
+            if (!currentEditId) return;
+
+            const job = jobsData.find(j => j.id === currentEditId);
+            if (!job) return;
+
+            // حساب إجمالي تكلفة القطع
+            let totalPartCost = 0;
+            if (job.parts && Array.isArray(job.parts) && job.parts.length > 0) {
+                totalPartCost = job.parts.reduce((sum, part) => sum + (Number(part.partCost) || 0), 0);
+            } else if (job.partCost !== undefined) {
+                totalPartCost = Number(job.partCost) || 0;
+            } else if (job.totalPartCost !== undefined) {
+                totalPartCost = Number(job.totalPartCost) || 0;
+            }
+
+            // تأكيد توفر البيانات الأساسية
+            if (!totalPartCost || !job.amountCharged || !job.techId) {
+                showAlert('error', 'يرجى التأكد من ملء جميع البيانات المطلوبة قبل إتمام العملية');
+                return;
+            }
+
+            // استخدم النسبة المخزّنة إن وجدت، وإلا المختارة حالياً، وإلا من بيانات الفني، وإلا 0%
+            const selectedTech = techniciansData.find(t => t.id === job.techId);
+            const techPercent = (typeof job.techPercent === 'number') ? job.techPercent :
+                                (typeof selectedTechPercent === 'number' ? selectedTechPercent :
+                                (selectedTech && typeof selectedTech.defaultCommissionPercent === 'number') ? 
+                                selectedTech.defaultCommissionPercent : 0);
+
+            // ✅ احسب القيم المُشتقة نهائياً
+            const { profit, techCommission, shopProfit } = computeDerived(totalPartCost, job.amountCharged, techPercent);
+
+            const confirmMessage = `هل أنت متأكد من إتمام هذه العملية؟
+            
+تفاصيل التقسيم:
+• الربح الإجمالي: ${profit.toFixed(2)} ريال
+• عمولة الفني: ${techCommission.toFixed(2)} ريال
+• ربح المحل: ${shopProfit.toFixed(2)} ريال`;
+
+            if (!confirm(confirmMessage)) return;
+
+            try {
+                const jobData = {
+                    status: 'done',
+                    completedAt: new Date(),
+                    // ✅ ثبّت القيم عند الإتمام
+                    profit,
+                    techCommission,
+                    shopProfit,
+                    techPercent
+                };
+
+                await window.firebaseDatabase.updateMaintenanceJob(currentEditId, jobData);
+
+                showAlert('success', `تم إتمام العملية بنجاح!
+                    <br>✅ تم تحديث الحالة إلى "مكتملة"
+                    <br>💰 تم تثبيت عمولة الفني وربح المحل
+                    <br>📊 يمكنك مراجعة الحسابات في صفحة "الحسابات"`);
+
+                bootstrap.Modal.getInstance(document.getElementById('jobModal')).hide();
+                loadData();
+                
+            } catch (error) {
+                console.error('Error completing job:', error);
+                showAlert('error', 'حدث خطأ في إتمام العملية. يرجى المحاولة مرة أخرى.');
+            }
+        }
+
+        // Apply filters
+        async function applyFilters() {
+            currentFilters = {
+                status: document.getElementById('filterStatus').value,
+                repId: document.getElementById('filterRep').value,
+                techId: document.getElementById('filterTech').value,
+                dateFrom: document.getElementById('filterDateFrom').value ? new Date(document.getElementById('filterDateFrom').value) : null,
+                dateTo: document.getElementById('filterDateTo').value ? new Date(document.getElementById('filterDateTo').value) : null
+            };
+
+            try {
+                jobsData = await window.firebaseDatabase.getMaintenanceJobs(currentFilters);
+                displayJobs();
+            } catch (error) {
+                console.error('Error applying filters:', error);
+                showAlert('error', 'حدث خطأ في تطبيق الفلاتر');
+            }
+        }
+
+        // Clear filters
+        function clearFilters() {
+            document.getElementById('filterStatus').value = '';
+            document.getElementById('filterRep').value = '';
+            document.getElementById('filterTech').value = '';
+            document.getElementById('filterDateFrom').value = '';
+            document.getElementById('filterDateTo').value = '';
+            currentFilters = {};
+            loadData();
+        }
+
+
+        // Print invoice for maintenance job
+        function printInvoice(jobId) {
+            console.log('🖨️ طباعة فاتورة عمل الصيانة:', jobId);
+            
+            const job = jobsData.find(j => j.id === jobId);
+            if (!job) {
+                showAlert('error', 'لم يتم العثور على عمل الصيانة المطلوب');
+                return;
+            }
+
+            // فتح صفحة الطباعة في نافذة جديدة
+            const invoiceUrl = `maintenance-invoice.html?jobId=${encodeURIComponent(jobId)}`;
+            window.open(invoiceUrl, '_blank', 'width=800,height=600,scrollbars=yes,resizable=yes');
+        }
+
+        // طباعة تقرير أعمال الصيانة
+        function printReport() {
+            console.log('📊 طباعة تقرير أعمال الصيانة');
+            
+            // جمع الفلاتر الحالية
+            const filters = {
+                status: document.getElementById('filterStatus')?.value || '',
+                repId: document.getElementById('filterRep')?.value || '',
+                techId: document.getElementById('filterTech')?.value || '',
+                dateFrom: document.getElementById('filterDateFrom')?.value || '',
+                dateTo: document.getElementById('filterDateTo')?.value || ''
+            };
+
+            // بناء URL مع الفلاتر
+            const params = new URLSearchParams();
+            if (filters.status) params.append('status', filters.status);
+            if (filters.repId) params.append('repId', filters.repId);
+            if (filters.techId) params.append('techId', filters.techId);
+            if (filters.dateFrom) params.append('dateFrom', filters.dateFrom);
+            if (filters.dateTo) params.append('dateTo', filters.dateTo);
+
+            const reportUrl = `maintenance-jobs-report.html?${params.toString()}`;
+            window.open(reportUrl, '_blank', 'width=1200,height=800,scrollbars=yes,resizable=yes');
+        }
+
+        // ===== دعم الأرقام العربية والإنجليزية =====
+        function convertArabicToEnglishNumbers(str) {
+            if (!str) return '';
+            const map = {
+                '٠': '0', '١': '1', '٢': '2', '٣': '3', '٤': '4',
+                '٥': '5', '٦': '6', '٧': '7', '٨': '8', '٩': '9'
+            };
+            return str.toString().replace(/[٠-٩]/g, m => map[m] || m);
+        }
+
+        function convertEnglishToArabicNumbers(str) {
+            if (!str) return '';
+            const map = {
+                '0': '٠', '1': '١', '2': '٢', '3': '٣', '4': '٤',
+                '5': '٥', '6': '٦', '7': '٧', '8': '٨', '9': '٩'
+            };
+            return str.toString().replace(/[0-9]/g, m => map[m] || m);
+        }
+
+        function setupArabicNumberSupport() {
+            document.querySelectorAll('.arabic-number-field').forEach(field => {
+                field.addEventListener('input', function() {
+                    const pos = this.selectionStart;
+                    const cv = convertArabicToEnglishNumbers(this.value);
+                    if (cv !== this.value) {
+                        this.value = cv;
+                        this.setSelectionRange(pos, pos);
+                    }
+                    // إعادة حساب الأرباح عند تغيير القيم
+                    calculateProfit();
+                });
+            });
+        }
+
+        // Show alert
+        function showAlert(type, message) {
+            const alertDiv = document.createElement('div');
+            alertDiv.className = `alert alert-${type === 'error' ? 'danger' : type} alert-dismissible fade show`;
+            alertDiv.innerHTML = `
+                ${message}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            `;
+            
+            document.body.insertBefore(alertDiv, document.body.firstChild);
+            
+            setTimeout(() => {
+                alertDiv.remove();
+            }, 5000);
+        }
+    </script>
+</body>
+</html>

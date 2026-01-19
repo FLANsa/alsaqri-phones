@@ -1,0 +1,911 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <meta name="requires-role" content="admin">
+    <title>حسابات الصيانة — عبدالملك للاتصالات</title>
+    
+    <!-- Page Guard -->
+    <script src="js/guard.js"></script>
+    
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts - Cairo -->
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;600;700&display=swap" rel="stylesheet">
+    
+    <style>
+        body { 
+            font-family: 'Cairo', sans-serif; 
+            background-color: #f8f9fa; 
+            padding-top: 70px; 
+        }
+        .navbar { 
+            background-color: #2c3e50; 
+            position: fixed; 
+            top: 0; 
+            width: 100%; 
+            z-index: 1030; 
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .navbar-brand, .nav-link { color: white !important; }
+        .card { 
+            margin-bottom: 20px; 
+            box-shadow: 0 2px 4px rgba(0,0,0,0.08); 
+        }
+        .card-header { 
+            font-weight: 600; 
+        }
+        .btn-primary { 
+            background-color: #2c3e50; 
+            border-color: #2c3e50; 
+        }
+        .btn-primary:hover { 
+            background-color: #1a252f; 
+            border-color: #1a252f; 
+        }
+        .table thead.table-dark th { 
+            vertical-align: middle; 
+        }
+        .amount-positive {
+            color: #28a745;
+            font-weight: 600;
+        }
+        .amount-negative {
+            color: #dc3545;
+            font-weight: 600;
+        }
+        .amount-neutral {
+            color: #6c757d;
+            font-weight: 600;
+        }
+        .summary-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 8px;
+            padding: 20px;
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        .summary-card h5 {
+            margin-bottom: 15px;
+            font-weight: 600;
+        }
+        .summary-item {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 10px;
+            padding: 5px 0;
+            border-bottom: 1px solid rgba(255,255,255,0.2);
+        }
+        .summary-item:last-child {
+            border-bottom: none;
+            font-weight: 700;
+            font-size: 1.1em;
+        }
+        .status-badge {
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 0.8em;
+            font-weight: 600;
+        }
+        .status-paid {
+            background: #d4edda;
+            color: #155724;
+        }
+        .status-pending {
+            background: #fff3cd;
+            color: #856404;
+        }
+        
+        /* Custom Tab Colors - Matching Site Identity */
+        .nav-tabs .nav-link {
+            color: #2c3e50 !important;
+            border: 1px solid transparent;
+            border-radius: 8px 8px 0 0;
+            margin-right: 5px;
+            transition: all 0.3s ease;
+            font-weight: 500;
+        }
+        
+        .nav-tabs .nav-link:hover {
+            color: #2c3e50 !important;
+            background-color: #f8f9fa;
+            border-color: #2c3e50;
+        }
+        
+        .nav-tabs .nav-link:not(.active) {
+            color: #2c3e50 !important;
+        }
+        
+        .nav-tabs .nav-link.active {
+            color: #fff !important;
+            background-color: #2c3e50;
+            border-color: #2c3e50;
+            font-weight: 600;
+        }
+        
+        /* All tabs use the same site color when active */
+        #reps-tab.active,
+        #techs-tab.active,
+        #payments-tab.active {
+            background-color: #2c3e50 !important;
+            border-color: #2c3e50 !important;
+        }
+        .filter-section {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        .account-row {
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        .account-row:hover {
+            background-color: #f8f9fa;
+        }
+        .amount-positive {
+            color: #28a745;
+            font-weight: 700;
+        }
+        .amount-negative {
+            color: #dc3545;
+            font-weight: 700;
+        }
+        .amount-neutral {
+            color: #6c757d;
+            font-weight: 700;
+        }
+        .badge {
+            font-size: 0.8em;
+        }
+        .text-muted {
+            font-size: 0.85em;
+        }
+        .alert-info {
+            border-left: 4px solid #17a2b8;
+        }
+    </style>
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar navbar-expand-lg navbar-dark">
+        <div class="container">
+            <span class="navbar-brand">عبدالملك للاتصالات</span>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav me-auto">
+                    <!-- Navigation will be populated by navigation.js -->
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mt-4">
+        <h2 class="text-center mb-4">حسابات الصيانة</h2>
+        
+        <!-- Info Alert -->
+        <div class="alert alert-info" role="alert">
+            <i class="fas fa-info-circle"></i>
+            <strong>ملاحظة مهمة:</strong> هذه الصفحة تعرض حسابات الأعمال المكتملة فقط. 
+            الأموال المحسوبة تظهر بوضوح مع تفاصيل التقسيم بين المندوبين والفنيين والمحل.
+        </div>
+        
+        <!-- Summary Cards -->
+        <div class="row mb-4">
+            <div class="col-md-4">
+                <div class="summary-card">
+                    <h5><i class="fas fa-users"></i> المندوبين</h5>
+                    <div class="summary-item">
+                        <span>عدد المندوبين:</span>
+                        <span id="totalReps">0</span>
+                    </div>
+                    <div class="summary-item">
+                        <span>إجمالي المستحقات:</span>
+                        <span id="totalRepAmount">0.00 ريال</span>
+                    </div>
+                    <div class="summary-item">
+                        <span>إجمالي المدفوعات:</span>
+                        <span id="totalRepPaid">0.00 ريال</span>
+                    </div>
+                    <div class="summary-item">
+                        <span>المتبقي:</span>
+                        <span id="totalRepBalance">0.00 ريال</span>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="summary-card">
+                    <h5><i class="fas fa-hard-hat"></i> الفنيين</h5>
+                    <div class="summary-item">
+                        <span>عدد الفنيين:</span>
+                        <span id="totalTechs">0</span>
+                    </div>
+                    <div class="summary-item">
+                        <span>إجمالي المستحقات:</span>
+                        <span id="totalTechAmount">0.00 ريال</span>
+                    </div>
+                    <div class="summary-item">
+                        <span>إجمالي المدفوعات:</span>
+                        <span id="totalTechPaid">0.00 ريال</span>
+                    </div>
+                    <div class="summary-item">
+                        <span>المتبقي:</span>
+                        <span id="totalTechBalance">0.00 ريال</span>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="summary-card">
+                    <h5><i class="fas fa-store"></i> أرباح المحل</h5>
+                    <div class="summary-item">
+                        <span>إجمالي المبالغ المحصلة:</span>
+                        <span id="totalRevenue">0.00 ريال</span>
+                    </div>
+                    <div class="summary-item">
+                        <span>إجمالي تكلفة القطع:</span>
+                        <span id="totalPartCosts">0.00 ريال</span>
+                    </div>
+                    <div class="summary-item">
+                        <span>إجمالي عمولة الفنيين:</span>
+                        <span id="totalTechCommissions">0.00 ريال</span>
+                    </div>
+                    <div class="summary-item">
+                        <span class="fw-bold">صافي أرباح المحل:</span>
+                        <span id="totalShopProfit" class="fw-bold">0.00 ريال</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Filters -->
+        <div class="filter-section">
+            <div class="row">
+                <div class="col-md-3">
+                    <label for="dateFrom" class="form-label">من تاريخ</label>
+                    <input type="date" class="form-control" id="dateFrom">
+                </div>
+                <div class="col-md-3">
+                    <label for="dateTo" class="form-label">إلى تاريخ</label>
+                    <input type="date" class="form-control" id="dateTo">
+                </div>
+                <div class="col-md-3">
+                    <label for="statusFilter" class="form-label">الحالة</label>
+                    <select class="form-select" id="statusFilter">
+                        <option value="">جميع الحالات</option>
+                        <option value="pending">معلق</option>
+                        <option value="paid">مدفوع</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">&nbsp;</label>
+                    <div class="d-flex gap-2">
+                        <button class="btn btn-primary" onclick="loadAccounts()">
+                            <i class="fas fa-search"></i> بحث
+                        </button>
+                        <button class="btn btn-success" onclick="printAccountsReport()">
+                            <i class="fas fa-file-pdf"></i> طباعة
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tabs -->
+        <div class="row">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header">
+                        <ul class="nav nav-tabs card-header-tabs" id="accountTabs" role="tablist">
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link active" id="reps-tab" data-bs-toggle="tab" data-bs-target="#reps" type="button" role="tab">
+                                    <i class="fas fa-users"></i> حسابات المندوبين
+                                </button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link" id="techs-tab" data-bs-toggle="tab" data-bs-target="#techs" type="button" role="tab">
+                                    <i class="fas fa-hard-hat"></i> حسابات الفنيين
+                                </button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link" id="payments-tab" data-bs-toggle="tab" data-bs-target="#payments" type="button" role="tab">
+                                    <i class="fas fa-credit-card"></i> سجل المدفوعات
+                                </button>
+                            </li>
+                        </ul>
+                    </div>
+                    <div class="card-body">
+                        <div class="tab-content" id="accountTabContent">
+                            <!-- Reps Tab -->
+                            <div class="tab-pane fade show active" id="reps" role="tabpanel">
+                                <div class="table-responsive">
+                                    <table class="table table-hover">
+                                        <thead class="table-dark">
+                                            <tr>
+                                                <th>اسم المندوب</th>
+                                                <th>رقم الهاتف</th>
+                                                <th>عدد الأعمال</th>
+                                                <th>إجمالي المستحقات</th>
+                                                <th>إجمالي المدفوعات</th>
+                                                <th>المتبقي</th>
+                                                <th>الحالة</th>
+                                                <th>الإجراءات</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="repsAccounts">
+                                            <!-- Reps accounts will be loaded here -->
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+
+                            <!-- Techs Tab -->
+                            <div class="tab-pane fade" id="techs" role="tabpanel">
+                                <div class="table-responsive">
+                                    <table class="table table-hover">
+                                        <thead class="table-dark">
+                                            <tr>
+                                                <th>اسم الفني</th>
+                                                <th>رقم الهاتف</th>
+                                                <th>عدد الأعمال</th>
+                                                <th>إجمالي المستحقات</th>
+                                                <th>إجمالي المدفوعات</th>
+                                                <th>المتبقي</th>
+                                                <th>الحالة</th>
+                                                <th>الإجراءات</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="techsAccounts">
+                                            <!-- Techs accounts will be loaded here -->
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+
+                            <!-- Payments Tab -->
+                            <div class="tab-pane fade" id="payments" role="tabpanel">
+                                <div class="table-responsive">
+                                    <table class="table table-hover">
+                                        <thead class="table-dark">
+                                            <tr>
+                                                <th>التاريخ</th>
+                                                <th>النوع</th>
+                                                <th>الاسم</th>
+                                                <th>المبلغ</th>
+                                                <th>الملاحظات</th>
+                                                <th>الإجراءات</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="paymentsList">
+                                            <!-- Payments will be loaded here -->
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Payment Modal -->
+    <div class="modal fade" id="paymentModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">تسجيل دفعة</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="paymentForm">
+                        <input type="hidden" id="paymentEntityId">
+                        <input type="hidden" id="paymentEntityType">
+                        
+                        <div class="mb-3">
+                            <label for="paymentAmount" class="form-label">المبلغ (ريال) *</label>
+                            <input type="number" class="form-control" id="paymentAmount" min="0.01" step="0.01" required>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="paymentDate" class="form-label">تاريخ الدفع *</label>
+                            <input type="date" class="form-control" id="paymentDate" required>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="paymentMethod" class="form-label">طريقة الدفع</label>
+                            <select class="form-select" id="paymentMethod">
+                                <option value="cash">نقداً</option>
+                                <option value="bank_transfer">تحويل بنكي</option>
+                                <option value="check">شيك</option>
+                                <option value="tabby">تابي</option>
+                                <option value="tamara">تمارا</option>
+                                <option value="other">أخرى</option>
+                            </select>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="paymentNotes" class="form-label">ملاحظات</label>
+                            <textarea class="form-control" id="paymentNotes" rows="3"></textarea>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">إلغاء</button>
+                    <button type="button" class="btn btn-primary" onclick="savePayment()">حفظ الدفعة</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <!-- Firebase Scripts -->
+    <script type="module" src="js/firebase-config-cdn.js?v=20260119"></script>
+    <script type="module" src="js/firebase-database-cdn.js?v=20260119"></script>
+    
+    <!-- Arabic Numbers Support -->
+    <script src="js/arabic-numbers.js"></script>
+    
+    <!-- Navigation Script -->
+    <script src="js/navigation.js"></script>
+    
+    <script>
+        let repsAccounts = [];
+        let techsAccounts = [];
+        let payments = [];
+        let currentPayment = null;
+
+        // Initialize page
+        document.addEventListener('DOMContentLoaded', function() {
+            // Set default date range (last 30 days)
+            const today = new Date();
+            const thirtyDaysAgo = new Date(today.getTime() - (30 * 24 * 60 * 60 * 1000));
+            
+            document.getElementById('dateTo').value = today.toISOString().split('T')[0];
+            document.getElementById('dateFrom').value = thirtyDaysAgo.toISOString().split('T')[0];
+            
+            // Initialize navigation
+            if (typeof initNavigation === 'function') {
+                initNavigation('maintenance-accounts');
+            }
+            
+            // Load data
+            loadAccounts();
+        });
+
+        // Load all accounts data
+        async function loadAccounts() {
+            try {
+                const dateFrom = document.getElementById('dateFrom').value;
+                const dateTo = document.getElementById('dateTo').value;
+                const statusFilter = document.getElementById('statusFilter').value;
+
+                if (!dateFrom || !dateTo) {
+                    showAlert('يرجى تحديد الفترة الزمنية', 'warning');
+                    return;
+                }
+
+                const fromDate = new Date(dateFrom);
+                const toDate = new Date(dateTo);
+                toDate.setHours(23, 59, 59, 999);
+
+                console.log('🔄 Loading accounts data...');
+                console.log('📅 Date range:', fromDate, 'to', toDate);
+
+                // Load reps accounts
+                console.log('📊 Loading reps settlements...');
+                repsAccounts = await window.firebaseDatabase.getRepSettlements(fromDate, toDate);
+                console.log('✅ Reps loaded:', repsAccounts.length);
+                
+                // Load techs accounts
+                console.log('📊 Loading techs settlements...');
+                techsAccounts = await window.firebaseDatabase.getTechSettlements(fromDate, toDate);
+                console.log('✅ Techs loaded:', techsAccounts.length);
+                
+                // Load payments
+                console.log('📊 Loading payments...');
+                payments = await window.firebaseDatabase.getPayments({
+                    dateFrom: fromDate,
+                    dateTo: toDate
+                });
+                console.log('✅ Payments loaded:', payments.length);
+                
+                // Calculate balances
+                calculateBalances();
+                
+                // Apply filters
+                applyFilters(statusFilter);
+                
+                // Display data
+                displayRepsAccounts();
+                displayTechsAccounts();
+                displayPayments();
+                displaySummary();
+                
+                console.log('✅ All data loaded successfully');
+                
+            } catch (error) {
+                console.error('❌ Error loading accounts:', error);
+                showAlert(`حدث خطأ في تحميل البيانات: ${error.message}`, 'error');
+            }
+        }
+
+        // Calculate balances for each account
+        function calculateBalances() {
+            // Calculate reps balances
+            repsAccounts.forEach(rep => {
+                const repPayments = payments.filter(p => p.entityType === 'rep' && p.entityId === rep.repId);
+                rep.totalPaid = repPayments.reduce((sum, p) => sum + p.amount, 0);
+                rep.balance = rep.partCostSum - rep.totalPaid;
+                // Only mark as paid if there was actually money owed and it's fully paid
+                rep.status = (rep.partCostSum > 0 && rep.balance <= 0) ? 'paid' : 'pending';
+            });
+            
+            // Calculate techs balances
+            techsAccounts.forEach(tech => {
+                const techPayments = payments.filter(p => p.entityType === 'tech' && p.entityId === tech.techId);
+                tech.totalPaid = techPayments.reduce((sum, p) => sum + p.amount, 0);
+                tech.balance = tech.techCommissionSum - tech.totalPaid;
+                // Only mark as paid if there was actually money owed and it's fully paid
+                tech.status = (tech.techCommissionSum > 0 && tech.balance <= 0) ? 'paid' : 'pending';
+            });
+        }
+
+        // Apply filters
+        function applyFilters(statusFilter) {
+            if (statusFilter) {
+                repsAccounts = repsAccounts.filter(rep => rep.status === statusFilter);
+                techsAccounts = techsAccounts.filter(tech => tech.status === statusFilter);
+            }
+        }
+
+        // Display summary
+        function displaySummary() {
+            const totalReps = repsAccounts.length;
+            const totalTechs = techsAccounts.length;
+            const totalRepAmount = repsAccounts.reduce((sum, rep) => sum + (rep.partCostSum || 0), 0);
+            const totalRepPaid = repsAccounts.reduce((sum, rep) => sum + (rep.totalPaid || 0), 0);
+            const totalRepBalance = totalRepAmount - totalRepPaid;
+            
+            const totalTechAmount = techsAccounts.reduce((sum, tech) => sum + (tech.techCommissionSum || 0), 0);
+            const totalTechPaid = techsAccounts.reduce((sum, tech) => sum + (tech.totalPaid || 0), 0);
+            const totalTechBalance = totalTechAmount - totalTechPaid;
+            
+            // حساب المبالغ الأساسية فقط
+            const totalPartCosts = totalRepAmount; // تكلفة القطع من المندوبين
+            const totalTechCommissions = totalTechAmount; // عمولة الفنيين
+            const totalProfit = [...repsAccounts, ...techsAccounts].reduce((sum, item) => sum + (item.profitSum || 0), 0);
+            const totalPayments = totalRepPaid + totalTechPaid;
+            
+            // حساب أرباح المحل: إجمالي المبالغ المحصلة - تكلفة القطع - عمولة الفنيين
+            // إجمالي المبالغ المحصلة = مجموع amountCharged من جميع أعمال الصيانة المكتملة
+            // نستخدم repsAccounts فقط لتجنب الحساب المزدوج (نفس البيانات في techsAccounts)
+            const totalRevenue = repsAccounts.reduce((sum, rep) => sum + (rep.revenueSum || 0), 0);
+            const totalShopProfit = totalRevenue - totalPartCosts - totalTechCommissions; // أرباح المحل
+
+            console.log('📊 Summary calculations:');
+            console.log('- Total reps:', totalReps);
+            console.log('- Total techs:', totalTechs);
+            console.log('- Total profit (إجمالي الأرباح):', totalProfit);
+            console.log('- Part costs (تكلفة القطع من المندوبين):', totalPartCosts);
+            console.log('- Tech commissions (عمولة الفنيين):', totalTechCommissions);
+            console.log('- Total payments:', totalPayments);
+            console.log('🏪 Shop profits:');
+            console.log('- Total revenue (إجمالي المبالغ المحصلة):', totalRevenue, '= مجموع amountCharged من repsAccounts فقط (تجنب الحساب المزدوج)');
+            console.log('- Shop profit (أرباح المحل):', totalShopProfit, '=', totalRevenue, '-', totalPartCosts, '-', totalTechCommissions);
+
+            document.getElementById('totalReps').textContent = totalReps;
+            document.getElementById('totalRepAmount').textContent = totalRepAmount.toFixed(2) + ' ريال';
+            document.getElementById('totalRepPaid').textContent = totalRepPaid.toFixed(2) + ' ريال';
+            document.getElementById('totalRepBalance').textContent = totalRepBalance.toFixed(2) + ' ريال';
+            
+            document.getElementById('totalTechs').textContent = totalTechs;
+            document.getElementById('totalTechAmount').textContent = totalTechAmount.toFixed(2) + ' ريال';
+            document.getElementById('totalTechPaid').textContent = totalTechPaid.toFixed(2) + ' ريال';
+            document.getElementById('totalTechBalance').textContent = totalTechBalance.toFixed(2) + ' ريال';
+            
+            // تحديث أرباح المحل
+            document.getElementById('totalRevenue').textContent = totalRevenue.toFixed(2) + ' ريال';
+            document.getElementById('totalPartCosts').textContent = totalPartCosts.toFixed(2) + ' ريال';
+            document.getElementById('totalTechCommissions').textContent = totalTechCommissions.toFixed(2) + ' ريال';
+            document.getElementById('totalShopProfit').textContent = totalShopProfit.toFixed(2) + ' ريال';
+            
+        }
+
+        // Display reps accounts
+        function displayRepsAccounts() {
+            const tbody = document.getElementById('repsAccounts');
+            if (!tbody) return;
+            
+            tbody.innerHTML = '';
+
+            if (repsAccounts.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="8" class="text-center">لا توجد أعمال مكتملة للمندوبين في هذه الفترة</td></tr>';
+                return;
+            }
+
+            repsAccounts.forEach(rep => {
+                const row = document.createElement('tr');
+                row.className = 'account-row';
+                row.innerHTML = `
+                    <td>
+                        <strong>${rep.repName || 'غير محدد'}</strong>
+                        <br><small class="text-muted">ID: ${rep.repId}</small>
+                    </td>
+                    <td>${rep.phone || 'N/A'}</td>
+                    <td>
+                        <span class="badge bg-primary">${rep.jobsCount || 0} عمل</span>
+                    </td>
+                    <td class="amount-positive">
+                        <strong>${(rep.partCostSum || 0).toFixed(2)} ريال</strong>
+                        <br><small class="text-muted">تكلفة القطع</small>
+                    </td>
+                    <td class="amount-negative">
+                        <strong>${(rep.totalPaid || 0).toFixed(2)} ريال</strong>
+                        <br><small class="text-muted">المدفوع</small>
+                    </td>
+                    <td class="${rep.balance > 0 ? 'amount-positive' : 'amount-neutral'}">
+                        <strong>${(rep.balance || 0).toFixed(2)} ريال</strong>
+                        <br><small class="text-muted">المتبقي</small>
+                    </td>
+                    <td><span class="status-badge status-${rep.status}">${rep.status === 'paid' ? 'مدفوع' : 'معلق'}</span></td>
+                    <td>
+                        <button class="btn btn-sm btn-primary me-1" onclick="openPaymentModal('rep', '${rep.repId}', '${rep.repName}')">
+                            <i class="fas fa-credit-card"></i>
+                        </button>
+                        <button class="btn btn-sm btn-success" onclick="printSingleReport('rep', '${rep.repId}')" title="طباعة تقرير">
+                            <i class="fas fa-print"></i>
+                        </button>
+                    </td>
+                `;
+                tbody.appendChild(row);
+            });
+        }
+
+        // Display techs accounts
+        function displayTechsAccounts() {
+            const tbody = document.getElementById('techsAccounts');
+            if (!tbody) return;
+            
+            tbody.innerHTML = '';
+
+            if (techsAccounts.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="8" class="text-center">لا توجد أعمال مكتملة للفنيين في هذه الفترة</td></tr>';
+                return;
+            }
+
+            techsAccounts.forEach(tech => {
+                const row = document.createElement('tr');
+                row.className = 'account-row';
+                row.innerHTML = `
+                    <td>
+                        <strong>${tech.techName || 'غير محدد'}</strong>
+                        <br><small class="text-muted">ID: ${tech.techId}</small>
+                    </td>
+                    <td>${tech.phone || 'N/A'}</td>
+                    <td>
+                        <span class="badge bg-success">${tech.jobsCount || 0} عمل</span>
+                    </td>
+                    <td class="amount-positive">
+                        <strong>${(tech.techCommissionSum || 0).toFixed(2)} ريال</strong>
+                        <br><small class="text-muted">عمولة الفني</small>
+                    </td>
+                    <td class="amount-negative">
+                        <strong>${(tech.totalPaid || 0).toFixed(2)} ريال</strong>
+                        <br><small class="text-muted">المدفوع</small>
+                    </td>
+                    <td class="${tech.balance > 0 ? 'amount-positive' : 'amount-neutral'}">
+                        <strong>${(tech.balance || 0).toFixed(2)} ريال</strong>
+                        <br><small class="text-muted">المتبقي</small>
+                    </td>
+                    <td><span class="status-badge status-${tech.status}">${tech.status === 'paid' ? 'مدفوع' : 'معلق'}</span></td>
+                    <td>
+                        <button class="btn btn-sm btn-primary me-1" onclick="openPaymentModal('tech', '${tech.techId}', '${tech.techName}')">
+                            <i class="fas fa-credit-card"></i>
+                        </button>
+                        <button class="btn btn-sm btn-success" onclick="printSingleReport('tech', '${tech.techId}')" title="طباعة تقرير">
+                            <i class="fas fa-print"></i>
+                        </button>
+                    </td>
+                `;
+                tbody.appendChild(row);
+            });
+        }
+
+        // Display payments
+        function displayPayments() {
+            const tbody = document.getElementById('paymentsList');
+            if (!tbody) return;
+            
+            tbody.innerHTML = '';
+
+            if (payments.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="6" class="text-center">لا توجد مدفوعات في هذه الفترة</td></tr>';
+                return;
+            }
+
+            payments.forEach(payment => {
+                const row = document.createElement('tr');
+                let paymentDate;
+                
+                if (payment.paymentDate && payment.paymentDate.seconds) {
+                    paymentDate = new Date(payment.paymentDate.seconds * 1000);
+                } else if (payment.paymentDate) {
+                    paymentDate = new Date(payment.paymentDate);
+                } else {
+                    paymentDate = new Date();
+                }
+                
+                const methodMap = {
+                    'cash': 'نقداً',
+                    'bank_transfer': 'تحويل بنكي',
+                    'check': 'شيك',
+                    'tabby': 'تابي',
+                    'tamara': 'تمارا',
+                    'other': 'أخرى'
+                };
+                
+                row.innerHTML = `
+                    <td>
+                        <strong>${paymentDate.toLocaleDateString('ar-SA')}</strong>
+                        <br><small class="text-muted">${paymentDate.toLocaleTimeString('ar-SA')}</small>
+                    </td>
+                    <td>
+                        <span class="badge ${payment.entityType === 'rep' ? 'bg-primary' : 'bg-success'}">
+                            ${payment.entityType === 'rep' ? 'مندوب' : 'فني'}
+                        </span>
+                    </td>
+                    <td>
+                        <strong>${payment.entityName || 'غير محدد'}</strong>
+                        <br><small class="text-muted">${methodMap[payment.paymentMethod] || payment.paymentMethod}</small>
+                    </td>
+                    <td class="amount-negative">
+                        <strong>${(payment.amount || 0).toFixed(2)} ريال</strong>
+                    </td>
+                    <td>${payment.notes || 'لا توجد ملاحظات'}</td>
+                    <td>
+                        <button class="btn btn-sm btn-danger" onclick="deletePayment('${payment.id}')">
+                            <i class="fas fa-trash"></i> حذف
+                        </button>
+                    </td>
+                `;
+                tbody.appendChild(row);
+            });
+        }
+
+        // Open payment modal
+        function openPaymentModal(entityType, entityId, entityName) {
+            currentPayment = { entityType, entityId, entityName };
+            document.getElementById('paymentEntityId').value = entityId;
+            document.getElementById('paymentEntityType').value = entityType;
+            document.getElementById('paymentAmount').value = '';
+            document.getElementById('paymentDate').value = new Date().toISOString().split('T')[0];
+            document.getElementById('paymentMethod').value = 'cash';
+            document.getElementById('paymentNotes').value = '';
+            
+            new bootstrap.Modal(document.getElementById('paymentModal')).show();
+        }
+
+        // Save payment
+        async function savePayment() {
+            try {
+                const amount = parseFloat(document.getElementById('paymentAmount').value);
+                
+                // Validate amount
+                if (isNaN(amount) || amount <= 0) {
+                    showAlert('يرجى إدخال مبلغ صحيح أكبر من صفر', 'error');
+                    return;
+                }
+                
+                const paymentData = {
+                    entityType: document.getElementById('paymentEntityType').value,
+                    entityId: document.getElementById('paymentEntityId').value,
+                    entityName: currentPayment.entityName,
+                    amount: amount,
+                    paymentDate: new Date(document.getElementById('paymentDate').value),
+                    paymentMethod: document.getElementById('paymentMethod').value,
+                    notes: document.getElementById('paymentNotes').value
+                };
+
+                await window.firebaseDatabase.addPayment(paymentData);
+                showAlert('تم حفظ الدفعة بنجاح!', 'success');
+                
+                // Close modal
+                bootstrap.Modal.getInstance(document.getElementById('paymentModal')).hide();
+                
+                // Reload data
+                loadAccounts();
+                
+            } catch (error) {
+                console.error('Error saving payment:', error);
+                showAlert('حدث خطأ في حفظ الدفعة', 'error');
+            }
+        }
+
+        // Delete payment
+        async function deletePayment(paymentId) {
+            if (confirm('هل أنت متأكد من حذف هذه الدفعة؟')) {
+                try {
+                    await window.firebaseDatabase.deletePayment(paymentId);
+                    showAlert('تم حذف الدفعة بنجاح!', 'success');
+                    loadAccounts();
+                } catch (error) {
+                    console.error('Error deleting payment:', error);
+                    showAlert('حدث خطأ في حذف الدفعة', 'error');
+                }
+            }
+        }
+
+
+        // طباعة تقرير الحسابات
+        function printAccountsReport() {
+            const dateFrom = document.getElementById('dateFrom').value;
+            const dateTo = document.getElementById('dateTo').value;
+            
+            if (!dateFrom || !dateTo) {
+                showAlert('يرجى تحديد الفترة الزمنية أولاً', 'warning');
+                return;
+            }
+            
+            // Build URL with filters
+            const params = new URLSearchParams();
+            params.append('dateFrom', dateFrom);
+            params.append('dateTo', dateTo);
+            
+            const reportUrl = `maintenance-accounts-report.html?${params.toString()}`;
+            window.open(reportUrl, '_blank', 'width=1200,height=800,scrollbars=yes,resizable=yes');
+        }
+
+        // طباعة تقرير فردي لمندوب أو فني
+        function printSingleReport(type, id) {
+            const dateFrom = document.getElementById('dateFrom').value;
+            const dateTo = document.getElementById('dateTo').value;
+            
+            if (!dateFrom || !dateTo) {
+                showAlert('يرجى تحديد الفترة الزمنية أولاً', 'warning');
+                return;
+            }
+            
+            const params = new URLSearchParams();
+            params.append('dateFrom', dateFrom);
+            params.append('dateTo', dateTo);
+            params.append('type', type); // 'rep' or 'tech'
+            params.append('id', id);
+            
+            const reportUrl = `maintenance-accounts-report.html?${params.toString()}`;
+            window.open(reportUrl, '_blank', 'width=900,height=700,scrollbars=yes,resizable=yes');
+        }
+
+        // Show alert
+        function showAlert(message, type) {
+            const alertDiv = document.createElement('div');
+            alertDiv.className = `alert alert-${type === 'error' ? 'danger' : type} alert-dismissible fade show`;
+            alertDiv.innerHTML = `
+                ${message}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            `;
+            
+            const container = document.querySelector('.container');
+            if (container) {
+                container.insertBefore(alertDiv, container.firstChild);
+            } else {
+                document.body.insertBefore(alertDiv, document.body.firstChild);
+            }
+            
+            setTimeout(() => {
+                if (alertDiv.parentNode) {
+                    alertDiv.remove();
+                }
+            }, 5000);
+        }
+    </script>
+</body>
+</html>

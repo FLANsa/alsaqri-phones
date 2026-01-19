@@ -1,0 +1,36 @@
+{
+  "name": "تجربة-النظام-للإتصالات",
+  "version": "1.0.0",
+  "description": "عبدالملك للاتصالات - A web application for managing phone inventory and sales",
+  "main": "index.html",
+  "scripts": {
+    "start": "python3 -m http.server 8000",
+    "dev": "python3 -m http.server 8000",
+    "build": "echo 'No build step required for static site'",
+    "serve": "python3 -m http.server 8000"
+  },
+  "keywords": [
+    "phone-store",
+    "inventory-management",
+    "arabic",
+    "saudi-arabia",
+    "pos-system",
+    "phone-shop",
+    "firebase",
+    "demo"
+  ],
+  "author": "عبدالملك للاتصالات",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/FLANsa/phone-store-demo.git"
+  },
+  "homepage": "https://github.com/FLANsa/phone-store-demo",
+  "engines": {
+    "node": ">=14.0.0",
+    "python": ">=3.7.0"
+  },
+  "dependencies": {
+    "firebase": "^10.14.1"
+  }
+}
