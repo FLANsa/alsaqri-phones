@@ -514,8 +514,11 @@ class FirebaseDatabase {
   async addMaintenanceJob(jobData) {
     try {
       // ✅ حساب الأرباح باستخدام الدالة الموحدة
+      // نستخدم إجمالي تكلفة القطع إن وُجد، وإلا نرجع لـ partCost
+      const basePartCost =
+        jobData.totalPartCost !== undefined ? jobData.totalPartCost : jobData.partCost;
       const { profit, techCommission, shopProfit } = this.computeDerived(
-        jobData.partCost, 
+        basePartCost, 
         jobData.amountCharged, 
         jobData.techPercent !== undefined ? jobData.techPercent : 0
       );
@@ -618,7 +621,11 @@ class FirebaseDatabase {
       // ✅ إعادة حساب الأرباح إذا تغيرت القيم باستخدام الدالة الموحدة
       if (jobData.partCost !== undefined || jobData.amountCharged !== undefined || jobData.techPercent !== undefined) {
         const currentJob = await this.getMaintenanceJob(jobId);
-        const partCost = jobData.partCost !== undefined ? jobData.partCost : currentJob.partCost;
+        const partCost =
+          jobData.totalPartCost !== undefined ? jobData.totalPartCost
+          : currentJob.totalPartCost !== undefined ? currentJob.totalPartCost
+          : jobData.partCost !== undefined ? jobData.partCost
+          : currentJob.partCost;
         const amountCharged = jobData.amountCharged !== undefined ? jobData.amountCharged : currentJob.amountCharged;
         const techPercent = jobData.techPercent !== undefined ? jobData.techPercent : currentJob.techPercent;
         
