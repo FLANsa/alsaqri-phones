@@ -632,6 +632,11 @@
                         totalPartCost = 0;
                     }
                     
+                    // ✅ إعادة حساب القيم المشتقة بشكل صحيح للعرض
+                    const amountCharged = Number(job.amountCharged) || 0;
+                    const techPercent = (typeof job.techPercent === 'number' && !isNaN(job.techPercent)) ? job.techPercent : 0;
+                    const { profit, techCommission, shopProfit } = computeDerived(totalPartCost, amountCharged, techPercent);
+                    
                     // معالجة التاريخ
                     let visitDateStr = '-';
                     if (job.visitDate) {
@@ -656,10 +661,10 @@
                         <td>${job.techName || '-'}</td>
                         <td>${partsDisplay}</td>
                         <td>${totalPartCost.toFixed(2)} ريال</td>
-                        <td>${job.amountCharged ? Number(job.amountCharged).toFixed(2) : '0.00'} ريال</td>
-                        <td>${job.profit ? Number(job.profit).toFixed(2) : '0.00'} ريال</td>
-                        <td>${job.techCommission ? Number(job.techCommission).toFixed(2) : '0.00'} ريال</td>
-                        <td>${job.shopProfit ? Number(job.shopProfit).toFixed(2) : '0.00'} ريال</td>
+                        <td>${amountCharged.toFixed(2)} ريال</td>
+                        <td>${profit.toFixed(2)} ريال</td>
+                        <td>${techCommission.toFixed(2)} ريال</td>
+                        <td>${shopProfit.toFixed(2)} ريال</td>
                         <td>
                             <span class="status-badge status-${job.status || 'pending'}">
                                 ${getStatusText(job.status || 'pending')}

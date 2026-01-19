@@ -851,6 +851,17 @@ class FirebaseDatabase {
       const repTotals = {};
       
       jobs.forEach(job => {
+        // ✅ إعادة حساب القيم المشتقة من البيانات الصحيحة
+        const totalPartCost = job.totalPartCost !== undefined ? Number(job.totalPartCost) : 
+                             (job.parts && Array.isArray(job.parts) && job.parts.length > 0) ? 
+                             job.parts.reduce((sum, part) => sum + (Number(part.partCost) || 0), 0) : 
+                             Number(job.partCost) || 0;
+        const amountCharged = Number(job.amountCharged) || 0;
+        const techPercent = (typeof job.techPercent === 'number' && !isNaN(job.techPercent)) ? job.techPercent : 0;
+        
+        // ✅ إعادة حساب القيم المشتقة بشكل صحيح
+        const { profit, techCommission, shopProfit } = this.computeDerived(totalPartCost, amountCharged, techPercent);
+        
         // ✅ دعم البنية الجديدة (parts array) والقديمة (repId مباشر)
         if (job.parts && Array.isArray(job.parts) && job.parts.length > 0) {
           // البنية الجديدة: كل قطعة لها مندوب خاص
@@ -879,10 +890,10 @@ class FirebaseDatabase {
           const firstRepId = job.parts[0]?.repId;
           if (firstRepId && repTotals[firstRepId]) {
             repTotals[firstRepId].jobsCount++;
-            repTotals[firstRepId].profitSum += (job.profit || 0);
-            repTotals[firstRepId].techCommissionSum += (job.techCommission || 0);
-            repTotals[firstRepId].shopProfitSum += (job.shopProfit || 0);
-            repTotals[firstRepId].revenueSum += (job.amountCharged || 0);
+            repTotals[firstRepId].profitSum += profit; // ✅ استخدام القيمة المحسوبة بشكل صحيح
+            repTotals[firstRepId].techCommissionSum += techCommission; // ✅ استخدام القيمة المحسوبة بشكل صحيح
+            repTotals[firstRepId].shopProfitSum += shopProfit; // ✅ استخدام القيمة المحسوبة بشكل صحيح
+            repTotals[firstRepId].revenueSum += amountCharged;
           }
         } else if (job.repId) {
           // البنية القديمة: مندوب واحد للعمل كامل
@@ -900,11 +911,11 @@ class FirebaseDatabase {
           }
           
           repTotals[job.repId].jobsCount++;
-          repTotals[job.repId].partCostSum += (job.partCost || 0);
-          repTotals[job.repId].profitSum += (job.profit || 0);
-          repTotals[job.repId].techCommissionSum += (job.techCommission || 0);
-          repTotals[job.repId].shopProfitSum += (job.shopProfit || 0);
-          repTotals[job.repId].revenueSum += (job.amountCharged || 0);
+          repTotals[job.repId].partCostSum += totalPartCost; // ✅ استخدام totalPartCost
+          repTotals[job.repId].profitSum += profit; // ✅ استخدام القيمة المحسوبة بشكل صحيح
+          repTotals[job.repId].techCommissionSum += techCommission; // ✅ استخدام القيمة المحسوبة بشكل صحيح
+          repTotals[job.repId].shopProfitSum += shopProfit; // ✅ استخدام القيمة المحسوبة بشكل صحيح
+          repTotals[job.repId].revenueSum += amountCharged;
         } else {
           console.warn('⚠️ Job missing repId and parts:', job.id);
         }
@@ -938,6 +949,17 @@ class FirebaseDatabase {
           return;
         }
         
+        // ✅ إعادة حساب القيم المشتقة من البيانات الصحيحة
+        const totalPartCost = job.totalPartCost !== undefined ? Number(job.totalPartCost) : 
+                             (job.parts && Array.isArray(job.parts) && job.parts.length > 0) ? 
+                             job.parts.reduce((sum, part) => sum + (Number(part.partCost) || 0), 0) : 
+                             Number(job.partCost) || 0;
+        const amountCharged = Number(job.amountCharged) || 0;
+        const techPercent = (typeof job.techPercent === 'number' && !isNaN(job.techPercent)) ? job.techPercent : 0;
+        
+        // ✅ إعادة حساب القيم المشتقة بشكل صحيح
+        const { profit, techCommission, shopProfit } = this.computeDerived(totalPartCost, amountCharged, techPercent);
+        
         if (!techTotals[job.techId]) {
           techTotals[job.techId] = {
             techId: job.techId,
@@ -952,11 +974,11 @@ class FirebaseDatabase {
         }
         
         techTotals[job.techId].jobsCount++;
-        techTotals[job.techId].partCostSum += (job.partCost || 0);
-        techTotals[job.techId].profitSum += (job.profit || 0);
-        techTotals[job.techId].techCommissionSum += (job.techCommission || 0);
-        techTotals[job.techId].shopProfitSum += (job.shopProfit || 0);
-        techTotals[job.techId].revenueSum += (job.amountCharged || 0);
+        techTotals[job.techId].partCostSum += totalPartCost; // ✅ استخدام totalPartCost
+        techTotals[job.techId].profitSum += profit; // ✅ استخدام القيمة المحسوبة بشكل صحيح
+        techTotals[job.techId].techCommissionSum += techCommission; // ✅ استخدام القيمة المحسوبة بشكل صحيح
+        techTotals[job.techId].shopProfitSum += shopProfit; // ✅ استخدام القيمة المحسوبة بشكل صحيح
+        techTotals[job.techId].revenueSum += amountCharged;
       });
 
       const result = Object.values(techTotals);
