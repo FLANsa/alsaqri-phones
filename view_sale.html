@@ -275,8 +275,17 @@
                 <td><span class="badge bg-primary fs-6" id="sale_number">-</span></td>
               </tr>
               <tr>
-                <td><strong>تاريخ الإنشاء:</strong></td>
-                <td id="date_created">-</td>
+                <td><strong>تاريخ الفاتورة:</strong></td>
+                <td>
+                  <span id="date_created">-</span>
+                  <button type="button" class="btn btn-link btn-sm p-0 me-1 align-baseline" id="edit_date_btn" title="تعديل التاريخ" onclick="toggleEditSaleDate()">تعديل</button>
+                  <span id="date_edit_wrap" style="display: none;">
+                    <input type="date" id="date_created_input" class="form-control form-control-sm d-inline-block w-auto">
+                    <input type="time" id="time_created_input" class="form-control form-control-sm d-inline-block w-auto ms-1">
+                    <button type="button" class="btn btn-success btn-sm ms-1" onclick="saveSaleDate()">حفظ</button>
+                    <button type="button" class="btn btn-secondary btn-sm ms-1" onclick="toggleEditSaleDate()">إلغاء</button>
+                  </span>
+                </td>
               </tr>
               <tr>
                 <td><strong>الحالة:</strong></td>
@@ -595,13 +604,16 @@
 
     document.getElementById('sale_number').textContent = currentSale.sale_number || currentSale.id;
 
-    // عرض تاريخ الإنشاء في الصفحة (لا يؤثر على تاريخ الإيصال)
+    // عرض تاريخ الفاتورة (قابل للتعديل)
     const dateCreatedElement = document.getElementById('date_created');
     if (dateCreatedElement) {
       const saleDate = getSaleDateValue(currentSale) || new Date();
-      const formattedDate = formatDate(saleDate);
-      dateCreatedElement.textContent = formattedDate;
+      dateCreatedElement.textContent = formatDate(saleDate);
     }
+    const dateEditWrap = document.getElementById('date_edit_wrap');
+    if (dateEditWrap) dateEditWrap.style.display = 'none';
+    const editDateBtn = document.getElementById('edit_date_btn');
+    if (editDateBtn) editDateBtn.style.display = 'inline';
 
     document.getElementById('status').innerHTML = getStatusBadge(currentSale.status || 'مكتمل');
     document.getElementById('payment_method').textContent = currentSale.payment_method || 'نقدي';
@@ -826,6 +838,57 @@
     }
   }
 
+  // إظهار/إخفاء نموذج تعديل تاريخ الفاتورة
+  function toggleEditSaleDate() {
+    const wrap = document.getElementById('date_edit_wrap');
+    const btn = document.getElementById('edit_date_btn');
+    const dateInp = document.getElementById('date_created_input');
+    const timeInp = document.getElementById('time_created_input');
+    if (!wrap || !currentSale) return;
+    if (wrap.style.display === 'none') {
+      const d = getSaleDateValue(currentSale) || new Date();
+      if (dateInp) dateInp.value = d.toISOString().slice(0, 10);
+      if (timeInp) timeInp.value = String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+      wrap.style.display = 'inline';
+      if (btn) btn.style.display = 'none';
+    } else {
+      wrap.style.display = 'none';
+      if (btn) btn.style.display = 'inline';
+    }
+  }
+
+  // حفظ تاريخ الفاتورة بعد التعديل
+  async function saveSaleDate() {
+    const dateInp = document.getElementById('date_created_input');
+    const timeInp = document.getElementById('time_created_input');
+    const dateEl = document.getElementById('date_created');
+    const wrap = document.getElementById('date_edit_wrap');
+    const editBtn = document.getElementById('edit_date_btn');
+    if (!currentSale || !currentSale.id || !dateInp) return;
+    const dateStr = dateInp.value;
+    if (!dateStr) {
+      showAlert('warning', 'اختر تاريخ الفاتورة');
+      return;
+    }
+    const timeStr = (timeInp && timeInp.value) ? timeInp.value : '00:00';
+    const iso = new Date(dateStr + 'T' + timeStr + ':00').toISOString();
+    try {
+      if (window.storage && typeof window.storage.updateSale === 'function') {
+        await window.storage.updateSale(currentSale.id, { date_created: iso });
+      } else {
+        showAlert('danger', 'لا يمكن تحديث التاريخ: التخزين غير متاح');
+        return;
+      }
+      currentSale.date_created = iso;
+      if (dateEl) dateEl.textContent = formatDate(new Date(iso));
+      wrap.style.display = 'none';
+      if (editBtn) editBtn.style.display = 'inline';
+      showAlert('success', 'تم تحديث تاريخ الفاتورة');
+    } catch (e) {
+      showAlert('danger', 'فشل تحديث التاريخ: ' + (e && e.message ? e.message : e));
+    }
+  }
+
   // متغير لمنع الطباعة المتعددة
   let isPrinting = false;
 
@@ -956,10 +1019,11 @@
     // رقم الفاتورة
     document.getElementById('receipt_sale_number').textContent = currentSale.sale_number || currentSale.id;
 
-    // ✅ تاريخ الفاتورة = تاريخ اليوم فقط (لاتيني) بتوقيت الرياض
+    // تاريخ الفاتورة = تاريخ عملية البيع (القابل للتعديل)
     const receiptDateElement = document.getElementById('receipt_date');
     if (receiptDateElement) {
-      receiptDateElement.textContent = todayRiyadh();
+      const saleDate = getSaleDateValue(currentSale);
+      receiptDateElement.textContent = saleDate ? formatDate(saleDate) : todayRiyadh();
     }
 
     // الضمان في الفاتورة (إن وجد)

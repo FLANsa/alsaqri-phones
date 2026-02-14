@@ -126,7 +126,7 @@ class SalesManager {
                 return { success: false, error: 'عملية البيع غير موجودة' };
             }
 
-            // For now, only allow updating customer info and status
+            // Allow updating customer info, status, and invoice date
             const allowedUpdates = {
                 customer_name: saleData.customer_name,
                 customer_phone: saleData.customer_phone,
@@ -134,7 +134,8 @@ class SalesManager {
                 customer_address: saleData.customer_address,
                 payment_method: saleData.payment_method,
                 notes: saleData.notes,
-                status: saleData.status
+                status: saleData.status,
+                date_created: saleData.date_created
             };
 
             const updated = this.storage.updateSale(saleId, allowedUpdates);
