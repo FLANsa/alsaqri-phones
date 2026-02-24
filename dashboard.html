@@ -801,17 +801,12 @@
 
     // تهيئة التواريخ إلى الشهر الحالي
     initializeDateRange();
-
+    
     // انتظار تحميل Firebase
     await new Promise(resolve => setTimeout(resolve, 1000));
-
-    // تحديث لوحة التحكم
+    
+    // تحديث لوحة التحكم مرة واحدة عند تحميل الصفحة
     await updateDashboard();
-
-    // تحديث البيانات كل 10 ثوانِ
-    setInterval(async () => {
-      await updateDashboard();
-    }, 10000);
   });
 </script>
 

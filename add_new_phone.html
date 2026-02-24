@@ -371,7 +371,7 @@
       }catch(e){ console.error(e); alert('❌ حدث خطأ في الحذف.'); }
     }
 
-    function generatePhoneNumber(){
+    function generatePhoneNumberLocal(){
       let last = localStorage.getItem('lastDeviceNumber')||'0';
       const next = (parseInt(last,10)+1); localStorage.setItem('lastDeviceNumber', String(next));
       return String(next).padStart(6,'0');
@@ -395,7 +395,16 @@
           return false;
         }
 
-        const phone_number = generatePhoneNumber();
+        let phone_number;
+        if (window.editingPhoneId) {
+          const phones = await (window.storage ? window.storage.getPhones() : Promise.resolve([]));
+          const existing = Array.isArray(phones) ? phones.find(p => p.id === window.editingPhoneId || String(p.phone_number) === String(window.editingPhoneId)) : null;
+          phone_number = existing ? String(existing.phone_number || '').trim() : generatePhoneNumberLocal();
+        } else if (window.storage && typeof window.storage.getNextPhoneNumber === 'function') {
+          phone_number = await window.storage.getNextPhoneNumber();
+        } else {
+          phone_number = generatePhoneNumberLocal();
+        }
         const purchase_price = parseArabicNumber(document.getElementById('purchase_price').value);
         const selling_price = parseArabicNumber(document.getElementById('selling_price').value);
 
@@ -459,8 +468,14 @@
         } else {
           // إضافة هاتف جديد
           if(window.storage && window.storage.isFirebaseAvailable){
-            const id = await window.storage.addPhone(phoneData);
-            savedOK = !!id;
+            try {
+              const id = await window.storage.addPhone(phoneData);
+              savedOK = !!id;
+            } catch (err) {
+              const msg = (err && err.message) ? err.message : 'فشل في حفظ الهاتف';
+              alert(msg);
+              return false;
+            }
           }else{
             const arr = JSON.parse(localStorage.getItem('phones')||'[]'); 
             phoneData.id=Date.now().toString(); 

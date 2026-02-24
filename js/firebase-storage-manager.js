@@ -133,16 +133,21 @@ class FirebaseStorageManager {
         return phoneId;
       } catch (error) {
         console.error('Error adding phone to Firebase:', error);
-        return false;
+        throw error;
       }
     }
     
     // LocalStorage fallback
-    const phones = this.getPhones();
+    const phones = await this.getPhones();
+    const arr = Array.isArray(phones) ? phones : [];
+    const exists = arr.some(p => String(p.phone_number || '') === String(phone.phone_number || ''));
+    if (exists) {
+      throw new Error('رقم الباركود مستخدم مسبقاً. يرجى عدم إعادة استخدام نفس الرقم.');
+    }
     phone.id = this.generateId();
     phone.date_added = new Date().toISOString();
-    phones.push(phone);
-    return this.setPhones(phones);
+    arr.push(phone);
+    return this.setPhones(arr) ? phone.id : false;
   }
 
   async updatePhone(phoneId, updatedPhone) {
@@ -183,9 +188,27 @@ class FirebaseStorageManager {
     return this.setPhones(filteredPhones);
   }
 
+  /**
+   * الحصول على الرقم التالي الفريد لرقم الباركود (phone_number).
+   * مع Firebase: يستخدم عداداً في Firestore. مع localStorage: أقصى رقم موجود + 1.
+   */
+  async getNextPhoneNumber() {
+    if (this.isFirebaseAvailable && typeof this.firebaseDB.getNextPhoneNumber === 'function') {
+      return await this.firebaseDB.getNextPhoneNumber();
+    }
+    const phones = await this.getPhones();
+    const arr = Array.isArray(phones) ? phones : [];
+    const numbers = arr
+      .map(p => parseInt(String(p.phone_number || '0').replace(/\D/g, ''), 10))
+      .filter(n => !isNaN(n) && n > 0);
+    const next = numbers.length ? Math.max(...numbers) + 1 : 1;
+    return String(next).padStart(6, '0');
+  }
+
   async getPhoneByNumber(phoneNumber) {
     const phones = await this.getPhones();
-    return phones.find(p => p.phone_number === phoneNumber);
+    const s = String(phoneNumber || '');
+    return phones.find(p => String(p.phone_number || '') === s);
   }
 
   async getPhoneBySerial(serialNumber) {

@@ -251,13 +251,10 @@
       }
     }catch{}
 
-    // Finally, generate a new label if nothing provided
-    const generated = (() => {
-      let last = localStorage.getItem('lastDeviceNumber')||'0';
-      const next = (parseInt(last,10)+1); localStorage.setItem('lastDeviceNumber', String(next));
-      return String(next).padStart(6,'0');
-    })();
-    fillSticker({ phone_number: generated, memory:'32GB', battery:'100' });
+    // لم يُحدد رقم جهاز: لا نولّد رقماً جديداً (لتجنب فجوات وتداخل مع التوليد من Firebase)
+    document.getElementById('phone-number').textContent = '—';
+    generateBarcode('-');
+    alert('لم يُحدد رقم جهاز.\n\nافتح الصفحة من صفحة إضافة هاتف (جديد أو مستعمل) أو أضف الرابط: print_barcode.html?phone_number=رقم_الجهاز');
   }
 
   document.addEventListener('DOMContentLoaded', loadPhoneData);

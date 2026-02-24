@@ -11,7 +11,8 @@ import {
   where, 
   orderBy,
   onSnapshot,
-  serverTimestamp 
+  serverTimestamp,
+  runTransaction 
 } from 'firebase/firestore';
 
 class FirebaseDatabase {
@@ -21,10 +22,43 @@ class FirebaseDatabase {
   }
 
   // ===== إدارة الهواتف =====
+  async getNextPhoneNumber() {
+    const counterRef = doc(this.db, 'counters', 'phones');
+    const result = await runTransaction(this.db, async (transaction) => {
+      const counterSnap = await transaction.get(counterRef);
+      const next = (counterSnap.exists() && counterSnap.data().lastPhoneNumber != null)
+        ? Number(counterSnap.data().lastPhoneNumber) + 1
+        : 1;
+      transaction.set(counterRef, { lastPhoneNumber: next }, { merge: true });
+      return next;
+    });
+    return String(result).padStart(6, '0');
+  }
+
+  async hasPhoneWithNumber(phoneNumber) {
+    const normalized = String(phoneNumber || '').trim();
+    if (!normalized) return false;
+    const q = query(
+      collection(this.db, 'phones'),
+      where('phone_number', '==', normalized)
+    );
+    const snap = await getDocs(q);
+    return !snap.empty;
+  }
+
   async addPhone(phoneData) {
     try {
+      const phoneNumber = phoneData.phone_number != null ? String(phoneData.phone_number).trim() : '';
+      if (!phoneNumber) {
+        throw new Error('رقم الباركود (phone_number) مطلوب');
+      }
+      const exists = await this.hasPhoneWithNumber(phoneNumber);
+      if (exists) {
+        throw new Error('رقم الباركود مستخدم مسبقاً. يرجى عدم إعادة استخدام نفس الرقم.');
+      }
+      const dataToSave = { ...phoneData, phone_number: phoneNumber };
       const docRef = await addDoc(collection(this.db, 'phones'), {
-        ...phoneData,
+        ...dataToSave,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp()
       });
