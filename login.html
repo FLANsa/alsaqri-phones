@@ -149,9 +149,9 @@
       
       localStorage.setItem('current_user', JSON.stringify(sessionData));
       
-      showAlert('success', `مرحباً ${user.name}! جاري التحويل إلى لوحة التحكم...`);
+      showAlert('success', `مرحباً ${user.name}! جاري التحويل إلى الصفحة الرئيسية...`);
       
-      // التحويل لصفحة لوحة التحكم المناسبة بعد ثانيتين
+      // التحويل لصفحة الصفحة الرئيسية المناسبة بعد ثانيتين
       setTimeout(() => {
         window.location.href = user.dashboard;
       }, 2000);
@@ -164,7 +164,7 @@
 
   // التحقق من تسجيل الدخول عند تحميل الصفحة
   document.addEventListener('DOMContentLoaded', function() {
-    // إذا كان المستخدم مسجل دخول بالفعل، اتجه للوحة التحكم المناسبة
+    // إذا كان المستخدم مسجل دخول بالفعل، اتجه لالصفحة الرئيسية المناسبة
     const currentUser = localStorage.getItem('current_user');
     if (currentUser) {
       try {

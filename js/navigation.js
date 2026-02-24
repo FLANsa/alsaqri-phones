@@ -62,7 +62,7 @@ function generateNavigation(role, currentPage = '') {
     if (role === 'admin') {
         return `
             <li class="nav-item">
-                <a class="nav-link ${currentPage === 'dashboard' ? 'active' : ''}" href="dashboard.html"><i class="fas fa-tachometer-alt"></i> لوحة التحكم</a>
+                <a class="nav-link ${currentPage === 'dashboard' ? 'active' : ''}" href="dashboard.html"><i class="fas fa-tachometer-alt"></i> الصفحة الرئيسية</a>
             </li>
 
             <li class="nav-item dropdown">
