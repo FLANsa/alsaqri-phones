@@ -526,7 +526,15 @@
         }
         alert('❌ تعذّر الحفظ'); return false;
 
-      }catch(err){ console.error(err); alert('❌ حدث خطأ في حفظ الهاتف.'); return false; }
+      }catch(err){
+        console.error(err);
+        if (err && (err.code === 'resource-exhausted' || err.code === 'quota-exceeded')) {
+          alert('⚠️ تم الوصول للحد المسموح به من عمليات Firestore في الخطة الحالية.\n\nتم حفظ بيانات الجهاز محلياً فقط، ويمكنك الاستمرار في طباعة الباركود واستخدام النظام، لكن لن يتم رفع الجهاز إلى السحابة الآن.');
+        } else {
+          alert('❌ حدث خطأ في حفظ الهاتف. حاول مرة أخرى أو تحقق من الاتصال بالإنترنت.');
+        }
+        return false;
+      }
     }
 
     // Add input validation for customer ID, phone, and battery age

@@ -23,20 +23,46 @@ class FirebaseDatabase {
 
   // ===== إدارة الهواتف =====
   /**
-   * توليد الرقم التالي الفريد لرقم الباركود (phone_number) باستخدام عداد في Firestore
+   * توليد الرقم التالي الفريد لرقم الباركود (phone_number).
+   * يحاول أولاً استخدام عداد مركزي في Firestore، وإذا تم الوصول لحد الحصة (resource-exhausted)
+   * يستخدم عداداً محلياً في المتصفح لتفادي تعطل النظام.
    * @returns {Promise<string>} رقم بصيغة 000001، 000002، ...
    */
   async getNextPhoneNumber() {
-    const counterRef = doc(this.db, 'counters', 'phones');
-    const result = await runTransaction(this.db, async (transaction) => {
-      const counterSnap = await transaction.get(counterRef);
-      const next = (counterSnap.exists() && counterSnap.data().lastPhoneNumber != null)
-        ? Number(counterSnap.data().lastPhoneNumber) + 1
-        : 1;
-      transaction.set(counterRef, { lastPhoneNumber: next }, { merge: true });
-      return next;
-    });
-    return String(result).padStart(6, '0');
+    const fallbackLocal = () => {
+      try {
+        const key = 'localDeviceCounter';
+        const raw = localStorage.getItem(key) || '0';
+        const next = (parseInt(raw, 10) || 0) + 1;
+        localStorage.setItem(key, String(next));
+        return String(next).padStart(6, '0');
+      } catch (e) {
+        console.warn('⚠️ getNextPhoneNumber fallback local counter failed, using timestamp-based value.', e);
+        const ts = Date.now().toString().slice(-6);
+        return ts.padStart(6, '0');
+      }
+    };
+
+    try {
+      const counterRef = doc(this.db, 'counters', 'phones');
+      const result = await runTransaction(this.db, async (transaction) => {
+        const counterSnap = await transaction.get(counterRef);
+        const next = (counterSnap.exists() && counterSnap.data().lastPhoneNumber != null)
+          ? Number(counterSnap.data().lastPhoneNumber) + 1
+          : 1;
+        transaction.set(counterRef, { lastPhoneNumber: next }, { merge: true });
+        return next;
+      });
+      return String(result).padStart(6, '0');
+    } catch (error) {
+      // إذا تم استنزاف حصة Firestore أو حدث خطأ اتصال، نستخدم العداد المحلي
+      if (error && (error.code === 'resource-exhausted' || error.code === 'unavailable')) {
+        console.warn('⚠️ Firestore counter quota reached or unavailable; falling back to local phone number counter.', error);
+        return fallbackLocal();
+      }
+      console.error('❌ Error in getNextPhoneNumber, falling back to local counter.', error);
+      return fallbackLocal();
+    }
   }
 
   /**
