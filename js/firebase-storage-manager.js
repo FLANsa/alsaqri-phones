@@ -37,9 +37,24 @@ class FirebaseStorageManager {
     
     if (this.isFirebaseAvailable) {
       console.log('🔥 Firebase Storage Manager initialized with Firebase');
+      // مزامنة مبكرة لعداد الأجهزة من Firestore (getDoc خفيف ويُخفف الاعتماد على المعاملة)
+      this.primePhoneCounterBase().catch(() => {});
     } else {
       console.log('💾 Firebase not available, using LocalStorage fallback');
       this.initializeLocalStorage();
+    }
+  }
+
+  /**
+   * يقرأ قيمة counters/phones.lastPhoneNumber مرة واحدة عند بدء الجلسة ويخزّنها
+   * في localStorage كقاعدة موثوقة للفولباك عند نفاد حصة Firestore.
+   */
+  async primePhoneCounterBase() {
+    try {
+      if (!this.firebaseDB || typeof this.firebaseDB.primePhoneCounterBase !== 'function') return;
+      await this.firebaseDB.primePhoneCounterBase();
+    } catch (e) {
+      console.warn('⚠️ primePhoneCounterBase failed', e && e.code);
     }
   }
 

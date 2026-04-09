@@ -23,12 +23,36 @@ class FirebaseDatabase {
 
   // ===== إدارة الهواتف =====
   async getNextPhoneNumber() {
-    const fallbackLocal = () => {
+    const LOCAL_KEY = 'localDeviceCounter';
+    const BASE_KEY = 'serverPhoneCounterBase';
+
+    const readLocalNext = () => {
+      const base = parseInt(localStorage.getItem(BASE_KEY) || '0', 10) || 0;
+      const local = parseInt(localStorage.getItem(LOCAL_KEY) || '0', 10) || 0;
+      return Math.max(base, local) + 1;
+    };
+
+    const fallbackLocal = async () => {
       try {
-        const key = 'localDeviceCounter';
-        const raw = localStorage.getItem(key) || '0';
-        const next = (parseInt(raw, 10) || 0) + 1;
-        localStorage.setItem(key, String(next));
+        const counterRef = doc(this.db, 'counters', 'phones');
+        const snap = await getDoc(counterRef);
+        if (snap.exists() && snap.data().lastPhoneNumber != null) {
+          const serverVal = Number(snap.data().lastPhoneNumber);
+          if (!isNaN(serverVal) && serverVal > 0) {
+            const prevBase = parseInt(localStorage.getItem(BASE_KEY) || '0', 10) || 0;
+            if (serverVal > prevBase) {
+              localStorage.setItem(BASE_KEY, String(serverVal));
+            }
+            console.log('📥 تمت قراءة العداد من Firestore عبر getDoc:', serverVal);
+          }
+        }
+      } catch (e) {
+        console.warn('⚠️ تعذر قراءة العداد من Firestore (سنعتمد على القيمة المحفوظة محلياً).', e && e.code);
+      }
+      try {
+        const next = readLocalNext();
+        localStorage.setItem(LOCAL_KEY, String(next));
+        console.log('🔢 رقم الباركود التالي (من القاعدة المحلية):', next);
         return String(next).padStart(6, '0');
       } catch (e) {
         console.warn('⚠️ getNextPhoneNumber fallback local counter failed, using timestamp-based value.', e);
@@ -47,26 +71,65 @@ class FirebaseDatabase {
         transaction.set(counterRef, { lastPhoneNumber: next }, { merge: true });
         return next;
       });
+      try {
+        localStorage.setItem(BASE_KEY, String(result));
+        localStorage.setItem(LOCAL_KEY, String(result));
+      } catch (_) {}
       return String(result).padStart(6, '0');
     } catch (error) {
       if (error && (error.code === 'resource-exhausted' || error.code === 'unavailable')) {
         console.warn('⚠️ Firestore counter quota reached or unavailable; falling back to local phone number counter.', error);
-        return fallbackLocal();
+        return await fallbackLocal();
       }
       console.error('❌ Error in getNextPhoneNumber, falling back to local counter.', error);
-      return fallbackLocal();
+      return await fallbackLocal();
+    }
+  }
+
+  /**
+   * قراءة عداد الأجهزة مرة واحدة عند التهيئة باستخدام getDoc (RPC أخف من المعاملة)
+   * وتخزينه محلياً كقاعدة آمنة للفولباك.
+   */
+  async primePhoneCounterBase() {
+    try {
+      const counterRef = doc(this.db, 'counters', 'phones');
+      const snap = await getDoc(counterRef);
+      if (snap.exists() && snap.data().lastPhoneNumber != null) {
+        const serverVal = Number(snap.data().lastPhoneNumber);
+        if (!isNaN(serverVal) && serverVal > 0) {
+          const prev = parseInt(localStorage.getItem('serverPhoneCounterBase') || '0', 10) || 0;
+          if (serverVal > prev) {
+            localStorage.setItem('serverPhoneCounterBase', String(serverVal));
+          }
+          const localCurr = parseInt(localStorage.getItem('localDeviceCounter') || '0', 10) || 0;
+          if (serverVal > localCurr) {
+            localStorage.setItem('localDeviceCounter', String(serverVal));
+          }
+          console.log('✅ primePhoneCounterBase: عداد الأجهزة محفوظ محلياً عند', serverVal);
+        }
+      }
+    } catch (e) {
+      console.warn('⚠️ primePhoneCounterBase: تعذر قراءة العداد من Firestore', e && e.code);
     }
   }
 
   async hasPhoneWithNumber(phoneNumber) {
     const normalized = String(phoneNumber || '').trim();
     if (!normalized) return false;
-    const q = query(
-      collection(this.db, 'phones'),
-      where('phone_number', '==', normalized)
-    );
-    const snap = await getDocs(q);
-    return !snap.empty;
+    try {
+      const q = query(
+        collection(this.db, 'phones'),
+        where('phone_number', '==', normalized)
+      );
+      const snap = await getDocs(q);
+      return !snap.empty;
+    } catch (error) {
+      if (error && (error.code === 'resource-exhausted' || error.code === 'unavailable')) {
+        console.warn('⚠️ hasPhoneWithNumber: تعذر الفحص بسبب حصة Firestore، سنتجاوز فحص التكرار.');
+        return false;
+      }
+      throw error;
+    }
   }
 
   /**
