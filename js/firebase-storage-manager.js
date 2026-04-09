@@ -140,9 +140,30 @@ class FirebaseStorageManager {
     // LocalStorage fallback
     const phones = await this.getPhones();
     const arr = Array.isArray(phones) ? phones : [];
-    const exists = arr.some(p => String(p.phone_number || '') === String(phone.phone_number || ''));
-    if (exists) {
-      throw new Error('رقم الباركود مستخدم مسبقاً. يرجى عدم إعادة استخدام نفس الرقم.');
+    // إذا حصل تكرار، نعيد توليد رقم جديد من أقصى رقم موجود + 1
+    let isDup = arr.some(p => String(p.phone_number || '') === String(phone.phone_number || ''));
+    if (isDup) {
+      console.warn('⚠️ (local) رقم الباركود مكرر، جاري إعادة التوليد من أقصى رقم موجود...', phone.phone_number);
+      const numbers = arr
+        .map(p => parseInt(String(p.phone_number || '0').replace(/\D/g, ''), 10))
+        .filter(n => !isNaN(n) && n > 0);
+      let next = numbers.length ? Math.max(...numbers) + 1 : 1;
+      // مزامنة العداد المحلي أيضاً حتى لا يتكرر الخطأ
+      try {
+        const localRaw = parseInt(localStorage.getItem('localDeviceCounter') || '0', 10) || 0;
+        if (next - 1 > localRaw) localStorage.setItem('localDeviceCounter', String(next - 1));
+      } catch (_) {}
+      let attempts = 0;
+      while (arr.some(p => String(p.phone_number || '') === String(next).padStart(6, '0')) && attempts < 10) {
+        next++;
+        attempts++;
+      }
+      phone.phone_number = String(next).padStart(6, '0');
+      isDup = arr.some(p => String(p.phone_number || '') === String(phone.phone_number || ''));
+      if (isDup) {
+        throw new Error('تعذّر توليد رقم باركود فريد بعد عدة محاولات.');
+      }
+      console.log('✅ (local) تم توليد رقم باركود جديد:', phone.phone_number);
     }
     phone.id = this.generateId();
     phone.date_added = new Date().toISOString();

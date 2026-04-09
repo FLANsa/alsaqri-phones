@@ -79,16 +79,74 @@ class FirebaseDatabase {
     return !snap.empty;
   }
 
-  async addPhone(phoneData) {
+  /**
+   * مزامنة عداد الأجهزة في Firestore مع أقصى رقم phone_number موجود فعلاً
+   * في مجموعة phones. يُستخدم عند اكتشاف تكرار لتصحيح انحراف العداد.
+   * @returns {Promise<number>} أقصى رقم تم العثور عليه
+   */
+  async syncPhoneCounterToMax() {
     try {
-      const phoneNumber = phoneData.phone_number != null ? String(phoneData.phone_number).trim() : '';
+      const phonesSnap = await getDocs(collection(this.db, 'phones'));
+      let max = 0;
+      phonesSnap.forEach((d) => {
+        const raw = d.data() && d.data().phone_number;
+        const n = parseInt(String(raw || '0').replace(/\D/g, ''), 10);
+        if (!isNaN(n) && n > max) max = n;
+      });
+      try {
+        const counterRef = doc(this.db, 'counters', 'phones');
+        await runTransaction(this.db, async (transaction) => {
+          const snap = await transaction.get(counterRef);
+          const curr = (snap.exists() && snap.data().lastPhoneNumber != null)
+            ? Number(snap.data().lastPhoneNumber) : 0;
+          if (max > curr) {
+            transaction.set(counterRef, { lastPhoneNumber: max }, { merge: true });
+          }
+        });
+      } catch (e) {
+        console.warn('⚠️ syncPhoneCounterToMax: تعذر تحديث العداد في Firestore، سنكتفي بالمحلي.', e);
+      }
+      try {
+        const localRaw = parseInt(localStorage.getItem('localDeviceCounter') || '0', 10) || 0;
+        if (max > localRaw) localStorage.setItem('localDeviceCounter', String(max));
+      } catch (_) {}
+      console.log('🔄 تمت مزامنة عداد الأجهزة مع أقصى رقم:', max);
+      return max;
+    } catch (error) {
+      console.warn('⚠️ فشل في مزامنة عداد الأجهزة:', error);
+      return 0;
+    }
+  }
+
+  async addPhone(phoneData, options = {}) {
+    const { autoRenumberOnConflict = true } = options;
+    try {
+      let phoneNumber = phoneData.phone_number != null ? String(phoneData.phone_number).trim() : '';
       if (!phoneNumber) {
         throw new Error('رقم الباركود (phone_number) مطلوب');
       }
-      const exists = await this.hasPhoneWithNumber(phoneNumber);
+      let exists = await this.hasPhoneWithNumber(phoneNumber);
       if (exists) {
-        throw new Error('رقم الباركود مستخدم مسبقاً. يرجى عدم إعادة استخدام نفس الرقم.');
+        if (!autoRenumberOnConflict) {
+          throw new Error('رقم الباركود مستخدم مسبقاً. يرجى عدم إعادة استخدام نفس الرقم.');
+        }
+        // العداد غير متزامن: نصحح ونعيد المحاولة تلقائياً
+        console.warn('⚠️ رقم الباركود مكرر، جاري مزامنة العداد وإعادة التوليد...', phoneNumber);
+        await this.syncPhoneCounterToMax();
+        const maxAttempts = 10;
+        let attempt = 0;
+        while (exists && attempt < maxAttempts) {
+          phoneNumber = await this.getNextPhoneNumber();
+          exists = await this.hasPhoneWithNumber(phoneNumber);
+          attempt++;
+        }
+        if (exists) {
+          throw new Error('تعذّر توليد رقم باركود فريد بعد عدة محاولات. يرجى المحاولة لاحقاً.');
+        }
+        console.log('✅ تم توليد رقم باركود جديد بعد المزامنة:', phoneNumber);
       }
+      // تحديث كائن الاستدعاء ليعكس الرقم النهائي (للطباعة والتخزين المحلي)
+      phoneData.phone_number = phoneNumber;
       const dataToSave = { ...phoneData, phone_number: phoneNumber };
       const docRef = await addDoc(collection(this.db, 'phones'), {
         ...dataToSave,
