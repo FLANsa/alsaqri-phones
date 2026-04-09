@@ -1,19 +1,39 @@
 // Firebase Database Manager for Phone Store Demo - CDN Version
-import { 
-  collection, 
-  doc, 
-  addDoc, 
-  updateDoc, 
-  deleteDoc, 
-  getDocs, 
-  getDoc, 
-  query, 
-  where, 
+import {
+  collection,
+  doc,
+  addDoc,
+  updateDoc,
+  deleteDoc,
+  getDocs,
+  getDoc,
+  setDoc,
+  query,
+  where,
   orderBy,
   onSnapshot,
   serverTimestamp,
-  runTransaction 
+  increment,
+  runTransaction
 } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
+
+// قاطع دائرة لحصة Firestore — يمنع ضرب BatchGetDocuments مرات متعددة خلال فترة الاستنزاف
+const QUOTA_COOLDOWN_MS = 5 * 60 * 1000; // 5 دقائق
+function isQuotaCooling() {
+  try {
+    const t = parseInt(localStorage.getItem('__firestoreQuotaExhaustedAt') || '0', 10) || 0;
+    return t && (Date.now() - t) < QUOTA_COOLDOWN_MS;
+  } catch (_) { return false; }
+}
+function markQuotaExhausted() {
+  try { localStorage.setItem('__firestoreQuotaExhaustedAt', String(Date.now())); } catch (_) {}
+}
+function clearQuotaCooling() {
+  try { localStorage.removeItem('__firestoreQuotaExhaustedAt'); } catch (_) {}
+}
+function isQuotaError(error) {
+  return !!(error && (error.code === 'resource-exhausted' || error.code === 'unavailable'));
+}
 
 class FirebaseDatabase {
   constructor() {
@@ -30,7 +50,7 @@ class FirebaseDatabase {
    */
   async getNextPhoneNumber() {
     const LOCAL_KEY = 'localDeviceCounter';
-    const BASE_KEY = 'serverPhoneCounterBase'; // آخر قيمة معروفة من counters/phones.lastPhoneNumber
+    const BASE_KEY = 'serverPhoneCounterBase';
 
     const readLocalNext = () => {
       const base = parseInt(localStorage.getItem(BASE_KEY) || '0', 10) || 0;
@@ -39,59 +59,47 @@ class FirebaseDatabase {
     };
 
     const fallbackLocal = async () => {
-      // محاولة قراءة العداد مباشرة من Firestore عبر getDoc (RPC أخف من المعاملة)
-      // هذا يتيح لنا استعادة القيمة الصحيحة حتى لو فشلت المعاملة بسبب الحصة
-      try {
-        const counterRef = doc(this.db, 'counters', 'phones');
-        const snap = await getDoc(counterRef);
-        if (snap.exists() && snap.data().lastPhoneNumber != null) {
-          const serverVal = Number(snap.data().lastPhoneNumber);
-          if (!isNaN(serverVal) && serverVal > 0) {
-            const prevBase = parseInt(localStorage.getItem(BASE_KEY) || '0', 10) || 0;
-            if (serverVal > prevBase) {
-              localStorage.setItem(BASE_KEY, String(serverVal));
-            }
-            console.log('📥 تمت قراءة العداد من Firestore عبر getDoc:', serverVal);
-          }
-        }
-      } catch (e) {
-        console.warn('⚠️ تعذر قراءة العداد من Firestore (سنعتمد على القيمة المحفوظة محلياً).', e && e.code);
-      }
       try {
         const next = readLocalNext();
         localStorage.setItem(LOCAL_KEY, String(next));
         console.log('🔢 رقم الباركود التالي (من القاعدة المحلية):', next);
         return String(next).padStart(6, '0');
       } catch (e) {
-        console.warn('⚠️ getNextPhoneNumber fallback local counter failed, using timestamp-based value.', e);
+        console.warn('⚠️ fallback local counter failed, using timestamp-based value.', e);
         const ts = Date.now().toString().slice(-6);
         return ts.padStart(6, '0');
       }
     };
 
+    // قاطع الدائرة: إذا كنا في فترة تبريد بعد نفاد حصة سابقة، لا نضرب Firestore أصلاً
+    if (isQuotaCooling()) {
+      console.warn('⛔ قاطع دائرة Firestore مفعل — استخدام العداد المحلي مباشرة بدون ضرب Firestore.');
+      return await fallbackLocal();
+    }
+
+    const counterRef = doc(this.db, 'counters', 'phones');
+
+    // الطريقة المفضّلة: increment ذرّي بدون runTransaction (يتجنّب BatchGetDocuments تماماً)
     try {
-      const counterRef = doc(this.db, 'counters', 'phones');
-      const result = await runTransaction(this.db, async (transaction) => {
-        const counterSnap = await transaction.get(counterRef);
-        const next = (counterSnap.exists() && counterSnap.data().lastPhoneNumber != null)
-          ? Number(counterSnap.data().lastPhoneNumber) + 1
-          : 1;
-        transaction.set(counterRef, { lastPhoneNumber: next }, { merge: true });
-        return next;
-      });
-      // احفظ القيمة الحالية من السيرفر كقاعدة محلية لدعم الاستخدام المستقبلي دون اتصال
-      try {
-        localStorage.setItem(BASE_KEY, String(result));
-        localStorage.setItem(LOCAL_KEY, String(result));
-      } catch (_) {}
-      return String(result).padStart(6, '0');
+      await setDoc(counterRef, { lastPhoneNumber: increment(1) }, { merge: true });
+      const snap = await getDoc(counterRef);
+      const result = Number(snap.data() && snap.data().lastPhoneNumber) || 0;
+      if (result > 0) {
+        try {
+          localStorage.setItem(BASE_KEY, String(result));
+          localStorage.setItem(LOCAL_KEY, String(result));
+        } catch (_) {}
+        clearQuotaCooling();
+        return String(result).padStart(6, '0');
+      }
+      throw new Error('invalid counter value after increment');
     } catch (error) {
-      // إذا تم استنزاف حصة Firestore أو حدث خطأ اتصال، نحاول قراءة العداد مباشرة ثم نكمل محلياً
-      if (error && (error.code === 'resource-exhausted' || error.code === 'unavailable')) {
-        console.warn('⚠️ Firestore counter quota reached or unavailable; falling back to local phone number counter.', error);
+      if (isQuotaError(error)) {
+        console.warn('⚠️ Firestore quota reached — تفعيل قاطع الدائرة لمدة 5 دقائق والاعتماد على العداد المحلي.', error && error.code);
+        markQuotaExhausted();
         return await fallbackLocal();
       }
-      console.error('❌ Error in getNextPhoneNumber, falling back to local counter.', error);
+      console.error('❌ Error in getNextPhoneNumber (increment path), falling back to local counter.', error);
       return await fallbackLocal();
     }
   }
@@ -104,6 +112,10 @@ class FirebaseDatabase {
    * وتخزينه محلياً كقاعدة آمنة للفولباك.
    */
   async primePhoneCounterBase() {
+    if (isQuotaCooling()) {
+      console.log('⛔ primePhoneCounterBase: تم تجاوز القراءة بسبب قاطع دائرة Firestore.');
+      return;
+    }
     try {
       const counterRef = doc(this.db, 'counters', 'phones');
       const snap = await getDoc(counterRef);
@@ -121,7 +133,9 @@ class FirebaseDatabase {
           console.log('✅ primePhoneCounterBase: عداد الأجهزة محفوظ محلياً عند', serverVal);
         }
       }
+      clearQuotaCooling();
     } catch (e) {
+      if (isQuotaError(e)) markQuotaExhausted();
       console.warn('⚠️ primePhoneCounterBase: تعذر قراءة العداد من Firestore', e && e.code);
     }
   }
@@ -129,6 +143,11 @@ class FirebaseDatabase {
   async hasPhoneWithNumber(phoneNumber) {
     const normalized = String(phoneNumber || '').trim();
     if (!normalized) return false;
+    // قاطع الدائرة: لا نضرب Firestore عند نفاد الحصة
+    if (isQuotaCooling()) {
+      console.warn('⛔ hasPhoneWithNumber: تجاوز الفحص بسبب قاطع دائرة Firestore.');
+      return false;
+    }
     try {
       const q = query(
         collection(this.db, 'phones'),
@@ -137,8 +156,8 @@ class FirebaseDatabase {
       const snap = await getDocs(q);
       return !snap.empty;
     } catch (error) {
-      // في حال نفاد الحصة، لا يمكن الفحص؛ نعتمد على العداد ونفترض الرقم فريد
-      if (error && (error.code === 'resource-exhausted' || error.code === 'unavailable')) {
+      if (isQuotaError(error)) {
+        markQuotaExhausted();
         console.warn('⚠️ hasPhoneWithNumber: تعذر الفحص بسبب حصة Firestore، سنتجاوز فحص التكرار.');
         return false;
       }
@@ -152,6 +171,13 @@ class FirebaseDatabase {
    * @returns {Promise<number>} أقصى رقم تم العثور عليه
    */
   async syncPhoneCounterToMax() {
+    if (isQuotaCooling()) {
+      const localRaw = parseInt(localStorage.getItem('localDeviceCounter') || '0', 10) || 0;
+      const baseRaw = parseInt(localStorage.getItem('serverPhoneCounterBase') || '0', 10) || 0;
+      const max = Math.max(localRaw, baseRaw);
+      console.warn('⛔ syncPhoneCounterToMax: تخطي Firestore (قاطع دائرة)، الاكتفاء بالعداد المحلي =', max);
+      return max;
+    }
     try {
       const phonesSnap = await getDocs(collection(this.db, 'phones'));
       let max = 0;
@@ -162,25 +188,25 @@ class FirebaseDatabase {
       });
       try {
         const counterRef = doc(this.db, 'counters', 'phones');
-        await runTransaction(this.db, async (transaction) => {
-          const snap = await transaction.get(counterRef);
-          const curr = (snap.exists() && snap.data().lastPhoneNumber != null)
-            ? Number(snap.data().lastPhoneNumber) : 0;
-          if (max > curr) {
-            transaction.set(counterRef, { lastPhoneNumber: max }, { merge: true });
-          }
-        });
+        // setDoc + merge بدل runTransaction لتفادي BatchGetDocuments
+        if (max > 0) {
+          await setDoc(counterRef, { lastPhoneNumber: max }, { merge: true });
+        }
       } catch (e) {
-        console.warn('⚠️ syncPhoneCounterToMax: تعذر تحديث العداد في Firestore، سنكتفي بالمحلي.', e);
+        if (isQuotaError(e)) markQuotaExhausted();
+        console.warn('⚠️ syncPhoneCounterToMax: تعذر تحديث العداد في Firestore، سنكتفي بالمحلي.', e && e.code);
       }
       try {
         const localRaw = parseInt(localStorage.getItem('localDeviceCounter') || '0', 10) || 0;
         if (max > localRaw) localStorage.setItem('localDeviceCounter', String(max));
+        const baseRaw = parseInt(localStorage.getItem('serverPhoneCounterBase') || '0', 10) || 0;
+        if (max > baseRaw) localStorage.setItem('serverPhoneCounterBase', String(max));
       } catch (_) {}
       console.log('🔄 تمت مزامنة عداد الأجهزة مع أقصى رقم:', max);
       return max;
     } catch (error) {
-      console.warn('⚠️ فشل في مزامنة عداد الأجهزة:', error);
+      if (isQuotaError(error)) markQuotaExhausted();
+      console.warn('⚠️ فشل في مزامنة عداد الأجهزة:', error && error.code);
       return 0;
     }
   }
