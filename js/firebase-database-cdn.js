@@ -35,10 +35,49 @@ function isQuotaError(error) {
   return !!(error && (error.code === 'resource-exhausted' || error.code === 'unavailable'));
 }
 
+// مدة صلاحية الكاش المحلي (لتقليل قراءات Firestore عند التنقل بين الصفحات)
+// ملاحظة: الكاش والإبطال عند الكتابة يعملان لكل جهاز/متصفح على حدة —
+// التعديلات من جهاز آخر قد تتأخر في الظهور حتى دقيقتين على هذا الجهاز
+const CACHE_TTL_MS = 2 * 60 * 1000; // دقيقتان
+const CACHE_PREFIX = 'fs_cache_';
+
 class FirebaseDatabase {
   constructor() {
     this.db = window.firebaseDB;
     this.auth = window.firebaseAuth;
+  }
+
+  // ===== كاش محلي قصير المدى =====
+  _cacheGet(key) {
+    try {
+      const raw = localStorage.getItem(CACHE_PREFIX + key);
+      if (!raw) return null;
+      const { t, data } = JSON.parse(raw);
+      if (Date.now() - t > CACHE_TTL_MS) {
+        localStorage.removeItem(CACHE_PREFIX + key);
+        return null;
+      }
+      return data;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  _cacheSet(key, data) {
+    try {
+      localStorage.setItem(CACHE_PREFIX + key, JSON.stringify({ t: Date.now(), data }));
+    } catch (e) {
+      // تجاوز حد التخزين: أزل هذا المفتاح فقط وتابع بدون كاش له،
+      // ولا تمس كاشات المجموعات الأخرى الصالحة
+      console.warn('⚠️ Cache skipped for', key, '- storage quota exceeded');
+      this._cacheClear(key);
+    }
+  }
+
+  _cacheClear(key) {
+    try {
+      localStorage.removeItem(CACHE_PREFIX + key);
+    } catch (e) { /* تجاهل */ }
   }
 
   // ===== إدارة الهواتف =====
@@ -246,6 +285,7 @@ class FirebaseDatabase {
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp()
       });
+      this._cacheClear('phones');
       console.log('✅ Phone added with ID:', docRef.id);
       return docRef.id;
     } catch (error) {
@@ -256,12 +296,18 @@ class FirebaseDatabase {
 
   async getPhones() {
     try {
+      const cached = this._cacheGet('phones');
+      if (cached) {
+        console.log('📱 Phones from cache:', cached.length);
+        return cached;
+      }
       const phonesSnapshot = await getDocs(collection(this.db, 'phones'));
       const phones = [];
       phonesSnapshot.forEach((doc) => {
         phones.push({ id: doc.id, ...doc.data() });
       });
       console.log('📱 Retrieved phones:', phones.length);
+      this._cacheSet('phones', phones);
       return phones;
     } catch (error) {
       console.error('❌ Error getting phones:', error);
@@ -275,6 +321,7 @@ class FirebaseDatabase {
         ...phoneData,
         updatedAt: serverTimestamp()
       });
+      this._cacheClear('phones');
       console.log('✅ Phone updated:', phoneId);
     } catch (error) {
       console.error('❌ Error updating phone:', error);
@@ -285,6 +332,7 @@ class FirebaseDatabase {
   async deletePhone(phoneId) {
     try {
       await deleteDoc(doc(this.db, 'phones', phoneId));
+      this._cacheClear('phones');
       console.log('✅ Phone deleted:', phoneId);
     } catch (error) {
       console.error('❌ Error deleting phone:', error);
@@ -303,6 +351,7 @@ class FirebaseDatabase {
         updatedAt: serverTimestamp()
       });
       
+      this._cacheClear('accessories');
       console.log('✅ Firebase: تم إضافة الأكسسوار بنجاح! ID:', docRef.id);
       console.log('📂 Firebase: الفئة المحفوظة:', accessoryData.category);
       return docRef.id;
@@ -314,12 +363,18 @@ class FirebaseDatabase {
 
   async getAccessories() {
     try {
+      const cached = this._cacheGet('accessories');
+      if (cached) {
+        console.log('🛍️ Accessories from cache:', cached.length);
+        return cached;
+      }
       const accessoriesSnapshot = await getDocs(collection(this.db, 'accessories'));
       const accessories = [];
       accessoriesSnapshot.forEach((doc) => {
         accessories.push({ id: doc.id, ...doc.data() });
       });
       console.log('🛍️ Retrieved accessories:', accessories.length);
+      this._cacheSet('accessories', accessories);
       return accessories;
     } catch (error) {
       console.error('❌ Error getting accessories:', error);
@@ -333,6 +388,7 @@ class FirebaseDatabase {
         ...accessoryData,
         updatedAt: serverTimestamp()
       });
+      this._cacheClear('accessories');
       console.log('✅ Accessory updated:', accessoryId);
     } catch (error) {
       console.error('❌ Error updating accessory:', error);
@@ -343,6 +399,7 @@ class FirebaseDatabase {
   async deleteAccessory(accessoryId) {
     try {
       await deleteDoc(doc(this.db, 'accessories', accessoryId));
+      this._cacheClear('accessories');
       console.log('✅ Accessory deleted:', accessoryId);
     } catch (error) {
       console.error('❌ Error deleting accessory:', error);
@@ -358,6 +415,7 @@ class FirebaseDatabase {
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp()
       });
+      this._cacheClear('sales');
       console.log('✅ Sale added with ID:', docRef.id);
       return docRef.id;
     } catch (error) {
@@ -368,6 +426,11 @@ class FirebaseDatabase {
 
   async getSales() {
     try {
+      const cached = this._cacheGet('sales');
+      if (cached) {
+        console.log('💰 Sales from cache:', cached.length);
+        return cached;
+      }
       const salesSnapshot = await getDocs(
         query(collection(this.db, 'sales'), orderBy('createdAt', 'desc'))
       );
@@ -376,6 +439,7 @@ class FirebaseDatabase {
         sales.push({ id: doc.id, ...doc.data() });
       });
       console.log('💰 Retrieved sales:', sales.length);
+      this._cacheSet('sales', sales);
       return sales;
     } catch (error) {
       console.error('❌ Error getting sales:', error);
@@ -402,6 +466,7 @@ class FirebaseDatabase {
         ...saleData,
         updatedAt: serverTimestamp()
       });
+      this._cacheClear('sales');
       console.log('✅ Sale updated:', saleId);
     } catch (error) {
       console.error('❌ Error updating sale:', error);
@@ -412,6 +477,7 @@ class FirebaseDatabase {
   async deleteSale(saleId) {
     try {
       await deleteDoc(doc(this.db, 'sales', saleId));
+      this._cacheClear('sales');
       console.log('✅ Sale deleted:', saleId);
     } catch (error) {
       console.error('❌ Error deleting sale:', error);
@@ -427,6 +493,7 @@ class FirebaseDatabase {
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp()
       });
+      this._cacheClear('accessory_categories');
       console.log('✅ Category added with ID:', docRef.id);
       return docRef.id;
     } catch (error) {
@@ -437,12 +504,18 @@ class FirebaseDatabase {
 
   async getAccessoryCategories() {
     try {
+      const cached = this._cacheGet('accessory_categories');
+      if (cached) {
+        console.log('📂 Categories from cache:', cached.length);
+        return cached;
+      }
       const categoriesSnapshot = await getDocs(collection(this.db, 'accessory_categories'));
       const categories = [];
       categoriesSnapshot.forEach((doc) => {
         categories.push({ id: doc.id, ...doc.data() });
       });
       console.log('📂 Retrieved categories:', categories.length);
+      this._cacheSet('accessory_categories', categories);
       return categories;
     } catch (error) {
       console.error('❌ Error getting categories:', error);
@@ -463,6 +536,7 @@ class FirebaseDatabase {
       });
       
       await Promise.all(deletePromises);
+      this._cacheClear('accessory_categories');
       console.log('✅ Accessory category deleted:', categoryName);
       return true;
     } catch (error) {
@@ -479,6 +553,7 @@ class FirebaseDatabase {
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp()
       });
+      this._cacheClear('phone_types');
       console.log('✅ Phone type added with ID:', docRef.id);
       return docRef.id;
     } catch (error) {
@@ -489,12 +564,18 @@ class FirebaseDatabase {
 
   async getPhoneTypes() {
     try {
+      const cached = this._cacheGet('phone_types');
+      if (cached) {
+        console.log('📱 Phone types from cache:', cached.length);
+        return cached;
+      }
       const phoneTypesSnapshot = await getDocs(collection(this.db, 'phone_types'));
       const phoneTypes = [];
       phoneTypesSnapshot.forEach((doc) => {
         phoneTypes.push({ id: doc.id, ...doc.data() });
       });
       console.log('📱 Retrieved phone types:', phoneTypes.length);
+      this._cacheSet('phone_types', phoneTypes);
       return phoneTypes;
     } catch (error) {
       console.error('❌ Error getting phone types:', error);
@@ -516,6 +597,7 @@ class FirebaseDatabase {
       });
       
       await Promise.all(deletePromises);
+      this._cacheClear('phone_types');
       console.log('✅ Phone type deleted:', brand, model);
       return true;
     } catch (error) {
@@ -1241,11 +1323,8 @@ class FirebaseDatabase {
 // إنشاء instance واحد للاستخدام في جميع أنحاء التطبيق
 window.firebaseDatabase = new FirebaseDatabase();
 
-// تهيئة البيانات الافتراضية عند تحميل Firebase
-window.firebaseDatabase.initializeDefaultData()
-  .then(() => {
-    console.log('🔥 Firebase Database Manager initialized successfully!');
-  })
-  .catch(error => {
-    console.error('❌ Error initializing Firebase Database:', error);
-  });
+// ملاحظة: initializeDefaultData() لم تعد تُستدعى تلقائياً عند كل تحميل صفحة —
+// كانت تقرأ مجموعة الفئات كاملة في كل مرة وتسببت في تضاعف بيانات البذور.
+// الفئات الافتراضية موجودة في قاعدة البيانات؛ عند الحاجة استدعِها يدوياً من الكونسول:
+// window.firebaseDatabase.initializeDefaultData()
+console.log('🔥 Firebase Database Manager initialized successfully!');

@@ -581,8 +581,8 @@
   async function loadSaleData(saleId) {
     try {
       if (window.storage && window.storage.isFirebaseAvailable) {
-        const sales = await window.storage.getSales();
-        currentSale = sales.find(sale => sale.id === saleId);
+        // قراءة مستند البيع وحده بدل جلب مجموعة المبيعات كاملة (994+ قراءة لعرض فاتورة واحدة)
+        currentSale = await window.firebaseDatabase.getSale(saleId);
       } else {
         const sales = JSON.parse(localStorage.getItem('sales') || '[]');
         currentSale = sales.find(sale => sale.id === saleId);

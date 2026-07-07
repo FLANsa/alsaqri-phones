@@ -639,11 +639,7 @@ class FirebaseDatabase {
 // إنشاء instance واحد للاستخدام في جميع أنحاء التطبيق
 window.firebaseDatabase = new FirebaseDatabase();
 
-// تهيئة البيانات الافتراضية عند تحميل Firebase
-window.firebaseDatabase.initializeDefaultData()
-  .then(() => {
-    console.log('🔥 Firebase Database Manager initialized successfully!');
-  })
-  .catch(error => {
-    console.error('❌ Error initializing Firebase Database:', error);
-  });
+// ملاحظة: هذا الملف قديم وغير مُحمّل من أي صفحة حالياً (الصفحات تستخدم firebase-database-cdn.js).
+// أُزيل الاستدعاء التلقائي لـ initializeDefaultData() — كان يقرأ مجموعة الفئات كاملة
+// عند كل تحميل وتسبب سباقه في تضاعف بيانات البذور. عند الحاجة استدعِها يدوياً.
+console.log('🔥 Firebase Database Manager initialized successfully!');
