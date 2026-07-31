@@ -8,7 +8,7 @@ const CONFIG = {
     VAT_RATE: 0.15, // 15% VAT rate
     COMPANY_INFO: {
         name: "الصقري للاتصالات",
-        vatNumber: "310105614500003",
+        vatNumber: "108250001385335",
         address: "القصيم بريده الصفراء - اسواق النافوره",
         phone: "0505663222"
     },
