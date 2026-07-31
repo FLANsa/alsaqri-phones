@@ -77,6 +77,7 @@
             <option value="day">يوم محدد</option>
             <option value="month">شهر محدد</option>
             <option value="year">سنة محددة</option>
+            <option value="date_range">من تاريخ إلى تاريخ</option>
           </select>
         </div>
 
@@ -124,6 +125,20 @@
           </select>
         </div>
 
+        <!-- Date Range -->
+        <div class="col-md-6" id="date_range_filter_container" style="display:none;">
+          <div class="row">
+            <div class="col-md-6">
+              <label for="filter_date_from" class="form-label">من تاريخ</label>
+              <input type="date" class="form-control" id="filter_date_from" name="filter_date_from" value="">
+            </div>
+            <div class="col-md-6">
+              <label for="filter_date_to" class="form-label">إلى تاريخ</label>
+              <input type="date" class="form-control" id="filter_date_to" name="filter_date_to" value="">
+            </div>
+          </div>
+        </div>
+
         <!-- Sale number search -->
         <div class="col-md-3">
           <label for="filter_sale_number" class="form-label">رقم الفاتورة</label>
@@ -138,6 +153,9 @@
             </button>
             <button type="button" class="btn btn-secondary" onclick="resetFilter()">
               <i class="fas fa-undo"></i> إعادة تعيين
+            </button>
+            <button type="button" class="btn btn-success mt-2" onclick="printSalesReport()" id="printReportBtn" style="display:none;">
+              <i class="fas fa-print"></i> طباعة التقرير
             </button>
           </div>
         </div>
@@ -419,6 +437,40 @@
         });
         summaryText = `مبيعات سنة ${convertToLatinNumbers(year)}`;
       }
+    } else if (type==='date_range') {
+      const dateFrom = document.getElementById('filter_date_from').value;
+      const dateTo = document.getElementById('filter_date_to').value;
+      if (dateFrom && dateTo) {
+        const fromDate = new Date(dateFrom);
+        fromDate.setHours(0, 0, 0, 0);
+        const toDate = new Date(dateTo);
+        toDate.setHours(23, 59, 59, 999);
+        
+        filtered = salesAll.filter(s => {
+          const dt = getSaleDateValue(s);
+          if (!dt) return false;
+          return dt >= fromDate && dt <= toDate;
+        });
+        summaryText = `مبيعات من ${convertToLatinNumbers(dateFrom)} إلى ${convertToLatinNumbers(dateTo)}`;
+      } else if (dateFrom) {
+        const fromDate = new Date(dateFrom);
+        fromDate.setHours(0, 0, 0, 0);
+        filtered = salesAll.filter(s => {
+          const dt = getSaleDateValue(s);
+          if (!dt) return false;
+          return dt >= fromDate;
+        });
+        summaryText = `مبيعات من ${convertToLatinNumbers(dateFrom)}`;
+      } else if (dateTo) {
+        const toDate = new Date(dateTo);
+        toDate.setHours(23, 59, 59, 999);
+        filtered = salesAll.filter(s => {
+          const dt = getSaleDateValue(s);
+          if (!dt) return false;
+          return dt <= toDate;
+        });
+        summaryText = `مبيعات حتى ${convertToLatinNumbers(dateTo)}`;
+      }
     }
 
     // Filter by sale number if provided
@@ -453,10 +505,12 @@
     const dayC = document.getElementById('day_filter_container');
     const monC = document.getElementById('month_filter_container');
     const yearC = document.getElementById('year_filter_container');
-    dayC.style.display = 'none'; monC.style.display = 'none'; yearC.style.display = 'none';
+    const rangeC = document.getElementById('date_range_filter_container');
+    dayC.style.display = 'none'; monC.style.display = 'none'; yearC.style.display = 'none'; rangeC.style.display = 'none';
     if (type==='day') dayC.style.display = 'block';
     else if (type==='month') monC.style.display = 'block';
     else if (type==='year') yearC.style.display = 'block';
+    else if (type==='date_range') rangeC.style.display = 'block';
   }
 
   // ---------- تطبيق/إعادة التصفية ----------
@@ -468,6 +522,8 @@
     document.getElementById('filterForm').reset();
     toggleDateInput();
     document.getElementById('filter_sale_number').value = '';
+    const printBtn = document.getElementById('printReportBtn');
+    if (printBtn) printBtn.style.display = 'none';
     applyCurrentFilter();
   }
 
@@ -484,6 +540,12 @@
     } else {
       alertBox.classList.add('d-none');
       alertText.textContent = '';
+    }
+
+    // إظهار/إخفاء زر طباعة التقرير
+    const printBtn = document.getElementById('printReportBtn');
+    if (printBtn) {
+      printBtn.style.display = hasData ? 'block' : 'none';
     }
 
     // إظهار/إخفاء البلوكات
@@ -627,6 +689,277 @@
   }
 
   // (أُزيلت دالة البيانات التجريبية)
+
+  // ---------- طباعة تقرير المبيعات ----------
+  async function printSalesReport() {
+    if (!currentFilteredSales || currentFilteredSales.length === 0) {
+      showAlert('warning', 'لا توجد مبيعات للطباعة');
+      return;
+    }
+
+    // جلب بيانات الهواتف من قاعدة البيانات
+    let phones = [];
+    try {
+      if (window.storage && window.storage.isFirebaseAvailable) {
+        phones = await window.storage.getPhones();
+      } else {
+        phones = JSON.parse(localStorage.getItem('phones') || '[]');
+      }
+    } catch (error) {
+      console.error('خطأ في جلب بيانات الهواتف:', error);
+    }
+
+    // احسب المجاميع
+    const effectiveSales = currentFilteredSales.filter(s => !(s && (s.returned === true || s.status === 'مسترجعة')));
+    let totalSubtotal = 0, totalVat = 0, totalAmount = 0;
+    effectiveSales.forEach(sale => {
+      totalSubtotal += sale.subtotal || 0;
+      totalVat += sale.vat_amount || 0;
+      totalAmount += sale.total_amount || 0;
+    });
+
+    // احصل على نص التصفية
+    const filterType = document.getElementById('filter_type').value;
+    let reportTitle = 'تقرير المبيعات';
+    let dateRange = '';
+    
+    if (filterType === 'day') {
+      const date = document.getElementById('filter_date').value;
+      if (date) dateRange = `يوم ${convertToLatinNumbers(date)}`;
+    } else if (filterType === 'month') {
+      const year = document.getElementById('filter_month_year').value;
+      const month = document.getElementById('filter_month_month').value;
+      if (year && month) {
+        const monthNames = ['', 'يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'];
+        dateRange = `شهر ${monthNames[parseInt(month)]} ${convertToLatinNumbers(year)}`;
+      }
+    } else if (filterType === 'year') {
+      const year = document.getElementById('filter_year').value;
+      if (year) dateRange = `سنة ${convertToLatinNumbers(year)}`;
+    } else if (filterType === 'date_range') {
+      const dateFrom = document.getElementById('filter_date_from').value;
+      const dateTo = document.getElementById('filter_date_to').value;
+      if (dateFrom && dateTo) {
+        dateRange = `من ${convertToLatinNumbers(dateFrom)} إلى ${convertToLatinNumbers(dateTo)}`;
+      } else if (dateFrom) {
+        dateRange = `من ${convertToLatinNumbers(dateFrom)}`;
+      } else if (dateTo) {
+        dateRange = `حتى ${convertToLatinNumbers(dateTo)}`;
+      }
+    }
+
+    if (dateRange) reportTitle += ` - ${dateRange}`;
+
+    // إنشاء HTML للتقرير
+    let reportHTML = `
+      <!DOCTYPE html>
+      <html dir="rtl" lang="ar">
+      <head>
+        <meta charset="UTF-8">
+        <title>${reportTitle}</title>
+        <style>
+          @page { size: A4; margin: 15mm; }
+          @media print {
+            body { margin: 0; padding: 0; }
+            .no-print { display: none; }
+            * { -webkit-print-color-adjust: exact; color-adjust: exact; }
+          }
+          body {
+            font-family: 'Cairo', Arial, sans-serif;
+            font-size: 12px;
+            line-height: 1.6;
+            color: #000;
+            background: #fff;
+            margin: 0;
+            padding: 20px;
+          }
+          .report-header {
+            text-align: center;
+            margin-bottom: 30px;
+            border-bottom: 3px solid #2c3e50;
+            padding-bottom: 20px;
+          }
+          .report-header h1 {
+            font-size: 24px;
+            margin: 0 0 10px;
+            color: #2c3e50;
+          }
+          .report-header .date-info {
+            font-size: 14px;
+            color: #666;
+            margin-top: 10px;
+          }
+          .report-summary {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 15px;
+          }
+          .summary-item {
+            text-align: center;
+          }
+          .summary-item label {
+            display: block;
+            font-size: 11px;
+            color: #666;
+            margin-bottom: 5px;
+          }
+          .summary-item .value {
+            font-size: 18px;
+            font-weight: bold;
+            color: #2c3e50;
+          }
+          table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+            font-size: 11px;
+          }
+          table thead {
+            background: #2c3e50;
+            color: #fff;
+          }
+          table th, table td {
+            padding: 8px;
+            text-align: right;
+            border: 1px solid #ddd;
+          }
+          table th {
+            font-weight: bold;
+          }
+          table tbody tr:nth-child(even) {
+            background: #f8f9fa;
+          }
+          .items-list {
+            font-size: 10px;
+            color: #666;
+          }
+          .text-right { text-align: right; }
+          .text-center { text-align: center; }
+          .text-success { color: #28a745; }
+          .text-danger { color: #dc3545; }
+          .report-footer {
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 2px solid #2c3e50;
+            text-align: center;
+            font-size: 11px;
+            color: #666;
+          }
+        </style>
+      </head>
+      <body>
+        <div class="report-header">
+          <h1>الصقري للاتصالات</h1>
+          <h2>${reportTitle}</h2>
+          <div class="date-info">
+            تاريخ الطباعة: ${formatDateTime(new Date())}
+          </div>
+        </div>
+
+        <table>
+          <thead>
+            <tr>
+              <th>رقم العملية</th>
+              <th>التاريخ</th>
+              <th>اسم العميل</th>
+              <th>المنتجات</th>
+              <th>عدد المنتجات</th>
+              <th>قبل الضريبة</th>
+              <th>الضريبة</th>
+              <th>المبلغ الإجمالي</th>
+              <th>طريقة الدفع</th>
+              <th>الحالة</th>
+            </tr>
+          </thead>
+          <tbody>`;
+
+    currentFilteredSales.forEach(sale => {
+      const saleDate = getSaleDateValue(sale) || new Date();
+      const itemsList = [];
+      
+      (sale.items || []).forEach(item => {
+        const itemName = item.name || item.product_name || item.arabic_name || 'غير محدد';
+        const itemType = item.type || item.product_type || '';
+        
+        if (itemType === 'phone' || itemType === 'هاتف') {
+          // للجوالات: البحث عن الرقم التسلسلي
+          let serialNumber = item.serial_number || item.barcode || '';
+          
+          // إذا لم يكن موجوداً، ابحث في قاعدة البيانات
+          if (!serialNumber && item.id) {
+            const phone = phones.find(p => 
+              p.id === item.id || 
+              p.phone_number === item.id || 
+              p.device_number === item.id
+            );
+            if (phone) {
+              serialNumber = phone.serial_number || phone.phone_number || '';
+            }
+          }
+          
+          // عرض: اسم الجوال (الموديل) - الرقم التسلسلي
+          const model = item.model || item.phone_model || '';
+          let displayText = itemName;
+          if (model) displayText += ` (${model})`;
+          if (serialNumber) displayText += ` - ${serialNumber}`;
+          
+          itemsList.push(displayText);
+        } else {
+          // للأكسسوارات: عرض اسم المنتج - الكمية × السعر
+          const itemQty = item.quantity || 1;
+          const itemPrice = item.price || item.unitPrice || item.unit_price || item.selling_price || 0;
+          itemsList.push(`${itemName} - ${itemQty} × ${fmtMoney(itemPrice)} ريال`);
+        }
+      });
+
+      const statusBadge = sale.status === 'مكتمل' ? 'text-success' : 
+                          sale.status === 'ملغي' ? 'text-danger' : '';
+
+      reportHTML += `
+            <tr>
+              <td><strong>${sale.sale_number || '-'}</strong></td>
+              <td>${formatDateTime(saleDate)}</td>
+              <td>${sale.customer_name || 'عميل نقدي'}</td>
+              <td class="items-list">${itemsList.join('<br>') || '-'}</td>
+              <td class="text-center">${(sale.items || []).length}</td>
+              <td>${fmtMoney(sale.subtotal || 0)} ريال</td>
+              <td>${fmtMoney(sale.vat_amount || 0)} ريال</td>
+              <td><strong class="text-success">${fmtMoney(sale.total_amount || 0)} ريال</strong></td>
+              <td>${sale.payment_method || '-'}</td>
+              <td class="${statusBadge}">${sale.status || '-'}</td>
+            </tr>`;
+    });
+
+    reportHTML += `
+          </tbody>
+        </table>
+
+        <div class="report-footer">
+          <p>تم إنشاء هذا التقرير تلقائياً من نظام الصقري للاتصالات</p>
+          <p>عدد المبيعات: ${currentFilteredSales.length} | إجمالي المبيعات: ${fmtMoney(totalAmount)} ريال</p>
+        </div>
+      </body>
+      </html>`;
+
+    // فتح نافذة الطباعة
+    const printWindow = window.open('', '_blank');
+    if (printWindow) {
+      printWindow.document.write(reportHTML);
+      printWindow.document.close();
+      printWindow.focus();
+      
+      // طباعة تلقائية بعد تحميل المحتوى
+      setTimeout(() => {
+        printWindow.print();
+      }, 500);
+    } else {
+      showAlert('warning', 'يرجى السماح بفتح النوافذ المنبثقة للطباعة');
+    }
+  }
 
   // ---------- عرض التنبيهات ----------
   function showAlert(type, message) {
