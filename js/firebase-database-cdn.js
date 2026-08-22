@@ -1,4 +1,15 @@
-// Firebase Database Manager for Phone Store Demo - CDN Version
+// ============================================================
+// طبقة بيانات Firestore — الصقري للاتصالات (نسخة معاد بناؤها)
+//
+// مبادئ التصميم:
+// 1. كاش موحّد 5 دقائق لكل المجموعات، وكل كتابة تمسح كاش مجموعتها فوراً
+//    (الكاش لكل جهاز/متصفح؛ التعديل من جهاز آخر يظهر خلال 5 دقائق)
+// 2. قراءة موجّهة لسجل واحد (where/getDoc) بدل قراءة المجموعة كاملة
+// 3. الفلاتر المركّبة (الحالة/الفني/التاريخ/المندوب) تجري داخل الذاكرة
+//    فوق القراءة المخزنة — لا استعلامات متكررة ولا فهارس مركّبة
+// 4. الكتابات المتعددة تمر عبر writeBatch (حد 400 عملية للدفعة)
+// 5. قاطع دائرة 5 دقائق عند نفاد حصة Firestore (resource-exhausted)
+// ============================================================
 import {
   collection,
   doc,
@@ -11,14 +22,15 @@ import {
   query,
   where,
   orderBy,
+  limit,
   documentId,
   serverTimestamp,
   increment,
   writeBatch
 } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
 
-// قاطع دائرة لحصة Firestore — يمنع ضرب BatchGetDocuments مرات متعددة خلال فترة الاستنزاف
-const QUOTA_COOLDOWN_MS = 5 * 60 * 1000; // 5 دقائق
+// ---------- قاطع دائرة حصة Firestore ----------
+const QUOTA_COOLDOWN_MS = 5 * 60 * 1000;
 function isQuotaCooling() {
   try {
     const t = parseInt(localStorage.getItem('__firestoreQuotaExhaustedAt') || '0', 10) || 0;
@@ -35,20 +47,43 @@ function isQuotaError(error) {
   return !!(error && (error.code === 'resource-exhausted' || error.code === 'unavailable'));
 }
 
-// مدة صلاحية الكاش المحلي (لتقليل قراءات Firestore عند التنقل بين الصفحات)
-// ملاحظة: الكاش والإبطال عند الكتابة يعملان لكل جهاز/متصفح على حدة —
-// التعديلات من جهاز آخر قد تتأخر في الظهور حتى 5 دقائق على هذا الجهاز
-// (الكتابة من هذا الجهاز تمسح الكاش فورًا)
-const CACHE_TTL_MS = 5 * 60 * 1000; // 5 دقائق
+// ---------- الكاش المحلي ----------
+const CACHE_TTL_MS = 5 * 60 * 1000;
 const CACHE_PREFIX = 'fs_cache_';
 
 class FirebaseDatabase {
   constructor() {
     this.db = window.firebaseDB;
     this.auth = window.firebaseAuth;
+    // عدّاد قراءات Firestore للمراقبة — يُصفَّر مع كل تحميل صفحة
+    // اقرأه من الكونسول: window.firebaseDatabase._reads
+    this._reads = { rpcs: 0, docs: 0, full: {} };
   }
 
-  // ===== كاش محلي قصير المدى =====
+  _trackReads(label, docs) {
+    this._reads.rpcs += 1;
+    this._reads.docs += docs;
+    if (label.startsWith('full:')) {
+      const name = label.slice(5);
+      this._reads.full[name] = (this._reads.full[name] || 0) + docs;
+    }
+  }
+
+  /** getDocs مع تتبّع القراءة */
+  async _getDocs(label, q) {
+    const snap = await getDocs(q);
+    this._trackReads(label, snap.size ?? 1);
+    return snap;
+  }
+
+  /** getDoc مع تتبّع القراءة */
+  async _getDoc(label, ref) {
+    const snap = await getDoc(ref);
+    this._trackReads(label, snap.exists() ? 1 : 0);
+    return snap;
+  }
+
+  // ===== أدوات الكاش =====
   _cacheGet(key) {
     try {
       const raw = localStorage.getItem(CACHE_PREFIX + key);
@@ -68,25 +103,56 @@ class FirebaseDatabase {
     try {
       localStorage.setItem(CACHE_PREFIX + key, JSON.stringify({ t: Date.now(), data }));
     } catch (e) {
-      // تجاوز حد التخزين: أزل هذا المفتاح فقط وتابع بدون كاش له،
-      // ولا تمس كاشات المجموعات الأخرى الصالحة
+      // تجاوز حد التخزين: أزل هذا المفتاح فقط وتابع بلا كاش له
       console.warn('⚠️ Cache skipped for', key, '- storage quota exceeded');
       this._cacheClear(key);
     }
   }
 
   _cacheClear(key) {
-    try {
-      localStorage.removeItem(CACHE_PREFIX + key);
-    } catch (e) { /* تجاهل */ }
+    try { localStorage.removeItem(CACHE_PREFIX + key); } catch (e) { /* تجاهل */ }
   }
 
-  // ===== إدارة الهواتف =====
+  // قراءة مجموعة كاملة عبر الكاش — قراءة واحدة كل 5 دقائق مهما تعددت الاستدعاءات
+  async _getCollectionCached(name) {
+    const cached = this._cacheGet(name);
+    if (cached) return cached;
+    const snap = await this._getDocs('full:' + name, collection(this.db, name));
+    const rows = [];
+    snap.forEach((d) => rows.push({ id: d.id, ...d.data() }));
+    this._cacheSet(name, rows);
+    return rows;
+  }
+
+  // يحوّل قيمة تاريخ (Timestamp | {seconds} | ISO | Date) إلى Date أو null
+  _asDate(v) {
+    if (v == null) return null;
+    if (v instanceof Date) return isNaN(v.getTime()) ? null : v;
+    if (typeof v === 'object') {
+      if (typeof v.toDate === 'function') {
+        const d = v.toDate();
+        return isNaN(d?.getTime()) ? null : d;
+      }
+      if ('seconds' in v || '_seconds' in v) {
+        const sec = Number(v.seconds ?? v._seconds ?? 0);
+        const nsec = Number(v.nanoseconds ?? v._nanoseconds ?? 0);
+        const d = new Date(sec * 1000 + Math.floor(nsec / 1e6));
+        return isNaN(d.getTime()) ? null : d;
+      }
+    }
+    if (typeof v === 'string' || typeof v === 'number') {
+      const d = new Date(v);
+      return isNaN(d.getTime()) ? null : d;
+    }
+    return null;
+  }
+
+  // ===== عداد أرقام الباركود =====
+
   /**
-   * توليد الرقم التالي الفريد لرقم الباركود (phone_number).
-   * يحاول أولاً استخدام عداد مركزي في Firestore، وإذا تم الوصول لحد الحصة (resource-exhausted)
-   * يستخدم عداداً محلياً في المتصفح لتفادي تعطل النظام.
-   * @returns {Promise<string>} رقم بصيغة 000001، 000002، ...
+   * الرقم التالي الفريد (phone_number). عدّاد مركزي بـ increment ذرّي،
+   * وعند نفاد الحصة يتحول لعدّاد محلي في المتصفح.
+   * @returns {Promise<string>} بصيغة 000001، 000002، ...
    */
   async getNextPhoneNumber() {
     const LOCAL_KEY = 'localDeviceCounter';
@@ -106,23 +172,19 @@ class FirebaseDatabase {
         return String(next).padStart(6, '0');
       } catch (e) {
         console.warn('⚠️ fallback local counter failed, using timestamp-based value.', e);
-        const ts = Date.now().toString().slice(-6);
-        return ts.padStart(6, '0');
+        return Date.now().toString().slice(-6).padStart(6, '0');
       }
     };
 
-    // قاطع الدائرة: إذا كنا في فترة تبريد بعد نفاد حصة سابقة، لا نضرب Firestore أصلاً
     if (isQuotaCooling()) {
-      console.warn('⛔ قاطع دائرة Firestore مفعل — استخدام العداد المحلي مباشرة بدون ضرب Firestore.');
+      console.warn('⛔ قاطع دائرة Firestore مفعل — استخدام العداد المحلي مباشرة.');
       return await fallbackLocal();
     }
 
     const counterRef = doc(this.db, 'counters', 'phones');
-
-    // الطريقة المفضّلة: increment ذرّي بدون runTransaction (يتجنّب BatchGetDocuments تماماً)
     try {
       await setDoc(counterRef, { lastPhoneNumber: increment(1) }, { merge: true });
-      const snap = await getDoc(counterRef);
+      const snap = await this._getDoc('counter', counterRef);
       const result = Number(snap.data() && snap.data().lastPhoneNumber) || 0;
       if (result > 0) {
         try {
@@ -135,198 +197,87 @@ class FirebaseDatabase {
       throw new Error('invalid counter value after increment');
     } catch (error) {
       if (isQuotaError(error)) {
-        console.warn('⚠️ Firestore quota reached — تفعيل قاطع الدائرة لمدة 5 دقائق والاعتماد على العداد المحلي.', error && error.code);
+        console.warn('⚠️ Firestore quota reached — تفعيل قاطع الدائرة 5 دقائق.', error && error.code);
         markQuotaExhausted();
         return await fallbackLocal();
       }
-      console.error('❌ Error in getNextPhoneNumber (increment path), falling back to local counter.', error);
+      console.error('❌ Error in getNextPhoneNumber, falling back to local counter.', error);
       return await fallbackLocal();
     }
   }
 
   /**
-   * التحقق من عدم وجود هاتف بنفس phone_number (مقارنة كنص)
-   */
-  /**
-   * قراءة عداد الأجهزة مرة واحدة عند التهيئة باستخدام getDoc (RPC أخف من المعاملة)
-   * وتخزينه محلياً كقاعدة آمنة للفولباك.
+   * قراءة العداد مرة واحدة وتخزينه محلياً كقاعدة للفولباك —
+   * تستدعيه صفحات الإضافة لحظة الحفظ فقط (وليس عند فتح الصفحة)
    */
   async primePhoneCounterBase() {
-    if (isQuotaCooling()) {
-      console.log('⛔ primePhoneCounterBase: تم تجاوز القراءة بسبب قاطع دائرة Firestore.');
-      return;
-    }
+    if (isQuotaCooling()) return;
     try {
-      const counterRef = doc(this.db, 'counters', 'phones');
-      const snap = await getDoc(counterRef);
+      const snap = await this._getDoc('counter', doc(this.db, 'counters', 'phones'));
       if (snap.exists() && snap.data().lastPhoneNumber != null) {
         const serverVal = Number(snap.data().lastPhoneNumber);
         if (!isNaN(serverVal) && serverVal > 0) {
           const prev = parseInt(localStorage.getItem('serverPhoneCounterBase') || '0', 10) || 0;
-          if (serverVal > prev) {
-            localStorage.setItem('serverPhoneCounterBase', String(serverVal));
-          }
+          if (serverVal > prev) localStorage.setItem('serverPhoneCounterBase', String(serverVal));
           const localCurr = parseInt(localStorage.getItem('localDeviceCounter') || '0', 10) || 0;
-          if (serverVal > localCurr) {
-            localStorage.setItem('localDeviceCounter', String(serverVal));
-          }
+          if (serverVal > localCurr) localStorage.setItem('localDeviceCounter', String(serverVal));
           console.log('✅ primePhoneCounterBase: عداد الأجهزة محفوظ محلياً عند', serverVal);
         }
       }
       clearQuotaCooling();
     } catch (e) {
       if (isQuotaError(e)) markQuotaExhausted();
-      console.warn('⚠️ primePhoneCounterBase: تعذر قراءة العداد من Firestore', e && e.code);
+      console.warn('⚠️ primePhoneCounterBase: تعذر قراءة العداد', e && e.code);
     }
   }
 
+  /** فحص تكرار رقم الباركود — استعلام موجّه */
   async hasPhoneWithNumber(phoneNumber) {
     const normalized = String(phoneNumber || '').trim();
     if (!normalized) return false;
-    // قاطع الدائرة: لا نضرب Firestore عند نفاد الحصة
     if (isQuotaCooling()) {
       console.warn('⛔ hasPhoneWithNumber: تجاوز الفحص بسبب قاطع دائرة Firestore.');
       return false;
     }
     try {
-      const q = query(
-        collection(this.db, 'phones'),
-        where('phone_number', '==', normalized)
+      const snap = await this._getDocs('phones:dupCheck',
+        query(collection(this.db, 'phones'), where('phone_number', '==', normalized))
       );
-      const snap = await getDocs(q);
       return !snap.empty;
     } catch (error) {
       if (isQuotaError(error)) {
         markQuotaExhausted();
-        console.warn('⚠️ hasPhoneWithNumber: تعذر الفحص بسبب حصة Firestore، سنتجاوز فحص التكرار.');
+        console.warn('⚠️ hasPhoneWithNumber: تعذر الفحص، سنتجاوز فحص التكرار.');
         return false;
       }
       throw error;
     }
   }
 
-  // ===== قراءات موجّه (بدائل قراءة مجموعة كاملة لإيجاد سجل واحد) =====
-
   /**
-   * جلب هاتف واحد برقم الباركود (phone_number) عبر استعلام where بدل قراءة المجموعة كاملة
-   */
-  async getPhoneByNumberQuery(phoneNumber) {
-    const normalized = String(phoneNumber || '').trim();
-    if (!normalized) return null;
-    try {
-      const snap = await getDocs(
-        query(collection(this.db, 'phones'), where('phone_number', '==', normalized))
-      );
-      let found = null;
-      snap.forEach((d) => { if (!found) found = { id: d.id, ...d.data() }; });
-      return found;
-    } catch (error) {
-      console.error('❌ Error getting phone by number:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * جلب أكسسوار واحد بمعرّف المستند
-   */
-  async getAccessoryById(accessoryId) {
-    try {
-      const snap = await getDoc(doc(this.db, 'accessories', accessoryId));
-      return snap.exists() ? { id: snap.id, ...snap.data() } : null;
-    } catch (error) {
-      console.error('❌ Error getting accessory by id:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * جلب أكسسوار واحد بباركوده (barcode ثم barcode_id)
-   */
-  async getAccessoryByBarcode(barcode) {
-    const normalized = String(barcode || '').trim();
-    if (!normalized) return null;
-    try {
-      for (const field of ['barcode', 'barcode_id']) {
-        const snap = await getDocs(
-          query(collection(this.db, 'accessories'), where(field, '==', normalized))
-        );
-        let found = null;
-        snap.forEach((d) => { if (!found) found = { id: d.id, ...d.data() }; });
-        if (found) return found;
-      }
-      return null;
-    } catch (error) {
-      console.error('❌ Error getting accessory by barcode:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * جلب عدة هواتف بمراجعها (معرّف مستند أو رقم باركود) دفعة واحدة.
-   * تفصل المراجع إلى: شبيهة بمعرّف مستند (طويلة) تُجلب بـ documentId in،
-   * وشبيهة برقم باركود (أرقام قصيرة) تُجلب بـ phone_number in.
-   * تعيد خريطة { المرجع الأصلي: الهاتف }.
-   */
-  async getPhonesByRefs(refs) {
-    const unique = [...new Set((refs || []).map(r => String(r || '').trim()).filter(Boolean))];
-    const map = {};
-    if (unique.length === 0) return map;
-    try {
-      const idLike = unique.filter(r => r.length > 10);
-      const numberLike = unique.filter(r => r.length <= 10);
-      const fetchBy = async (field, values) => {
-        for (let i = 0; i < values.length; i += 10) {
-          const chunk = values.slice(i, i + 10);
-          const constraint = field === '__docId'
-            ? where(documentId(), 'in', chunk)
-            : where(field, 'in', chunk);
-          const snap = await getDocs(query(collection(this.db, 'phones'), constraint));
-          snap.forEach((d) => {
-            const phone = { id: d.id, ...d.data() };
-            map[phone.id] = phone;
-            if (phone.phone_number != null) map[String(phone.phone_number)] = phone;
-          });
-        }
-      };
-      await fetchBy('__docId', idLike);
-      await fetchBy('phone_number', numberLike);
-      return map;
-    } catch (error) {
-      console.error('❌ Error getting phones by refs:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * مزامنة عداد الأجهزة في Firestore مع أقصى رقم phone_number موجود فعلاً
-   * في مجموعة phones. يُستخدم عند اكتشاف تكرار لتصحيح انحراف العداد.
-   * @returns {Promise<number>} أقصى رقم تم العثور عليه
+   * مزامنة العداد مع أقصى رقم موجود فعلاً — يقرأ أعلى 3 مستندات فقط
+   * (الأرقام مسبوكة بصيغة 6 أرقام فالترتيب النصي = الرقمي) بدل المجموعة كاملة
    */
   async syncPhoneCounterToMax() {
     if (isQuotaCooling()) {
       const localRaw = parseInt(localStorage.getItem('localDeviceCounter') || '0', 10) || 0;
       const baseRaw = parseInt(localStorage.getItem('serverPhoneCounterBase') || '0', 10) || 0;
-      const max = Math.max(localRaw, baseRaw);
-      console.warn('⛔ syncPhoneCounterToMax: تخطي Firestore (قاطع دائرة)، الاكتفاء بالعداد المحلي =', max);
-      return max;
+      return Math.max(localRaw, baseRaw);
     }
     try {
-      const phonesSnap = await getDocs(collection(this.db, 'phones'));
+      const topSnap = await this._getDocs('phones:top3',
+        query(collection(this.db, 'phones'), orderBy('phone_number', 'desc'), limit(3))
+      );
       let max = 0;
-      phonesSnap.forEach((d) => {
-        const raw = d.data() && d.data().phone_number;
-        const n = parseInt(String(raw || '0').replace(/\D/g, ''), 10);
+      topSnap.forEach((d) => {
+        const n = parseInt(String(d.data()?.phone_number || '0').replace(/\D/g, ''), 10);
         if (!isNaN(n) && n > max) max = n;
       });
       try {
-        const counterRef = doc(this.db, 'counters', 'phones');
-        // setDoc + merge بدل runTransaction لتفادي BatchGetDocuments
-        if (max > 0) {
-          await setDoc(counterRef, { lastPhoneNumber: max }, { merge: true });
-        }
+        if (max > 0) await setDoc(doc(this.db, 'counters', 'phones'), { lastPhoneNumber: max }, { merge: true });
       } catch (e) {
         if (isQuotaError(e)) markQuotaExhausted();
-        console.warn('⚠️ syncPhoneCounterToMax: تعذر تحديث العداد في Firestore، سنكتفي بالمحلي.', e && e.code);
+        console.warn('⚠️ syncPhoneCounterToMax: تعذر تحديث العداد، سنكتفي بالمحلي.', e && e.code);
       }
       try {
         const localRaw = parseInt(localStorage.getItem('localDeviceCounter') || '0', 10) || 0;
@@ -343,38 +294,35 @@ class FirebaseDatabase {
     }
   }
 
+  // ===== الهواتف =====
+
   async addPhone(phoneData, options = {}) {
     const { autoRenumberOnConflict = true } = options;
     try {
       let phoneNumber = phoneData.phone_number != null ? String(phoneData.phone_number).trim() : '';
-      if (!phoneNumber) {
-        throw new Error('رقم الباركود (phone_number) مطلوب');
-      }
+      if (!phoneNumber) throw new Error('رقم الباركود (phone_number) مطلوب');
+
       let exists = await this.hasPhoneWithNumber(phoneNumber);
       if (exists) {
         if (!autoRenumberOnConflict) {
           throw new Error('رقم الباركود مستخدم مسبقاً. يرجى عدم إعادة استخدام نفس الرقم.');
         }
-        // العداد غير متزامن: نصحح ونعيد المحاولة تلقائياً
+        // العداد غير متزامن: نصحح ونعيد المحاولة (محاولات قليلة تكفي)
         console.warn('⚠️ رقم الباركود مكرر، جاري مزامنة العداد وإعادة التوليد...', phoneNumber);
         await this.syncPhoneCounterToMax();
-        const maxAttempts = 10;
+        const maxAttempts = 3;
         let attempt = 0;
         while (exists && attempt < maxAttempts) {
           phoneNumber = await this.getNextPhoneNumber();
           exists = await this.hasPhoneWithNumber(phoneNumber);
           attempt++;
         }
-        if (exists) {
-          throw new Error('تعذّر توليد رقم باركود فريد بعد عدة محاولات. يرجى المحاولة لاحقاً.');
-        }
+        if (exists) throw new Error('تعذّر توليد رقم باركود فريد بعد عدة محاولات. يرجى المحاولة لاحقاً.');
         console.log('✅ تم توليد رقم باركود جديد بعد المزامنة:', phoneNumber);
       }
-      // تحديث كائن الاستدعاء ليعكس الرقم النهائي (للطباعة والتخزين المحلي)
       phoneData.phone_number = phoneNumber;
-      const dataToSave = { ...phoneData, phone_number: phoneNumber };
       const docRef = await addDoc(collection(this.db, 'phones'), {
-        ...dataToSave,
+        ...phoneData,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp()
       });
@@ -389,18 +337,8 @@ class FirebaseDatabase {
 
   async getPhones() {
     try {
-      const cached = this._cacheGet('phones');
-      if (cached) {
-        console.log('📱 Phones from cache:', cached.length);
-        return cached;
-      }
-      const phonesSnapshot = await getDocs(collection(this.db, 'phones'));
-      const phones = [];
-      phonesSnapshot.forEach((doc) => {
-        phones.push({ id: doc.id, ...doc.data() });
-      });
+      const phones = await this._getCollectionCached('phones');
       console.log('📱 Retrieved phones:', phones.length);
-      this._cacheSet('phones', phones);
       return phones;
     } catch (error) {
       console.error('❌ Error getting phones:', error);
@@ -433,41 +371,129 @@ class FirebaseDatabase {
     }
   }
 
-  // ===== إدارة الأكسسوارات =====
+  /** جلب هاتف واحد برقم الباركود — استعلام where بدل قراءة المجموعة كاملة */
+  async getPhoneByNumberQuery(phoneNumber) {
+    const normalized = String(phoneNumber || '').trim();
+    if (!normalized) return null;
+    try {
+      const snap = await this._getDocs('phones:byNumber',
+        query(collection(this.db, 'phones'), where('phone_number', '==', normalized))
+      );
+      let found = null;
+      snap.forEach((d) => { if (!found) found = { id: d.id, ...d.data() }; });
+      return found;
+    } catch (error) {
+      console.error('❌ Error getting phone by number:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * جلب عدة هواتف بمراجعها (معرّف مستند أو رقم باركود) دفعة واحدة
+   * تعيد خريطة { المرجع الأصلي: الهاتف }
+   */
+  async getPhonesByRefs(refs) {
+    const unique = [...new Set((refs || []).map(r => r != null ? String(r).trim() : '').filter(Boolean))];
+    const map = {};
+    if (unique.length === 0) return map;
+    try {
+      const idLike = unique.filter(r => r.length > 10);
+      const numberLike = unique.filter(r => r.length <= 10);
+      const fetchBy = async (field, values) => {
+        for (let i = 0; i < values.length; i += 10) {
+          const chunk = values.slice(i, i + 10);
+          const constraint = field === '__docId'
+            ? where(documentId(), 'in', chunk)
+            : where(field, 'in', chunk);
+          const snap = await this._getDocs('phones:byRefs', query(collection(this.db, 'phones'), constraint));
+          snap.forEach((d) => {
+            const phone = { id: d.id, ...d.data() };
+            map[phone.id] = phone;
+            if (phone.phone_number != null) map[String(phone.phone_number)] = phone;
+          });
+        }
+      };
+      await fetchBy('__docId', idLike);
+      await fetchBy('phone_number', numberLike);
+      return map;
+    } catch (error) {
+      console.error('❌ Error getting phones by refs:', error);
+      throw error;
+    }
+  }
+
+  /** وسم عدة هواتف sold دفعة كتابة واحدة (حد 400 عملية للدفعة) */
+  async setPhonesSold(phoneIds, sold) {
+    const ids = [...new Set((phoneIds || []).map(id => id != null ? String(id) : '').filter(Boolean))];
+    if (ids.length === 0) return 0;
+    let batch = writeBatch(this.db), ops = 0;
+    for (const id of ids) {
+      batch.update(doc(this.db, 'phones', id), { sold: !!sold, updatedAt: serverTimestamp() });
+      if (++ops === 400) { await batch.commit(); batch = writeBatch(this.db); ops = 0; }
+    }
+    if (ops > 0) await batch.commit();
+    this._cacheClear('phones');
+    console.log('✅ setPhonesSold:', ids.length, '→', !!sold);
+    return ids.length;
+  }
+
+  /**
+   * ترحيل علم sold من المبيعات التاريخية — يكتب الهواتف المتغيرة فقط،
+   * فإعادة التشغيل شبه مجانية. تعمل من الكونسول عند الحاجة:
+   * await window.firebaseDatabase.migrateSoldFlags()
+   */
+  async migrateSoldFlags() {
+    const sales = await this.getSales();
+    const soldKeys = new Set();
+    for (const sale of sales) {
+      if (!sale || sale.returned === true || sale.status === 'مسترجعة') continue;
+      for (const item of (sale.items || [])) {
+        if (item && item.type === 'phone' && item.id != null) {
+          soldKeys.add(String(item.id));
+          if (item.phone_id != null) soldKeys.add(String(item.phone_id));
+        }
+      }
+    }
+    const phones = await this.getPhones();
+    let soldCount = 0, availCount = 0, skipped = 0, batch = writeBatch(this.db), ops = 0;
+    for (const phone of phones) {
+      const key = String(phone.id != null ? phone.id : phone.phone_number);
+      const alsoNumber = String(phone.phone_number != null ? phone.phone_number : '');
+      const sold = soldKeys.has(key) || (alsoNumber && soldKeys.has(alsoNumber));
+      sold ? soldCount++ : availCount++;
+      if (phone.sold === sold) { skipped++; continue; }
+      batch.update(doc(this.db, 'phones', phone.id), { sold });
+      if (++ops === 400) { await batch.commit(); batch = writeBatch(this.db); ops = 0; }
+    }
+    if (ops > 0) await batch.commit();
+    this._cacheClear('phones');
+    const summary = { phones: phones.length, sold: soldCount, available: availCount, skipped, written: soldCount + availCount - skipped };
+    console.log('✅ migrateSoldFlags:', summary);
+    return summary;
+  }
+
+  // ===== الأكسسوارات =====
+
   async addAccessory(accessoryData) {
     try {
-      console.log('🔥 Firebase: محاولة إضافة أكسسوار:', accessoryData);
-      
       const docRef = await addDoc(collection(this.db, 'accessories'), {
         ...accessoryData,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp()
       });
-      
       this._cacheClear('accessories');
-      console.log('✅ Firebase: تم إضافة الأكسسوار بنجاح! ID:', docRef.id);
-      console.log('📂 Firebase: الفئة المحفوظة:', accessoryData.category);
+      console.log('✅ Accessory added:', docRef.id);
       return docRef.id;
     } catch (error) {
-      console.error('❌ Firebase: خطأ في إضافة الأكسسوار:', error);
+      console.error('❌ Error adding accessory:', error);
       throw error;
     }
   }
 
   async getAccessories() {
     try {
-      const cached = this._cacheGet('accessories');
-      if (cached) {
-        console.log('🛍️ Accessories from cache:', cached.length);
-        return cached;
-      }
-      const accessoriesSnapshot = await getDocs(collection(this.db, 'accessories'));
-      const accessories = [];
-      accessoriesSnapshot.forEach((doc) => {
-        accessories.push({ id: doc.id, ...doc.data() });
-      });
+      const accessories = await this._getCollectionCached('accessories');
       console.log('🛍️ Retrieved accessories:', accessories.length);
-      this._cacheSet('accessories', accessories);
       return accessories;
     } catch (error) {
       console.error('❌ Error getting accessories:', error);
@@ -500,7 +526,172 @@ class FirebaseDatabase {
     }
   }
 
-  // ===== إدارة المبيعات =====
+  /** جلب أكسسوار واحد بمعرّف المستند */
+  async getAccessoryById(accessoryId) {
+    try {
+      const snap = await this._getDoc('accessories:byId', doc(this.db, 'accessories', accessoryId));
+      return snap.exists() ? { id: snap.id, ...snap.data() } : null;
+    } catch (error) {
+      console.error('❌ Error getting accessory by id:', error);
+      throw error;
+    }
+  }
+
+  /** جلب أكسسوار واحد بباركوده (barcode ثم barcode_id) */
+  async getAccessoryByBarcode(barcode) {
+    const normalized = String(barcode || '').trim();
+    if (!normalized) return null;
+    try {
+      for (const field of ['barcode', 'barcode_id']) {
+        const snap = await this._getDocs('accessories:byBarcode',
+          query(collection(this.db, 'accessories'), where(field, '==', normalized))
+        );
+        let found = null;
+        snap.forEach((d) => { if (!found) found = { id: d.id, ...d.data() }; });
+        if (found) return found;
+      }
+      return null;
+    } catch (error) {
+      console.error('❌ Error getting accessory by barcode:', error);
+      throw error;
+    }
+  }
+
+  /** جلب عدة أكسسوارات بمعرّفات مستنداتها دفعة واحدة — خريطة { المعرف: الأكسسوار } */
+  async getAccessoriesByIds(ids) {
+    const unique = [...new Set((ids || []).map(r => r != null ? String(r).trim() : '').filter(Boolean))];
+    const map = {};
+    if (unique.length === 0) return map;
+    try {
+      for (let i = 0; i < unique.length; i += 10) {
+        const snap = await this._getDocs('accessories:byIds',
+          query(collection(this.db, 'accessories'), where(documentId(), 'in', unique.slice(i, i + 10)))
+        );
+        snap.forEach((d) => {
+          const acc = { id: d.id, ...d.data() };
+          map[acc.id] = acc;
+          if (acc.sku != null) map[String(acc.sku)] = acc;
+        });
+      }
+      return map;
+    } catch (error) {
+      console.error('❌ Error getting accessories by ids:', error);
+      throw error;
+    }
+  }
+
+  /** تحديث عدة أكسسوارات دفعة كتابة واحدة: [{id, data}] */
+  async batchUpdateAccessories(updates) {
+    const list = (updates || []).filter(u => u && u.id != null && u.data);
+    if (list.length === 0) return 0;
+    let batch = writeBatch(this.db), ops = 0;
+    for (const u of list) {
+      batch.update(doc(this.db, 'accessories', String(u.id)), {
+        ...u.data,
+        updatedAt: serverTimestamp()
+      });
+      if (++ops === 400) { await batch.commit(); batch = writeBatch(this.db); ops = 0; }
+    }
+    if (ops > 0) await batch.commit();
+    this._cacheClear('accessories');
+    console.log('✅ batchUpdateAccessories:', list.length);
+    return list.length;
+  }
+
+  // ===== فئات الأكسسوارات =====
+
+  async addAccessoryCategory(categoryData) {
+    try {
+      const docRef = await addDoc(collection(this.db, 'accessory_categories'), {
+        ...categoryData,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      });
+      this._cacheClear('accessory_categories');
+      console.log('✅ Category added:', docRef.id);
+      return docRef.id;
+    } catch (error) {
+      console.error('❌ Error adding category:', error);
+      throw error;
+    }
+  }
+
+  async getAccessoryCategories() {
+    try {
+      const categories = await this._getCollectionCached('accessory_categories');
+      console.log('📂 Retrieved categories:', categories.length);
+      return categories;
+    } catch (error) {
+      console.error('❌ Error getting categories:', error);
+      throw error;
+    }
+  }
+
+  async deleteAccessoryCategory(categoryName) {
+    try {
+      const snap = await this._getDocs('accessory_categories:find',
+        query(collection(this.db, 'accessory_categories'), where('arabic_name', '==', categoryName))
+      );
+      const deletes = [];
+      snap.forEach((d) => deletes.push(deleteDoc(d.ref)));
+      await Promise.all(deletes);
+      this._cacheClear('accessory_categories');
+      console.log('✅ Accessory category deleted:', categoryName);
+      return true;
+    } catch (error) {
+      console.error('❌ Error deleting accessory category:', error);
+      throw error;
+    }
+  }
+
+  // ===== أنواع الهواتف =====
+
+  async addPhoneType(phoneTypeData) {
+    try {
+      const docRef = await addDoc(collection(this.db, 'phone_types'), {
+        ...phoneTypeData,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      });
+      this._cacheClear('phone_types');
+      console.log('✅ Phone type added:', docRef.id);
+      return docRef.id;
+    } catch (error) {
+      console.error('❌ Error adding phone type:', error);
+      throw error;
+    }
+  }
+
+  async getPhoneTypes() {
+    try {
+      const types = await this._getCollectionCached('phone_types');
+      console.log('📱 Retrieved phone types:', types.length);
+      return types;
+    } catch (error) {
+      console.error('❌ Error getting phone types:', error);
+      throw error;
+    }
+  }
+
+  async deletePhoneType(brand, model) {
+    try {
+      const snap = await this._getDocs('phone_types:find',
+        query(collection(this.db, 'phone_types'), where('brand', '==', brand), where('model', '==', model))
+      );
+      const deletes = [];
+      snap.forEach((d) => deletes.push(deleteDoc(d.ref)));
+      await Promise.all(deletes);
+      this._cacheClear('phone_types');
+      console.log('✅ Phone type deleted:', brand, model);
+      return true;
+    } catch (error) {
+      console.error('❌ Error deleting phone type:', error);
+      throw error;
+    }
+  }
+
+  // ===== المبيعات =====
+
   async addSale(saleData) {
     try {
       const docRef = await addDoc(collection(this.db, 'sales'), {
@@ -519,20 +710,11 @@ class FirebaseDatabase {
 
   async getSales() {
     try {
-      const cached = this._cacheGet('sales');
-      if (cached) {
-        console.log('💰 Sales from cache:', cached.length);
-        return cached;
-      }
-      const salesSnapshot = await getDocs(
-        query(collection(this.db, 'sales'), orderBy('createdAt', 'desc'))
-      );
-      const sales = [];
-      salesSnapshot.forEach((doc) => {
-        sales.push({ id: doc.id, ...doc.data() });
-      });
+      const sales = await this._getCollectionCached('sales');
+      // ترتيب تنازلي حسب تاريخ الإنشاء (يدعم Timestamp وISO بعد دورة الكاش)
+      sales.sort((a, b) => (this._asDate(b.createdAt) || this._asDate(b.date_created) || 0) -
+                           (this._asDate(a.createdAt) || this._asDate(a.date_created) || 0));
       console.log('💰 Retrieved sales:', sales.length);
-      this._cacheSet('sales', sales);
       return sales;
     } catch (error) {
       console.error('❌ Error getting sales:', error);
@@ -540,77 +722,15 @@ class FirebaseDatabase {
     }
   }
 
+  /** قراءة مستند بيع واحد بدل المجموعة كاملة */
   async getSale(saleId) {
     try {
-      const saleDoc = await getDoc(doc(this.db, 'sales', saleId));
-      if (saleDoc.exists()) {
-        return { id: saleDoc.id, ...saleDoc.data() };
-      }
-      return null;
+      const saleDoc = await this._getDoc('sales:byId', doc(this.db, 'sales', saleId));
+      return saleDoc.exists() ? { id: saleDoc.id, ...saleDoc.data() } : null;
     } catch (error) {
       console.error('❌ Error getting sale:', error);
       throw error;
     }
-  }
-
-  /**
-   * جلب مبيعات نطاق زمني فقط (createdAt بين تاريخين) بدل قراءة المجموعة كاملة —
-   * مناسب لإحصاءات "الفترة" في لوحة التحكم.
-   * @param {Date} from  @param {Date} to
-   */
-  async getSalesInRange(from, to) {
-    try {
-      const q = to
-        ? query(collection(this.db, 'sales'),
-            where('createdAt', '>=', from), where('createdAt', '<=', to),
-            orderBy('createdAt', 'desc'))
-        : query(collection(this.db, 'sales'),
-            where('createdAt', '>=', from),
-            orderBy('createdAt', 'desc'));
-      const snap = await getDocs(q);
-      const sales = [];
-      snap.forEach((d) => sales.push({ id: d.id, ...d.data() }));
-      console.log('💰 Sales in range loaded:', sales.length);
-      return sales;
-    } catch (error) {
-      console.error('❌ Error getting sales in range:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * ترحيل لمرة واحدة: يحسب علم sold لكل هاتف من المبيعات التاريخية
-   * (بيع غير مسترجع يحتوي عنصر هاتف = sold:true) ويكتبه على مستندات phones.
-   * شغّلها مرة واحدة من الكونسول: await window.firebaseDatabase.migrateSoldFlags()
-   * بعد الترحيل، الصفحات تتوقف عن قراءة مجموعة sales كاملة لمعرفة المباع.
-   */
-  async migrateSoldFlags() {
-    const sales = await this.getSales();
-    const soldKeys = new Set();
-    for (const sale of sales) {
-      if (!sale || sale.returned === true || sale.status === 'مسترجعة') continue;
-      for (const item of (sale.items || [])) {
-        if (item && item.type === 'phone' && item.id != null) {
-          soldKeys.add(String(item.id));
-          if (item.phone_id != null) soldKeys.add(String(item.phone_id));
-        }
-      }
-    }
-    const phones = await this.getPhones();
-    let soldCount = 0, availCount = 0, batch = writeBatch(this.db), ops = 0;
-    for (const phone of phones) {
-      const key = String(phone.id != null ? phone.id : phone.phone_number);
-      const alsoNumber = String(phone.phone_number != null ? phone.phone_number : '');
-      const sold = soldKeys.has(key) || (alsoNumber && soldKeys.has(alsoNumber));
-      sold ? soldCount++ : availCount++;
-      batch.update(doc(this.db, 'phones', phone.id), { sold });
-      if (++ops === 400) { await batch.commit(); batch = writeBatch(this.db); ops = 0; }
-    }
-    if (ops > 0) await batch.commit();
-    this._cacheClear('phones');
-    const summary = { phones: phones.length, sold: soldCount, available: availCount };
-    console.log('✅ migrateSoldFlags:', summary);
-    return summary;
   }
 
   async updateSale(saleId, saleData) {
@@ -627,130 +747,29 @@ class FirebaseDatabase {
     }
   }
 
-  // ===== إدارة فئات الأكسسوارات =====
-  async addAccessoryCategory(categoryData) {
+  /** مبيعات نطاق زمني فقط (createdAt بين تاريخين) — لإحصاءات الفترة */
+  async getSalesInRange(from, to) {
     try {
-      const docRef = await addDoc(collection(this.db, 'accessory_categories'), {
-        ...categoryData,
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp()
-      });
-      this._cacheClear('accessory_categories');
-      console.log('✅ Category added with ID:', docRef.id);
-      return docRef.id;
+      const q = to
+        ? query(collection(this.db, 'sales'),
+            where('createdAt', '>=', from), where('createdAt', '<=', to),
+            orderBy('createdAt', 'desc'))
+        : query(collection(this.db, 'sales'),
+            where('createdAt', '>=', from),
+            orderBy('createdAt', 'desc'));
+      const snap = await this._getDocs('sales:range', q);
+      const sales = [];
+      snap.forEach((d) => sales.push({ id: d.id, ...d.data() }));
+      console.log('💰 Sales in range loaded:', sales.length);
+      return sales;
     } catch (error) {
-      console.error('❌ Error adding category:', error);
+      console.error('❌ Error getting sales in range:', error);
       throw error;
     }
   }
 
-  async getAccessoryCategories() {
-    try {
-      const cached = this._cacheGet('accessory_categories');
-      if (cached) {
-        console.log('📂 Categories from cache:', cached.length);
-        return cached;
-      }
-      const categoriesSnapshot = await getDocs(collection(this.db, 'accessory_categories'));
-      const categories = [];
-      categoriesSnapshot.forEach((doc) => {
-        categories.push({ id: doc.id, ...doc.data() });
-      });
-      console.log('📂 Retrieved categories:', categories.length);
-      this._cacheSet('accessory_categories', categories);
-      return categories;
-    } catch (error) {
-      console.error('❌ Error getting categories:', error);
-      throw error;
-    }
-  }
+  // ===== الصيانة: المندوبون =====
 
-  async deleteAccessoryCategory(categoryName) {
-    try {
-      const categoriesSnapshot = await getDocs(
-        query(collection(this.db, 'accessory_categories'), 
-              where('arabic_name', '==', categoryName))
-      );
-      
-      const deletePromises = [];
-      categoriesSnapshot.forEach((doc) => {
-        deletePromises.push(deleteDoc(doc.ref));
-      });
-      
-      await Promise.all(deletePromises);
-      this._cacheClear('accessory_categories');
-      console.log('✅ Accessory category deleted:', categoryName);
-      return true;
-    } catch (error) {
-      console.error('❌ Error deleting accessory category:', error);
-      throw error;
-    }
-  }
-
-  // ===== إدارة أنواع الهواتف =====
-  async addPhoneType(phoneTypeData) {
-    try {
-      const docRef = await addDoc(collection(this.db, 'phone_types'), {
-        ...phoneTypeData,
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp()
-      });
-      this._cacheClear('phone_types');
-      console.log('✅ Phone type added with ID:', docRef.id);
-      return docRef.id;
-    } catch (error) {
-      console.error('❌ Error adding phone type:', error);
-      throw error;
-    }
-  }
-
-  async getPhoneTypes() {
-    try {
-      const cached = this._cacheGet('phone_types');
-      if (cached) {
-        console.log('📱 Phone types from cache:', cached.length);
-        return cached;
-      }
-      const phoneTypesSnapshot = await getDocs(collection(this.db, 'phone_types'));
-      const phoneTypes = [];
-      phoneTypesSnapshot.forEach((doc) => {
-        phoneTypes.push({ id: doc.id, ...doc.data() });
-      });
-      console.log('📱 Retrieved phone types:', phoneTypes.length);
-      this._cacheSet('phone_types', phoneTypes);
-      return phoneTypes;
-    } catch (error) {
-      console.error('❌ Error getting phone types:', error);
-      throw error;
-    }
-  }
-
-  async deletePhoneType(brand, model) {
-    try {
-      const phoneTypesSnapshot = await getDocs(
-        query(collection(this.db, 'phone_types'), 
-              where('brand', '==', brand), 
-              where('model', '==', model))
-      );
-      
-      const deletePromises = [];
-      phoneTypesSnapshot.forEach((doc) => {
-        deletePromises.push(deleteDoc(doc.ref));
-      });
-      
-      await Promise.all(deletePromises);
-      this._cacheClear('phone_types');
-      console.log('✅ Phone type deleted:', brand, model);
-      return true;
-    } catch (error) {
-      console.error('❌ Error deleting phone type:', error);
-      throw error;
-    }
-  }
-
-  // ===== نظام الصيانة =====
-  
-  // ===== إدارة المندوبين =====
   async addRep(repData) {
     try {
       const docRef = await addDoc(collection(this.db, 'reps'), {
@@ -759,6 +778,7 @@ class FirebaseDatabase {
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp()
       });
+      this._cacheClear('reps');
       console.log('✅ Rep added with ID:', docRef.id);
       return docRef.id;
     } catch (error) {
@@ -769,11 +789,7 @@ class FirebaseDatabase {
 
   async getReps() {
     try {
-      const querySnapshot = await getDocs(collection(this.db, 'reps'));
-      const reps = [];
-      querySnapshot.forEach(doc => {
-        reps.push({ id: doc.id, ...doc.data() });
-      });
+      const reps = await this._getCollectionCached('reps');
       console.log('✅ Reps loaded:', reps.length);
       return reps;
     } catch (error) {
@@ -784,11 +800,8 @@ class FirebaseDatabase {
 
   async updateRep(repId, repData) {
     try {
-      const repRef = doc(this.db, 'reps', repId);
-      await updateDoc(repRef, {
-        ...repData,
-        updatedAt: serverTimestamp()
-      });
+      await updateDoc(doc(this.db, 'reps', repId), { ...repData, updatedAt: serverTimestamp() });
+      this._cacheClear('reps');
       console.log('✅ Rep updated:', repId);
     } catch (error) {
       console.error('❌ Error updating rep:', error);
@@ -798,8 +811,8 @@ class FirebaseDatabase {
 
   async deleteRep(repId) {
     try {
-      const repRef = doc(this.db, 'reps', repId);
-      await deleteDoc(repRef);
+      await deleteDoc(doc(this.db, 'reps', repId));
+      this._cacheClear('reps');
       console.log('✅ Rep deleted:', repId);
     } catch (error) {
       console.error('❌ Error deleting rep:', error);
@@ -807,7 +820,8 @@ class FirebaseDatabase {
     }
   }
 
-  // ===== إدارة الفنيين =====
+  // ===== الصيانة: الفنيون =====
+
   async addTechnician(techData) {
     try {
       const docRef = await addDoc(collection(this.db, 'technicians'), {
@@ -817,6 +831,7 @@ class FirebaseDatabase {
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp()
       });
+      this._cacheClear('technicians');
       console.log('✅ Technician added with ID:', docRef.id);
       return docRef.id;
     } catch (error) {
@@ -827,11 +842,7 @@ class FirebaseDatabase {
 
   async getTechnicians() {
     try {
-      const querySnapshot = await getDocs(collection(this.db, 'technicians'));
-      const technicians = [];
-      querySnapshot.forEach(doc => {
-        technicians.push({ id: doc.id, ...doc.data() });
-      });
+      const technicians = await this._getCollectionCached('technicians');
       console.log('✅ Technicians loaded:', technicians.length);
       return technicians;
     } catch (error) {
@@ -842,11 +853,8 @@ class FirebaseDatabase {
 
   async updateTechnician(techId, techData) {
     try {
-      const techRef = doc(this.db, 'technicians', techId);
-      await updateDoc(techRef, {
-        ...techData,
-        updatedAt: serverTimestamp()
-      });
+      await updateDoc(doc(this.db, 'technicians', techId), { ...techData, updatedAt: serverTimestamp() });
+      this._cacheClear('technicians');
       console.log('✅ Technician updated:', techId);
     } catch (error) {
       console.error('❌ Error updating technician:', error);
@@ -856,8 +864,8 @@ class FirebaseDatabase {
 
   async deleteTechnician(techId) {
     try {
-      const techRef = doc(this.db, 'technicians', techId);
-      await deleteDoc(techRef);
+      await deleteDoc(doc(this.db, 'technicians', techId));
+      this._cacheClear('technicians');
       console.log('✅ Technician deleted:', techId);
     } catch (error) {
       console.error('❌ Error deleting technician:', error);
@@ -865,19 +873,69 @@ class FirebaseDatabase {
     }
   }
 
-  // ===== أعمال الصيانة =====
+  // ===== الصيانة: الأعمال =====
+
+  /**
+   * قراءة واحدة كاملة عبر الكاش ثم فلترة داخل الذاكرة —
+   * كل الفلاتر مجانية بلا استعلامات إضافية ولا فهارس مركّبة.
+   * الفلاتر: status, techId, repId (parts[] أو repId مباشر), dateFrom, dateTo
+   */
+  async getMaintenanceJobs(filters = {}) {
+    try {
+      const all = await this._getCollectionCached('maintenanceJobs');
+      let jobs = all;
+
+      if (filters.status) jobs = jobs.filter(j => j.status === filters.status);
+      if (filters.techId) jobs = jobs.filter(j => j.techId === filters.techId);
+
+      const jobDate = (job) => this._asDate(job.visitDate);
+      if (filters.dateFrom) {
+        const dateFrom = filters.dateFrom instanceof Date ? filters.dateFrom : new Date(filters.dateFrom);
+        jobs = jobs.filter(job => { const d = jobDate(job); return d && d >= dateFrom; });
+      }
+      if (filters.dateTo) {
+        const dateTo = filters.dateTo instanceof Date ? filters.dateTo : new Date(filters.dateTo);
+        jobs = jobs.filter(job => { const d = jobDate(job); return d && d <= dateTo; });
+      }
+
+      if (filters.repId) {
+        jobs = jobs.filter(job => {
+          if (job.parts && Array.isArray(job.parts) && job.parts.length > 0) {
+            return job.parts.some(part => part.repId === filters.repId);
+          }
+          return job.repId === filters.repId;
+        });
+      }
+
+      jobs = jobs.slice().sort((a, b) => (jobDate(b) || 0) - (jobDate(a) || 0));
+      console.log('✅ Maintenance jobs loaded:', jobs.length, '(cache of', all.length + ')');
+      return jobs;
+    } catch (error) {
+      console.error('❌ Error getting maintenance jobs:', error);
+      throw error;
+    }
+  }
+
+  /** قراءة عمل صيانة واحد بمعرّفه */
+  async getMaintenanceJob(jobId) {
+    try {
+      const snap = await this._getDoc('maintenanceJobs:byId', doc(this.db, 'maintenanceJobs', jobId));
+      if (snap.exists()) return { id: snap.id, ...snap.data() };
+      throw new Error('Job not found');
+    } catch (error) {
+      console.error('❌ Error getting maintenance job:', error);
+      throw error;
+    }
+  }
+
   async addMaintenanceJob(jobData) {
     try {
-      // ✅ حساب الأرباح باستخدام الدالة الموحدة
-      // نستخدم إجمالي تكلفة القطع إن وُجد، وإلا نرجع لـ partCost
-      const basePartCost =
-        jobData.totalPartCost !== undefined ? jobData.totalPartCost : jobData.partCost;
+      const basePartCost = jobData.totalPartCost !== undefined ? jobData.totalPartCost : jobData.partCost;
       const { profit, techCommission, shopProfit } = this.computeDerived(
-        basePartCost, 
-        jobData.amountCharged, 
+        basePartCost,
+        jobData.amountCharged,
         jobData.techPercent !== undefined ? jobData.techPercent : 0
       );
-
       const docRef = await addDoc(collection(this.db, 'maintenanceJobs'), {
         ...jobData,
         profit,
@@ -887,6 +945,7 @@ class FirebaseDatabase {
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp()
       });
+      this._cacheClear('maintenanceJobs');
       console.log('✅ Maintenance job added with ID:', docRef.id);
       return docRef.id;
     } catch (error) {
@@ -895,85 +954,9 @@ class FirebaseDatabase {
     }
   }
 
-  async getMaintenanceJobs(filters = {}) {
-    try {
-      let q = collection(this.db, 'maintenanceJobs');
-      
-      // بناء الاستعلام الأساسي (بدون repId لأنه قد يكون في parts[])
-      if (filters.status) {
-        q = query(q, where('status', '==', filters.status));
-      }
-      
-      // فلترة الفني يمكن عملها مباشرة (techId في المستوى الرئيسي)
-      if (filters.techId) {
-        q = query(q, where('techId', '==', filters.techId));
-      }
-      
-      // محاولة فلترة التواريخ في الاستعلام
-      try {
-        if (filters.dateFrom) {
-          q = query(q, where('visitDate', '>=', filters.dateFrom));
-        }
-        if (filters.dateTo) {
-          q = query(q, where('visitDate', '<=', filters.dateTo));
-        }
-      } catch (indexError) {
-        console.warn('⚠️ Date filtering requires index, will filter manually');
-      }
-
-      const querySnapshot = await getDocs(q);
-      let jobs = [];
-      querySnapshot.forEach(doc => {
-        jobs.push({ id: doc.id, ...doc.data() });
-      });
-      
-      // تصفية يدوياً حسب التاريخ إذا لزم الأمر
-      if (filters.dateFrom) {
-        const dateFrom = filters.dateFrom instanceof Date ? filters.dateFrom : new Date(filters.dateFrom);
-        jobs = jobs.filter(job => {
-          const jobDate = job.visitDate?.seconds ? new Date(job.visitDate.seconds * 1000) : new Date(job.visitDate);
-          return jobDate >= dateFrom;
-        });
-      }
-      
-      if (filters.dateTo) {
-        const dateTo = filters.dateTo instanceof Date ? filters.dateTo : new Date(filters.dateTo);
-        jobs = jobs.filter(job => {
-          const jobDate = job.visitDate?.seconds ? new Date(job.visitDate.seconds * 1000) : new Date(job.visitDate);
-          return jobDate <= dateTo;
-        });
-      }
-      
-      // ✅ فلترة المندوب: تدعم البنية الجديدة (parts[]) والقديمة (repId مباشر)
-      if (filters.repId) {
-        jobs = jobs.filter(job => {
-          // البنية الجديدة: البحث في parts[]
-          if (job.parts && Array.isArray(job.parts) && job.parts.length > 0) {
-            return job.parts.some(part => part.repId === filters.repId);
-          }
-          // البنية القديمة: repId مباشر
-          return job.repId === filters.repId;
-        });
-      }
-      
-      // ترتيب النتائج يدوياً دائماً
-      jobs.sort((a, b) => {
-        const dateA = a.visitDate?.seconds ? new Date(a.visitDate.seconds * 1000) : new Date(a.visitDate);
-        const dateB = b.visitDate?.seconds ? new Date(b.visitDate.seconds * 1000) : new Date(b.visitDate);
-        return dateB - dateA; // ترتيب تنازلي
-      });
-      
-      console.log('✅ Maintenance jobs loaded:', jobs.length);
-      return jobs;
-    } catch (error) {
-      console.error('❌ Error getting maintenance jobs:', error);
-      throw error;
-    }
-  }
-
   async updateMaintenanceJob(jobId, jobData) {
     try {
-      // ✅ إعادة حساب الأرباح إذا تغيرت القيم باستخدام الدالة الموحدة
+      // إعادة حساب الأرباح المشتقة إذا تغيرت القيم
       if (jobData.partCost !== undefined || jobData.amountCharged !== undefined || jobData.techPercent !== undefined) {
         const currentJob = await this.getMaintenanceJob(jobId);
         const partCost =
@@ -983,19 +966,15 @@ class FirebaseDatabase {
           : currentJob.partCost;
         const amountCharged = jobData.amountCharged !== undefined ? jobData.amountCharged : currentJob.amountCharged;
         const techPercent = jobData.techPercent !== undefined ? jobData.techPercent : currentJob.techPercent;
-        
+
         const { profit, techCommission, shopProfit } = this.computeDerived(partCost, amountCharged, techPercent);
-        
         jobData.profit = profit;
         jobData.techCommission = techCommission;
         jobData.shopProfit = shopProfit;
       }
 
-      const jobRef = doc(this.db, 'maintenanceJobs', jobId);
-      await updateDoc(jobRef, {
-        ...jobData,
-        updatedAt: serverTimestamp()
-      });
+      await updateDoc(doc(this.db, 'maintenanceJobs', jobId), { ...jobData, updatedAt: serverTimestamp() });
+      this._cacheClear('maintenanceJobs');
       console.log('✅ Maintenance job updated:', jobId);
     } catch (error) {
       console.error('❌ Error updating maintenance job:', error);
@@ -1003,25 +982,10 @@ class FirebaseDatabase {
     }
   }
 
-  async getMaintenanceJob(jobId) {
-    try {
-      const jobRef = doc(this.db, 'maintenanceJobs', jobId);
-      const jobSnap = await getDoc(jobRef);
-      if (jobSnap.exists()) {
-        return { id: jobSnap.id, ...jobSnap.data() };
-      } else {
-        throw new Error('Job not found');
-      }
-    } catch (error) {
-      console.error('❌ Error getting maintenance job:', error);
-      throw error;
-    }
-  }
-
   async deleteMaintenanceJob(jobId) {
     try {
-      const jobRef = doc(this.db, 'maintenanceJobs', jobId);
-      await deleteDoc(jobRef);
+      await deleteDoc(doc(this.db, 'maintenanceJobs', jobId));
+      this._cacheClear('maintenanceJobs');
       console.log('✅ Maintenance job deleted:', jobId);
     } catch (error) {
       console.error('❌ Error deleting maintenance job:', error);
@@ -1029,19 +993,35 @@ class FirebaseDatabase {
     }
   }
 
-  // ===== دوال الحساب =====
-  // ✅ دالة موحّدة لحساب القيم المشتقة
-  computeDerived(partCost, amountCharged, techPercent) {
-    const pc = Number(partCost) || 0;
-    const ac = Number(amountCharged) || 0;
-    const tp = (typeof techPercent === 'number' && !isNaN(techPercent)) ? techPercent : 0; // افتراضي 0%
-    const profit = ac - pc;                                // الربح الإجمالي
-    const techCommission = Math.max(0, profit * tp);       // عمولة الفني
-    const shopProfit = profit - techCommission;            // أرباح المحل
-    return { profit, techCommission, shopProfit };
+  // ===== الصيانة: المدفوعات =====
+
+  /** قراءة مخزنة + فلترة داخل الذاكرة (dateFrom/dateTo/entityType/entityId) */
+  async getPayments(filters = {}) {
+    try {
+      const all = await this._getCollectionCached('payments');
+      let payments = all;
+
+      const payDate = (p) => this._asDate(p.paymentDate);
+      if (filters.dateFrom) {
+        const dateFrom = this._asDate(filters.dateFrom);
+        payments = payments.filter(p => { const d = payDate(p); return d && dateFrom && d >= dateFrom; });
+      }
+      if (filters.dateTo) {
+        const dateTo = this._asDate(filters.dateTo);
+        payments = payments.filter(p => { const d = payDate(p); return d && dateTo && d <= dateTo; });
+      }
+      if (filters.entityType) payments = payments.filter(p => p.entityType === filters.entityType);
+      if (filters.entityId) payments = payments.filter(p => p.entityId === filters.entityId);
+
+      payments = payments.slice().sort((a, b) => (payDate(b) || 0) - (payDate(a) || 0));
+      console.log('✅ Payments loaded:', payments.length, '(cache of', all.length + ')');
+      return payments;
+    } catch (error) {
+      console.error('❌ Error getting payments:', error);
+      throw error;
+    }
   }
 
-  // ===== إدارة المدفوعات =====
   async addPayment(paymentData) {
     try {
       const docRef = await addDoc(collection(this.db, 'payments'), {
@@ -1049,6 +1029,7 @@ class FirebaseDatabase {
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp()
       });
+      this._cacheClear('payments');
       console.log('✅ Payment added with ID:', docRef.id);
       return docRef.id;
     } catch (error) {
@@ -1057,46 +1038,10 @@ class FirebaseDatabase {
     }
   }
 
-  async getPayments(filters = {}) {
-    try {
-      let q = collection(this.db, 'payments');
-      
-      if (filters.dateFrom) {
-        q = query(q, where('paymentDate', '>=', filters.dateFrom));
-      }
-      
-      if (filters.dateTo) {
-        q = query(q, where('paymentDate', '<=', filters.dateTo));
-      }
-      
-      if (filters.entityType) {
-        q = query(q, where('entityType', '==', filters.entityType));
-      }
-      
-      if (filters.entityId) {
-        q = query(q, where('entityId', '==', filters.entityId));
-      }
-      
-      q = query(q, orderBy('paymentDate', 'desc'));
-
-      const querySnapshot = await getDocs(q);
-      const payments = [];
-      querySnapshot.forEach(doc => {
-        payments.push({ id: doc.id, ...doc.data() });
-      });
-      
-      console.log('✅ Payments loaded:', payments.length);
-      return payments;
-    } catch (error) {
-      console.error('❌ Error getting payments:', error);
-      throw error;
-    }
-  }
-
   async deletePayment(paymentId) {
     try {
-      const paymentRef = doc(this.db, 'payments', paymentId);
-      await deleteDoc(paymentRef);
+      await deleteDoc(doc(this.db, 'payments', paymentId));
+      this._cacheClear('payments');
       console.log('✅ Payment deleted:', paymentId);
     } catch (error) {
       console.error('❌ Error deleting payment:', error);
@@ -1104,96 +1049,76 @@ class FirebaseDatabase {
     }
   }
 
-  // ===== تقارير التسويات =====
+  // ===== دوال الحساب والتسويات =====
+
+  /** حساب موحّد للقيم المشتقة: الربح، عمولة الفني، ربح المحل */
+  computeDerived(partCost, amountCharged, techPercent) {
+    const pc = Number(partCost) || 0;
+    const ac = Number(amountCharged) || 0;
+    const tp = (typeof techPercent === 'number' && !isNaN(techPercent)) ? techPercent : 0;
+    const profit = ac - pc;
+    const techCommission = Math.max(0, profit * tp);
+    const shopProfit = profit - techCommission;
+    return { profit, techCommission, shopProfit };
+  }
+
+  /** تسويات المندوبين — تقبل أعمالاً محمّلة مسبقاً لتجنب إعادة القراءة */
   async getRepSettlements(dateFrom, dateTo, preloadedJobs = null) {
     try {
-      console.log('🔍 Getting rep settlements from', dateFrom, 'to', dateTo);
-
-      // يسمح بتمرير الأعمال المحمّلة مسبقًا لتجنب إعادة قراءة نفس المجموعة
-      // عند حساب تسويات المندوبين والفنيين في نفس الصفحة
-      const jobs = preloadedJobs || await this.getMaintenanceJobs({
-        status: 'done',
-        dateFrom,
-        dateTo
-      });
-
-      console.log('📊 Found jobs for rep settlements:', jobs.length);
-
+      const jobs = preloadedJobs || await this.getMaintenanceJobs({ status: 'done', dateFrom, dateTo });
       const repTotals = {};
-      
+
       jobs.forEach(job => {
-        // ✅ إعادة حساب القيم المشتقة من البيانات الصحيحة
-        const totalPartCost = job.totalPartCost !== undefined ? Number(job.totalPartCost) : 
-                             (job.parts && Array.isArray(job.parts) && job.parts.length > 0) ? 
-                             job.parts.reduce((sum, part) => sum + (Number(part.partCost) || 0), 0) : 
+        const totalPartCost = job.totalPartCost !== undefined ? Number(job.totalPartCost) :
+                             (job.parts && Array.isArray(job.parts) && job.parts.length > 0) ?
+                             job.parts.reduce((sum, part) => sum + (Number(part.partCost) || 0), 0) :
                              Number(job.partCost) || 0;
         const amountCharged = Number(job.amountCharged) || 0;
         const techPercent = (typeof job.techPercent === 'number' && !isNaN(job.techPercent)) ? job.techPercent : 0;
-        
-        // ✅ إعادة حساب القيم المشتقة بشكل صحيح
         const { profit, techCommission, shopProfit } = this.computeDerived(totalPartCost, amountCharged, techPercent);
-        
-        // ✅ دعم البنية الجديدة (parts array) والقديمة (repId مباشر)
+
         if (job.parts && Array.isArray(job.parts) && job.parts.length > 0) {
-          // البنية الجديدة: كل قطعة لها مندوب خاص
           job.parts.forEach(part => {
             if (!part.repId) return;
-            
             if (!repTotals[part.repId]) {
               repTotals[part.repId] = {
                 repId: part.repId,
                 repName: part.repName || 'غير محدد',
-                jobsCount: 0,
-                partCostSum: 0,
-                profitSum: 0,
-                techCommissionSum: 0,
-                shopProfitSum: 0,
-                revenueSum: 0
+                jobsCount: 0, partCostSum: 0, profitSum: 0,
+                techCommissionSum: 0, shopProfitSum: 0, revenueSum: 0
               };
             }
-            
-            // نضيف تكلفة القطعة فقط (لأن كل قطعة لها مندوب)
             repTotals[part.repId].partCostSum += (Number(part.partCost) || 0);
           });
-          
-          // نحسب عدد الأعمال والإيرادات مرة واحدة لكل عمل
-          // نستخدم أول مندوب في القائمة لتخصيص إحصائيات العمل
+
           const firstRepId = job.parts[0]?.repId;
           if (firstRepId && repTotals[firstRepId]) {
             repTotals[firstRepId].jobsCount++;
-            repTotals[firstRepId].profitSum += profit; // ✅ استخدام القيمة المحسوبة بشكل صحيح
-            repTotals[firstRepId].techCommissionSum += techCommission; // ✅ استخدام القيمة المحسوبة بشكل صحيح
-            repTotals[firstRepId].shopProfitSum += shopProfit; // ✅ استخدام القيمة المحسوبة بشكل صحيح
+            repTotals[firstRepId].profitSum += profit;
+            repTotals[firstRepId].techCommissionSum += techCommission;
+            repTotals[firstRepId].shopProfitSum += shopProfit;
             repTotals[firstRepId].revenueSum += amountCharged;
           }
         } else if (job.repId) {
-          // البنية القديمة: مندوب واحد للعمل كامل
           if (!repTotals[job.repId]) {
             repTotals[job.repId] = {
               repId: job.repId,
               repName: job.repName || 'غير محدد',
-              jobsCount: 0,
-              partCostSum: 0,
-              profitSum: 0,
-              techCommissionSum: 0,
-              shopProfitSum: 0,
-              revenueSum: 0
+              jobsCount: 0, partCostSum: 0, profitSum: 0,
+              techCommissionSum: 0, shopProfitSum: 0, revenueSum: 0
             };
           }
-          
           repTotals[job.repId].jobsCount++;
-          repTotals[job.repId].partCostSum += totalPartCost; // ✅ استخدام totalPartCost
-          repTotals[job.repId].profitSum += profit; // ✅ استخدام القيمة المحسوبة بشكل صحيح
-          repTotals[job.repId].techCommissionSum += techCommission; // ✅ استخدام القيمة المحسوبة بشكل صحيح
-          repTotals[job.repId].shopProfitSum += shopProfit; // ✅ استخدام القيمة المحسوبة بشكل صحيح
+          repTotals[job.repId].partCostSum += totalPartCost;
+          repTotals[job.repId].profitSum += profit;
+          repTotals[job.repId].techCommissionSum += techCommission;
+          repTotals[job.repId].shopProfitSum += shopProfit;
           repTotals[job.repId].revenueSum += amountCharged;
-        } else {
-          console.warn('⚠️ Job missing repId and parts:', job.id);
         }
       });
 
       const result = Object.values(repTotals);
-      console.log('✅ Rep settlements calculated:', result);
+      console.log('✅ Rep settlements calculated:', result.length);
       return result;
     } catch (error) {
       console.error('❌ Error getting rep settlements:', error);
@@ -1201,60 +1126,40 @@ class FirebaseDatabase {
     }
   }
 
+  /** تسويات الفنيين — تقبل أعمالاً محمّلة مسبقاً لتجنب إعادة القراءة */
   async getTechSettlements(dateFrom, dateTo, preloadedJobs = null) {
     try {
-      console.log('🔍 Getting tech settlements from', dateFrom, 'to', dateTo);
-
-      // يسمح بتمرير الأعمال المحمّلة مسبقًا لتجنب إعادة قراءة نفس المجموعة
-      const jobs = preloadedJobs || await this.getMaintenanceJobs({
-        status: 'done',
-        dateFrom,
-        dateTo
-      });
-
-      console.log('📊 Found jobs for tech settlements:', jobs.length);
-
+      const jobs = preloadedJobs || await this.getMaintenanceJobs({ status: 'done', dateFrom, dateTo });
       const techTotals = {};
+
       jobs.forEach(job => {
-        if (!job.techId) {
-          console.warn('⚠️ Job missing techId:', job);
-          return;
-        }
-        
-        // ✅ إعادة حساب القيم المشتقة من البيانات الصحيحة
-        const totalPartCost = job.totalPartCost !== undefined ? Number(job.totalPartCost) : 
-                             (job.parts && Array.isArray(job.parts) && job.parts.length > 0) ? 
-                             job.parts.reduce((sum, part) => sum + (Number(part.partCost) || 0), 0) : 
+        if (!job.techId) return;
+        const totalPartCost = job.totalPartCost !== undefined ? Number(job.totalPartCost) :
+                             (job.parts && Array.isArray(job.parts) && job.parts.length > 0) ?
+                             job.parts.reduce((sum, part) => sum + (Number(part.partCost) || 0), 0) :
                              Number(job.partCost) || 0;
         const amountCharged = Number(job.amountCharged) || 0;
         const techPercent = (typeof job.techPercent === 'number' && !isNaN(job.techPercent)) ? job.techPercent : 0;
-        
-        // ✅ إعادة حساب القيم المشتقة بشكل صحيح
         const { profit, techCommission, shopProfit } = this.computeDerived(totalPartCost, amountCharged, techPercent);
-        
+
         if (!techTotals[job.techId]) {
           techTotals[job.techId] = {
             techId: job.techId,
             techName: job.techName || 'غير محدد',
-            jobsCount: 0,
-            partCostSum: 0,
-            profitSum: 0,
-            techCommissionSum: 0,
-            shopProfitSum: 0,
-            revenueSum: 0
+            jobsCount: 0, partCostSum: 0, profitSum: 0,
+            techCommissionSum: 0, shopProfitSum: 0, revenueSum: 0
           };
         }
-        
         techTotals[job.techId].jobsCount++;
-        techTotals[job.techId].partCostSum += totalPartCost; // ✅ استخدام totalPartCost
-        techTotals[job.techId].profitSum += profit; // ✅ استخدام القيمة المحسوبة بشكل صحيح
-        techTotals[job.techId].techCommissionSum += techCommission; // ✅ استخدام القيمة المحسوبة بشكل صحيح
-        techTotals[job.techId].shopProfitSum += shopProfit; // ✅ استخدام القيمة المحسوبة بشكل صحيح
+        techTotals[job.techId].partCostSum += totalPartCost;
+        techTotals[job.techId].profitSum += profit;
+        techTotals[job.techId].techCommissionSum += techCommission;
+        techTotals[job.techId].shopProfitSum += shopProfit;
         techTotals[job.techId].revenueSum += amountCharged;
       });
 
       const result = Object.values(techTotals);
-      console.log('✅ Tech settlements calculated:', result);
+      console.log('✅ Tech settlements calculated:', result.length);
       return result;
     } catch (error) {
       console.error('❌ Error getting tech settlements:', error);

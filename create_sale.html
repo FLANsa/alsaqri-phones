@@ -837,40 +837,51 @@
     async function updateAccessoryStock() {
       try {
         console.log('📦 تحديث مخزون الأكسسوارات...');
-        
+
+        // نجمع التحديثات أولاً ثم نكتبها دفعة واحدة (writeBatch) بدل كتابة لكل عنصر
+        const updates = [];
         for (const item of cart) {
           if (item.type !== 'phone') {
             // البحث عن الأكسسوار في قاعدة البيانات
-            const accessory = accessories.find(acc => 
+            const accessory = accessories.find(acc =>
               (acc.id === item.id) || (acc.sku === item.id)
             );
-            
+
             if (accessory) {
               const currentStock = Number(accessory.quantity_in_stock ?? accessory.quantity ?? 0);
               const newStock = Math.max(0, currentStock - item.quantity);
-              
+
               console.log(`📱 تحديث مخزون ${accessory.name}: ${currentStock} → ${newStock}`);
-              
+
               // تحديث البيانات المحلية
               accessory.quantity_in_stock = newStock;
               accessory.quantity = newStock;
-              
-              // حفظ في Firebase أو localStorage
-              if (window.storage && window.storage.isFirebaseAvailable) {
-                await window.storage.updateAccessory?.(accessory.id, accessory);
-                console.log('✅ تم تحديث المخزون في Firebase');
-              } else {
-                // تحديث localStorage
-                const updatedAccessories = accessories.map(acc => 
-                  acc.id === accessory.id ? accessory : acc
-                );
-                localStorage.setItem('accessories', JSON.stringify(updatedAccessories));
-                console.log('✅ تم تحديث المخزون في localStorage');
-              }
+              updates.push({ id: accessory.id, data: { quantity_in_stock: newStock, quantity: newStock } });
             } else {
               console.warn(`⚠️ لم يتم العثور على الأكسسوار: ${item.name} (ID: ${item.id})`);
             }
           }
+        }
+
+        if (updates.length === 0) return;
+
+        if (window.storage && window.storage.isFirebaseAvailable) {
+          if (typeof window.storage.batchUpdateAccessories === 'function') {
+            await window.storage.batchUpdateAccessories(updates);
+            console.log('✅ تم تحديث المخزون في Firebase (دفعة واحدة)');
+          } else {
+            // مسار قديم إن لم تتوفر الدالة
+            for (const u of updates) await window.storage.updateAccessory?.(u.id, u.data);
+          }
+        } else {
+          // تحديث localStorage
+          const updatedAccessories = accessories.map(acc =>
+            updates.some(u => String(u.id) === String(acc.id))
+              ? { ...acc, quantity_in_stock: acc.quantity_in_stock, quantity: acc.quantity }
+              : acc
+          );
+          localStorage.setItem('accessories', JSON.stringify(updatedAccessories));
+          console.log('✅ تم تحديث المخزون في localStorage');
         }
 
         // لا نعيد تحميل المجموعات هنا: الصفحة تنتقل إلى صفحة الفاتورة بعد الحفظ،
@@ -939,10 +950,17 @@
           // وسم الهواتف المباعة sold:true — يتيح للصفحات الاستغناء عن قراءة
           // مجموعة sales كاملة لمعرفة المباع (انظر migrateSoldFlags)
           try {
-            const phoneItems = (cart || []).filter(it => it.type === 'phone');
-            for (const it of phoneItems) {
-              const ph = phones.find(p => p.id === it.id || p.phone_number === it.id);
-              if (ph && ph.id) await window.storage.updatePhone?.(ph.id, { sold: true });
+            const phoneIds = (cart || [])
+              .filter(it => it.type === 'phone')
+              .map(it => { const ph = phones.find(p => p.id === it.id || p.phone_number === it.id); return ph && ph.id; })
+              .filter(Boolean);
+            if (phoneIds.length && typeof window.storage.setPhonesSold === 'function') {
+              await window.storage.setPhonesSold(phoneIds, true);
+            } else {
+              for (const it of (cart || []).filter(it => it.type === 'phone')) {
+                const ph = phones.find(p => p.id === it.id || p.phone_number === it.id);
+                if (ph && ph.id) await window.storage.updatePhone?.(ph.id, { sold: true });
+              }
             }
           } catch (e) {
             console.warn('⚠️ تعذر وسم الهاتف كمباع (لن يؤثر على الفاتورة):', e);

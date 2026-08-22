@@ -1260,24 +1260,34 @@
       if (!confirm('هل تريد استرجاع كامل الفاتورة وإرجاع المنتجات إلى المخزون؟')) return;
 
       // استرجاع مخزون الأكسسوارات + لا نلمس الهاتف (يصبح متاحاً تلقائياً لأننا نستبعد المبيعات المسترجعة)
-      // نجلب الأكسسوارات المطلوبة بمعرّفاتها مباشرة بدل قراءة المجموعة كاملة،
+      // نجلب الأكسسوارات المطلوبة بمعرّفاتها دفعة واحدة بدل استعلام لكل عنصر،
       // مع fallback للمجموعة فقط إذا لم يُعثر على بعضها (فواتير قديمة تخزّن sku)
       const accItems = (currentSale.items || []).filter(it => it.type && it.type !== 'phone');
       const accMap = {};
       let needFallback = !(window.storage && window.storage.isFirebaseAvailable);
-      if (!needFallback && typeof window.storage.getAccessoryById === 'function') {
-        for (const it of accItems) {
-          if (it.id == null) continue;
+      if (!needFallback && accItems.length) {
+        const ids = accItems.filter(it => it.id != null).map(it => String(it.id));
+        if (typeof window.storage.getAccessoriesByIds === 'function') {
           try {
-            const acc = await window.storage.getAccessoryById(String(it.id));
-            if (acc) accMap[String(it.id)] = acc;
-            else needFallback = true;
+            const map = await window.storage.getAccessoriesByIds(ids);
+            ids.forEach(id => { if (map[id]) accMap[id] = map[id]; else needFallback = true; });
           } catch (e) {
             needFallback = true;
           }
+        } else if (typeof window.storage.getAccessoryById === 'function') {
+          for (const it of accItems) {
+            if (it.id == null) continue;
+            try {
+              const acc = await window.storage.getAccessoryById(String(it.id));
+              if (acc) accMap[String(it.id)] = acc;
+              else needFallback = true;
+            } catch (e) {
+              needFallback = true;
+            }
+          }
+        } else {
+          needFallback = true;
         }
-      } else if (!needFallback) {
-        needFallback = true;
       }
       if (needFallback) {
         const accessories = (window.storage && window.storage.isFirebaseAvailable)
@@ -1289,6 +1299,8 @@
         });
       }
 
+      // نجمع تحديثات المخزون ثم نكتبها دفعة واحدة (writeBatch)
+      const stockUpdates = [];
       for (const item of (currentSale.items || [])) {
         if (item.type && item.type !== 'phone') {
           const acc = accMap[String(item.id)];
@@ -1298,13 +1310,20 @@
             acc.quantity_in_stock = newStock;
             acc.quantity = newStock;
             if (window.storage && window.storage.isFirebaseAvailable) {
-              await window.storage.updateAccessory?.(acc.id, acc);
+              stockUpdates.push({ id: acc.id, data: { quantity_in_stock: newStock, quantity: newStock } });
             } else {
               const accessories = JSON.parse(localStorage.getItem('accessories') || '[]');
               const updatedAccessories = accessories.map(a => (a.id === acc.id ? acc : a));
               localStorage.setItem('accessories', JSON.stringify(updatedAccessories));
             }
           }
+        }
+      }
+      if (stockUpdates.length && window.storage && window.storage.isFirebaseAvailable) {
+        if (typeof window.storage.batchUpdateAccessories === 'function') {
+          await window.storage.batchUpdateAccessories(stockUpdates);
+        } else {
+          for (const u of stockUpdates) await window.storage.updateAccessory?.(u.id, u.data);
         }
       }
 
@@ -1314,9 +1333,17 @@
         const phoneItems = (currentSale.items || []).filter(it => it.type === 'phone' && it.id != null);
         if (phoneItems.length && window.storage && window.storage.isFirebaseAvailable && typeof window.storage.getPhonesByRefs === 'function') {
           const phonesMap = await window.storage.getPhonesByRefs(phoneItems.map(it => String(it.id)));
-          for (const it of phoneItems) {
-            const ph = phonesMap[String(it.id)];
-            if (ph && ph.id) await window.storage.updatePhone?.(ph.id, { sold: false });
+          const phoneIds = phoneItems
+            .map(it => phonesMap[String(it.id)])
+            .filter(ph => ph && ph.id)
+            .map(ph => ph.id);
+          if (phoneIds.length && typeof window.storage.setPhonesSold === 'function') {
+            await window.storage.setPhonesSold(phoneIds, false);
+          } else {
+            for (const it of phoneItems) {
+              const ph = phonesMap[String(it.id)];
+              if (ph && ph.id) await window.storage.updatePhone?.(ph.id, { sold: false });
+            }
           }
         }
       } catch (e) {

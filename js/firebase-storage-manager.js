@@ -196,9 +196,9 @@ class FirebaseStorageManager {
         return false;
       }
     }
-    
+
     // LocalStorage fallback
-    const phones = this.getPhones();
+    const phones = await this.getPhones();
     const index = phones.findIndex(p => p.id === phoneId);
     if (index !== -1) {
       phones[index] = { ...phones[index], ...updatedPhone };
@@ -217,11 +217,34 @@ class FirebaseStorageManager {
         return false;
       }
     }
-    
+
     // LocalStorage fallback
-    const phones = this.getPhones();
+    const phones = await this.getPhones();
     const filteredPhones = phones.filter(p => p.id !== phoneId);
     return this.setPhones(filteredPhones);
+  }
+
+  /**
+   * وسم عدة هواتف sold دفعة كتابة واحدة (يستخدم writeBatch داخلياً مع Firebase)
+   */
+  async setPhonesSold(phoneIds, sold) {
+    if (this.isFirebaseAvailable && typeof this.firebaseDB.setPhonesSold === 'function') {
+      try {
+        return await this.firebaseDB.setPhonesSold(phoneIds, sold);
+      } catch (error) {
+        console.error('Error setting phones sold in Firebase:', error);
+        return 0;
+      }
+    }
+    // LocalStorage fallback
+    const phones = await this.getPhones();
+    const idSet = new Set((phoneIds || []).map(String));
+    let count = 0;
+    phones.forEach(p => {
+      if (idSet.has(String(p.id))) { p.sold = !!sold; count++; }
+    });
+    await this.setPhones(phones);
+    return count;
   }
 
   /**
@@ -342,7 +365,7 @@ class FirebaseStorageManager {
     
     console.log('💾 Storage Manager: Firebase غير متاح، حفظ في localStorage...');
     // LocalStorage fallback
-    const accessories = this.getAccessories();
+    const accessories = await this.getAccessories();
     accessory.id = this.generateId();
     accessory.date_added = new Date().toISOString();
     accessories.push(accessory);
@@ -361,9 +384,9 @@ class FirebaseStorageManager {
         return false;
       }
     }
-    
+
     // LocalStorage fallback
-    const accessories = this.getAccessories();
+    const accessories = await this.getAccessories();
     const index = accessories.findIndex(a => a.id === accessoryId);
     if (index !== -1) {
       accessories[index] = { ...accessories[index], ...updatedAccessory };
@@ -382,11 +405,61 @@ class FirebaseStorageManager {
         return false;
       }
     }
-    
+
     // LocalStorage fallback
-    const accessories = this.getAccessories();
+    const accessories = await this.getAccessories();
     const filteredAccessories = accessories.filter(a => a.id !== accessoryId);
     return this.setAccessories(filteredAccessories);
+  }
+
+  /**
+   * تحديث عدة أكسسوارات دفعة كتابة واحدة (writeBatch مع Firebase)
+   * @param {Array<{id: string, data: object}>} updates
+   */
+  async batchUpdateAccessories(updates) {
+    if (this.isFirebaseAvailable && typeof this.firebaseDB.batchUpdateAccessories === 'function') {
+      try {
+        return await this.firebaseDB.batchUpdateAccessories(updates);
+      } catch (error) {
+        console.error('Error batch updating accessories in Firebase:', error);
+        return 0;
+      }
+    }
+    // LocalStorage fallback
+    const accessories = await this.getAccessories();
+    let count = 0;
+    (updates || []).forEach(u => {
+      if (!u || u.id == null) return;
+      const index = accessories.findIndex(a => a.id === u.id);
+      if (index !== -1) {
+        accessories[index] = { ...accessories[index], ...u.data };
+        count++;
+      }
+    });
+    await this.setAccessories(accessories);
+    return count;
+  }
+
+  /**
+   * جلب عدة أكسسوارات بمعرّفاتها دفعة واحدة — تعيد خريطة { المعرف: الأكسسوار }
+   */
+  async getAccessoriesByIds(ids) {
+    if (this.isFirebaseAvailable && typeof this.firebaseDB.getAccessoriesByIds === 'function') {
+      try {
+        return await this.firebaseDB.getAccessoriesByIds(ids);
+      } catch (error) {
+        console.error('Error getting accessories by ids from Firebase:', error);
+        return {};
+      }
+    }
+    // LocalStorage fallback
+    const accessories = await this.getAccessories();
+    const map = {};
+    (accessories || []).forEach(a => {
+      if (a.id != null) map[String(a.id)] = a;
+      if (a.sku != null) map[String(a.sku)] = a;
+    });
+    return map;
   }
 
   /**
@@ -442,7 +515,7 @@ class FirebaseStorageManager {
     }
     
     // LocalStorage fallback
-    const sales = this.getSales();
+    const sales = await this.getSales();
     sale.id = this.generateId();
     sale.date_created = new Date().toISOString();
     sales.push(sale);
@@ -459,9 +532,9 @@ class FirebaseStorageManager {
         return false;
       }
     }
-    
+
     // LocalStorage fallback
-    const sales = this.getSales();
+    const sales = await this.getSales();
     const index = sales.findIndex(s => s.id === saleId);
     if (index !== -1) {
       sales[index] = { ...sales[index], ...updatedSale };

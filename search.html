@@ -252,6 +252,10 @@
   // (تمت إزالة عناصر نوع البحث وحالة الهاتف من واجهة البحث)
 
   // ===== منطق البحث من قاعدة البيانات =====
+  // البيانات تُجلب مرة واحدة لكل زيارة صفحة ثم تُفلتر في الذاكرة —
+  // كل بحث إضافي لا يكلف أي قراءة جديدة من Firestore
+  let inventoryDataLoaded = false;
+
   async function handleSearch(e){
     e.preventDefault();
     const term = (document.getElementById('search_term').value || '').trim();
@@ -266,27 +270,26 @@
     }
 
     try {
-      // تحميل البيانات من Firebase أو localStorage
-      if (window.storage && window.storage.isFirebaseAvailable) {
-        console.log('🔥 تحميل البيانات من Firebase للبحث...');
-        [allPhones, allAccessories] = await Promise.all([
-          window.storage.getPhones(),
-          window.storage.getAccessories()
-        ]);
-        // مجموعة sales تُقرأ فقط إذا لم تكن كل الهواتف تحمل علم sold
-        const allFlagged = allPhones.length > 0 && allPhones.every(p => typeof p.sold === 'boolean');
-        allSales = allFlagged ? [] : await window.storage.getSales();
-        console.log('📱 الهواتف المحملة:', allPhones);
-        console.log('📦 الأكسسوارات المحملة:', allAccessories);
-        console.log('🧾 المبيعات المحملة:', allSales, '(أعلام sold جاهزة:', allFlagged, ')');
-      } else {
-        console.log('💾 Firebase غير متاح، تحميل من localStorage...');
-        allPhones = JSON.parse(localStorage.getItem('phones') || '[]');
-        allAccessories = JSON.parse(localStorage.getItem('accessories') || '[]');
-        allSales = JSON.parse(localStorage.getItem('sales') || '[]');
-        console.log('📱 الهواتف من localStorage:', allPhones);
-        console.log('📦 الأكسسوارات من localStorage:', allAccessories);
-        console.log('🧾 المبيعات من localStorage:', allSales);
+      // تحميل البيانات من Firebase أو localStorage (أول بحث فقط)
+      if (!inventoryDataLoaded) {
+        if (window.storage && window.storage.isFirebaseAvailable) {
+          console.log('🔥 تحميل البيانات من Firebase للبحث...');
+          [allPhones, allAccessories] = await Promise.all([
+            window.storage.getPhones(),
+            window.storage.getAccessories()
+          ]);
+          // مجموعة sales تُقرأ فقط إذا لم تكن كل الهواتف تحمل علم sold
+          const allFlagged = allPhones.length > 0 && allPhones.every(p => typeof p.sold === 'boolean');
+          allSales = allFlagged ? [] : await window.storage.getSales();
+          console.log('📥 مجموعات محملة:', { هواتف: allPhones.length, أكسسوارات: allAccessories.length, مبيعات: allSales.length, 'أعلام sold جاهزة': allFlagged });
+        } else {
+          console.log('💾 Firebase غير متاح، تحميل من localStorage...');
+          allPhones = JSON.parse(localStorage.getItem('phones') || '[]');
+          allAccessories = JSON.parse(localStorage.getItem('accessories') || '[]');
+          allSales = JSON.parse(localStorage.getItem('sales') || '[]');
+          console.log('📥 مجموعات محملة (محلي):', { هواتف: allPhones.length, أكسسوارات: allAccessories.length, مبيعات: allSales.length });
+        }
+        inventoryDataLoaded = true;
       }
 
       // لم نعد نحتاج Set لأننا سنستخدم isPhoneSold مباشرة
@@ -312,9 +315,7 @@
           const searchText = `${p.phone_number || ''} ${p.serial_number || ''} ${p.manufacturer || p.brand || ''} ${p.model || ''} ${p.condition || p.phone_type || ''}`.toLowerCase();
           const englishSearchText = convertArabicToEnglishNumbers(searchText);
           const arabicSearchText = convertEnglishToArabicNumbers(searchText);
-          
-          console.log('🔍 البحث في الهاتف:', p.phone_number, 'الرقم التسلسلي:', p.serial_number, 'النص:', searchText, 'الحالة:', p.status || 'available');
-          
+
           // البحث في جميع النسخ (الأصلية، الإنجليزية، العربية)
           return uniqueTerms.some(term => 
             searchText.includes(term) || 
@@ -330,9 +331,7 @@
           const searchText = `${a.name || ''} ${a.arabic_name || ''} ${a.barcode || ''} ${a.barcode_id || ''} ${a.serial_number || ''} ${a.category || ''}`.toLowerCase();
           const englishSearchText = convertArabicToEnglishNumbers(searchText);
           const arabicSearchText = convertEnglishToArabicNumbers(searchText);
-          
-          console.log('🔍 البحث في الأكسسوار:', a.name || a.arabic_name, 'الباركود:', a.barcode, 'الرقم التسلسلي:', a.serial_number, 'النص:', searchText);
-          
+
           // البحث في جميع النسخ (الأصلية، الإنجليزية، العربية)
           return uniqueTerms.some(term => 
             searchText.includes(term) || 
@@ -343,9 +342,7 @@
       }
 
       console.log('📊 نتائج البحث:', { phones: phones.length, accessories: accessories.length });
-      console.log('📱 الهواتف المطابقة:', phones);
-      console.log('📦 الأكسسوارات المطابقة:', accessories);
-      
+
       // حفظ النتائج وإعادة تعيين الصفحة الأولى
       currentSearchResults = { phones, accessories };
       currentPage = 1;

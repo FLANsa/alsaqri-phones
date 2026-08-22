@@ -408,6 +408,14 @@
           return false;
         }
 
+        const purchase_price = parseArabicNumber(document.getElementById('purchase_price').value);
+        const selling_price = parseArabicNumber(document.getElementById('selling_price').value);
+
+        // التحقق من صحة النموذج قبل توليد رقم الباركود —
+        // التوليد يكتب على عداد Firestore فلا نستهلكه على نموذج غير مكتمل
+        if(!document.getElementById('brand').value || !document.getElementById('model').value || !document.getElementById('serial_number').value){ alert('يرجى ملء جميع الحقول المطلوبة'); return false; }
+        if(purchase_price<=0 || selling_price<=0){ alert('يرجى إدخال أسعار صحيحة'); return false; }
+
         let phone_number;
         if (window.editingPhoneId) {
           const phones = await (window.storage ? window.storage.getPhones() : Promise.resolve([]));
@@ -419,8 +427,6 @@
         } else {
           phone_number = generatePhoneNumberLocal();
         }
-        const purchase_price = parseArabicNumber(document.getElementById('purchase_price').value);
-        const selling_price = parseArabicNumber(document.getElementById('selling_price').value);
 
         const phoneData = {
           brand: document.getElementById('brand').value,
@@ -432,7 +438,7 @@
           selling_price_without_vat: selling_price/1.15,
           serial_number: document.getElementById('serial_number').value,
           phone_number,
-          
+
           description: document.getElementById('description').value,
           customer_name: document.getElementById('customer_name').value,
           customer_id: document.getElementById('customer_id').value,
@@ -443,9 +449,6 @@
           battery_level: '100',   // <— الجديد يظهر 100% في الملصق
           date_added: new Date().toISOString()
         };
-
-        if(!phoneData.brand || !phoneData.model || !phoneData.serial_number){ alert('يرجى ملء جميع الحقول المطلوبة'); return false; }
-        if(phoneData.purchase_price<=0 || phoneData.selling_price<=0){ alert('يرجى إدخال أسعار صحيحة'); return false; }
 
         // handoff سريع للملصق
         localStorage.setItem('lastAddedPhone', JSON.stringify(phoneData));

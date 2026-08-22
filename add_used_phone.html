@@ -441,6 +441,17 @@
           return false;
         }
 
+        const batteryLevel = document.getElementById('age').value.trim();
+
+        // التحقق من صحة النموذج قبل توليد رقم الباركود —
+        // التوليد يكتب على عداد Firestore فلا نستهلكه على نموذج غير مكتمل
+        const purchase_price = parseArabicNumber(document.getElementById('purchase_price').value);
+        const selling_price = parseArabicNumber(document.getElementById('selling_price').value);
+        const phone_condition = document.getElementById('phone_condition').value;
+        if(!document.getElementById('brand').value || !document.getElementById('model').value || !document.getElementById('serial_number').value){ alert('يرجى ملء جميع الحقول المطلوبة'); return false; }
+        if(purchase_price<=0 || selling_price<=0){ alert('يرجى إدخال أسعار صحيحة'); return false; }
+        if(!phone_condition){ alert('يرجى اختيار حالة الهاتف'); return false; }
+
         let phone_number;
         if (window.editingPhoneId) {
           const phones = await (window.storage ? window.storage.getPhones() : Promise.resolve([]));
@@ -452,19 +463,18 @@
         } else {
           phone_number = generatePhoneNumberLocal();
         }
-        const batteryLevel = document.getElementById('age').value.trim();
 
         const phoneData = {
           brand: document.getElementById('brand').value,
           model: document.getElementById('model').value,
           condition: 'used',
-          purchase_price: parseArabicNumber(document.getElementById('purchase_price').value),
-          selling_price: parseArabicNumber(document.getElementById('selling_price').value),
-          purchase_price_without_vat: parseArabicNumber(document.getElementById('purchase_price').value) / 1.15,
-          selling_price_without_vat: parseArabicNumber(document.getElementById('selling_price').value) / 1.15,
+          purchase_price,
+          selling_price,
+          purchase_price_without_vat: purchase_price / 1.15,
+          selling_price_without_vat: selling_price / 1.15,
           serial_number: document.getElementById('serial_number').value,
           phone_number,
-          phone_condition: document.getElementById('phone_condition').value,
+          phone_condition: phone_condition,
           age: batteryLevel,
           battery_level: batteryLevel,   // <— يجعل الملصق يعرض نفس القيمة ضمن "نسبة البطارية"
           description: document.getElementById('description').value,
@@ -476,10 +486,6 @@
           buyer_name: document.getElementById('buyer_name').value,
           date_added: new Date().toISOString()
         };
-
-        if(!phoneData.brand || !phoneData.model || !phoneData.serial_number){ alert('يرجى ملء جميع الحقول المطلوبة'); return false; }
-        if(phoneData.purchase_price<=0 || phoneData.selling_price<=0){ alert('يرجى إدخال أسعار صحيحة'); return false; }
-        if(!phoneData.phone_condition){ alert('يرجى اختيار حالة الهاتف'); return false; }
 
         // حفظ سريع محلي لتغذية صفحة الطباعة فورًا
         localStorage.setItem('lastAddedPhone', JSON.stringify(phoneData));

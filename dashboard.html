@@ -304,17 +304,21 @@
     
     function getCachedData(key) {
       try {
-        const data = localStorage.getItem(CACHE_CONFIG.keys[key]);
-        const timestamp = localStorage.getItem(CACHE_CONFIG.keys.timestamps[key]);
-        
+        // المفاتيح المسماة تُترجم عبر الجدول؛ المفاتيح الديناميكية (sales_range_...)
+        // تُستخدم كما هي — قبل هذا الفحص كانت تُخزَّن كلها تحت مفتاح "undefined"
+        const dataKey = CACHE_CONFIG.keys[key] ?? key;
+        const timeKey = CACHE_CONFIG.keys.timestamps[key] ?? (key + '_time');
+        const data = localStorage.getItem(dataKey);
+        const timestamp = localStorage.getItem(timeKey);
+
         if (!data || !timestamp) return null;
-        
+
         const age = Date.now() - parseInt(timestamp);
         if (age > CACHE_CONFIG.duration) {
           console.log(`🕐 Cache expired for ${key}`);
           return null;
         }
-        
+
         console.log(`📦 Using cached data for ${key} (${Math.round(age/1000)}s old)`);
         return JSON.parse(data);
       } catch (e) {
@@ -325,8 +329,10 @@
 
     function setCachedData(key, data) {
       try {
-        localStorage.setItem(CACHE_CONFIG.keys[key], JSON.stringify(data));
-        localStorage.setItem(CACHE_CONFIG.keys.timestamps[key], Date.now().toString());
+        const dataKey = CACHE_CONFIG.keys[key] ?? key;
+        const timeKey = CACHE_CONFIG.keys.timestamps[key] ?? (key + '_time');
+        localStorage.setItem(dataKey, JSON.stringify(data));
+        localStorage.setItem(timeKey, Date.now().toString());
       } catch (e) {
         console.error('Cache write error:', e);
       }
@@ -340,6 +346,13 @@
           Object.values(key).forEach(subKey => localStorage.removeItem(subKey));
         }
       });
+      // مسح كاش طبقة البيانات (fs_cache_) ومفاتيح فترات المبيعات الديناميكية
+      // حتى يُظهر زر التحديث أحدث البيانات فوراً بدل انتظار انتهاء صلاحية 5 دقائق
+      try {
+        Object.keys(localStorage)
+          .filter(k => k.startsWith('fs_cache_') || k.startsWith('sales_range_') || k === 'undefined')
+          .forEach(k => localStorage.removeItem(k));
+      } catch (e) { /* تجاهل */ }
       console.log('🗑️ Cache cleared');
     }
 
