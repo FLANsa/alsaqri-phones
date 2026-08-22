@@ -661,6 +661,35 @@
     }
   }
 
+  // خريطة هواتف الفاتورة الحالية — تُجلب مرة واحدة وبعناصر الهاتف الناقصة
+  // الرقم التسلسلي فقط، بدل قراءة مجموعة الهواتف كاملة عند كل عرض/طباعة
+  let _invoicePhonesMapPromise = null;
+  function getInvoicePhonesMap() {
+    if (_invoicePhonesMapPromise) return _invoicePhonesMapPromise;
+    _invoicePhonesMapPromise = (async () => {
+      const refs = (currentSale.items || [])
+        .filter(it => it.type === 'phone' && !it.serial_number && !it.barcode && it.id != null)
+        .map(it => String(it.id));
+      if (refs.length === 0) return {};
+      if (window.storage && window.storage.isFirebaseAvailable && typeof window.storage.getPhonesByRefs === 'function') {
+        try {
+          return await window.storage.getPhonesByRefs(refs);
+        } catch (e) {
+          console.warn('⚠️ تعذر الجلب الموجّه للهواتف:', e);
+          return {};
+        }
+      }
+      const phones = JSON.parse(localStorage.getItem('phones') || '[]');
+      const map = {};
+      phones.forEach(p => {
+        if (p.id != null) map[String(p.id)] = p;
+        if (p.phone_number != null) map[String(p.phone_number)] = p;
+      });
+      return map;
+    })();
+    return _invoicePhonesMapPromise;
+  }
+
   // عرض منتجات البيع
   async function displaySaleItems() {
     const itemsContainer = document.getElementById('sale_items');
@@ -668,13 +697,8 @@
 
     try {
       if (currentSale.items && currentSale.items.length > 0) {
-      // جلب بيانات الهواتف من قاعدة البيانات للرقم التسلسلي
-      let phones = [];
-      if (window.storage && window.storage.isFirebaseAvailable) {
-        phones = await window.storage.getPhones();
-      } else {
-        phones = JSON.parse(localStorage.getItem('phones') || '[]');
-      }
+      // جلب بيانات الهواتف المطلوبة فقط للرقم التسلسلي (خريطة مشارَكة مع الطباعة)
+      const phonesMap = await getInvoicePhonesMap();
 
       for (const item of currentSale.items) {
         const row = document.createElement('tr');
@@ -683,7 +707,7 @@
         let serialNumber = item.serial_number || item.barcode || 'لا يوجد';
         
         if (item.type === 'phone' && (!item.serial_number && !item.barcode)) {
-          const phone = phones.find(p => (p.id === item.id || p.phone_number === item.id));
+          const phone = phonesMap[String(item.id)];
           if (phone) {
             serialNumber = phone.serial_number || phone.phone_number || 'لا يوجد';
           }
@@ -1054,13 +1078,8 @@
     receiptItems.innerHTML = '';
     
     if (currentSale.items && currentSale.items.length > 0) {
-      // جلب بيانات الهواتف من قاعدة البيانات للرقم التسلسلي
-      let phones = [];
-      if (window.storage && window.storage.isFirebaseAvailable) {
-        phones = await window.storage.getPhones();
-      } else {
-        phones = JSON.parse(localStorage.getItem('phones') || '[]');
-      }
+      // نفس خريطة العرض — لا قراءة إضافية عند الطباعة
+      const phonesMap = await getInvoicePhonesMap();
 
       for (const item of currentSale.items) {
         const row = document.createElement('tr');
@@ -1070,7 +1089,7 @@
         // البحث عن الرقم التسلسلي من قاعدة البيانات إذا لم يكن موجوداً
         let serialNumber = item.serial_number || item.barcode || 'غير محدد';
         if (item.type === 'phone' && (!item.serial_number && !item.barcode)) {
-          const phone = phones.find(p => (p.id === item.id || p.phone_number === item.id));
+          const phone = phonesMap[String(item.id)];
           if (phone) {
             serialNumber = phone.serial_number || phone.phone_number || 'غير محدد';
           }
@@ -1241,16 +1260,38 @@
       if (!confirm('هل تريد استرجاع كامل الفاتورة وإرجاع المنتجات إلى المخزون؟')) return;
 
       // استرجاع مخزون الأكسسوارات + لا نلمس الهاتف (يصبح متاحاً تلقائياً لأننا نستبعد المبيعات المسترجعة)
-      let accessories = [];
-      if (window.storage && window.storage.isFirebaseAvailable) {
-        accessories = await window.storage.getAccessories();
-      } else {
-        accessories = JSON.parse(localStorage.getItem('accessories') || '[]');
+      // نجلب الأكسسوارات المطلوبة بمعرّفاتها مباشرة بدل قراءة المجموعة كاملة،
+      // مع fallback للمجموعة فقط إذا لم يُعثر على بعضها (فواتير قديمة تخزّن sku)
+      const accItems = (currentSale.items || []).filter(it => it.type && it.type !== 'phone');
+      const accMap = {};
+      let needFallback = !(window.storage && window.storage.isFirebaseAvailable);
+      if (!needFallback && typeof window.storage.getAccessoryById === 'function') {
+        for (const it of accItems) {
+          if (it.id == null) continue;
+          try {
+            const acc = await window.storage.getAccessoryById(String(it.id));
+            if (acc) accMap[String(it.id)] = acc;
+            else needFallback = true;
+          } catch (e) {
+            needFallback = true;
+          }
+        }
+      } else if (!needFallback) {
+        needFallback = true;
+      }
+      if (needFallback) {
+        const accessories = (window.storage && window.storage.isFirebaseAvailable)
+          ? await window.storage.getAccessories()
+          : JSON.parse(localStorage.getItem('accessories') || '[]');
+        accessories.forEach(a => {
+          if (a.id != null) accMap[String(a.id)] = a;
+          if (a.sku != null) accMap[String(a.sku)] = a;
+        });
       }
 
       for (const item of (currentSale.items || [])) {
         if (item.type && item.type !== 'phone') {
-          const acc = accessories.find(a => a.id === item.id || a.sku === item.id);
+          const acc = accMap[String(item.id)];
           if (acc) {
             const currentStock = Number(acc.quantity_in_stock ?? acc.quantity ?? 0);
             const newStock = currentStock + (Number(item.quantity) || 0);
@@ -1259,6 +1300,7 @@
             if (window.storage && window.storage.isFirebaseAvailable) {
               await window.storage.updateAccessory?.(acc.id, acc);
             } else {
+              const accessories = JSON.parse(localStorage.getItem('accessories') || '[]');
               const updatedAccessories = accessories.map(a => (a.id === acc.id ? acc : a));
               localStorage.setItem('accessories', JSON.stringify(updatedAccessories));
             }

@@ -265,11 +265,15 @@
         console.log('🔄 تحميل بيانات الهاتف للتعديل:', phoneNumber);
         
         let phone = null;
-        
-        // البحث في Firebase أولاً
-        if (window.storage && window.storage.isFirebaseAvailable) {
-          const phones = await window.storage.getPhones();
-          phone = phones.find(p => p.phone_number === phoneNumber || p.id === phoneNumber);
+
+        // البحث في Firebase أولاً — استعلام موجّه برقم الباركود بدل قراءة المجموعة كاملة
+        if (window.storage && window.storage.isFirebaseAvailable && typeof window.storage.getPhoneByNumber === 'function') {
+          try {
+            phone = await window.storage.getPhoneByNumber(phoneNumber);
+          } catch (e) {
+            console.warn('⚠️ تعذر البحث الموجّه، سيتم تجاهله:', e);
+            phone = null;
+          }
         }
         
         // البحث في localStorage كبديل

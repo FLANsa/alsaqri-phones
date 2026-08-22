@@ -168,7 +168,8 @@
         // If your API has a direct method, prefer it:
         if(typeof window.storage.getAccessoryByBarcode === 'function'){
           const one = await window.storage.getAccessoryByBarcode(String(barcode));
-          if(one) return one;
+          // الاستعلام الموجّه حاسم: null تعني غير موجود — لا نعيد قراءة المجموعة كاملة
+          return one || null;
         }
         // Otherwise scan list (supports object or array):
         const all = await window.storage.getAccessories();

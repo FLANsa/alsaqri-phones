@@ -194,7 +194,8 @@
         // If your API has a direct method, prefer it:
         if(typeof window.storage.getPhoneByNumber === 'function'){
           const one = await window.storage.getPhoneByNumber(String(phoneNumber));
-          if(one) return one;
+          // الاستعلام الموجّه حاسم: null تعني غير موجود — لا نعيد قراءة المجموعة كاملة
+          return one || null;
         }
         // Otherwise scan list (supports object or array):
         const all = await window.storage.getPhones();

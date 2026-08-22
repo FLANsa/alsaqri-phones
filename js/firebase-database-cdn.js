@@ -12,6 +12,7 @@ import {
   where,
   orderBy,
   onSnapshot,
+  documentId,
   serverTimestamp,
   increment,
   runTransaction
@@ -200,6 +201,98 @@ class FirebaseDatabase {
         console.warn('⚠️ hasPhoneWithNumber: تعذر الفحص بسبب حصة Firestore، سنتجاوز فحص التكرار.');
         return false;
       }
+      throw error;
+    }
+  }
+
+  // ===== قراءات موجّه (بدائل قراءة مجموعة كاملة لإيجاد سجل واحد) =====
+
+  /**
+   * جلب هاتف واحد برقم الباركود (phone_number) عبر استعلام where بدل قراءة المجموعة كاملة
+   */
+  async getPhoneByNumberQuery(phoneNumber) {
+    const normalized = String(phoneNumber || '').trim();
+    if (!normalized) return null;
+    try {
+      const snap = await getDocs(
+        query(collection(this.db, 'phones'), where('phone_number', '==', normalized))
+      );
+      let found = null;
+      snap.forEach((d) => { if (!found) found = { id: d.id, ...d.data() }; });
+      return found;
+    } catch (error) {
+      console.error('❌ Error getting phone by number:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * جلب أكسسوار واحد بمعرّف المستند
+   */
+  async getAccessoryById(accessoryId) {
+    try {
+      const snap = await getDoc(doc(this.db, 'accessories', accessoryId));
+      return snap.exists() ? { id: snap.id, ...snap.data() } : null;
+    } catch (error) {
+      console.error('❌ Error getting accessory by id:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * جلب أكسسوار واحد بباركوده (barcode ثم barcode_id)
+   */
+  async getAccessoryByBarcode(barcode) {
+    const normalized = String(barcode || '').trim();
+    if (!normalized) return null;
+    try {
+      for (const field of ['barcode', 'barcode_id']) {
+        const snap = await getDocs(
+          query(collection(this.db, 'accessories'), where(field, '==', normalized))
+        );
+        let found = null;
+        snap.forEach((d) => { if (!found) found = { id: d.id, ...d.data() }; });
+        if (found) return found;
+      }
+      return null;
+    } catch (error) {
+      console.error('❌ Error getting accessory by barcode:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * جلب عدة هواتف بمراجعها (معرّف مستند أو رقم باركود) دفعة واحدة.
+   * تفصل المراجع إلى: شبيهة بمعرّف مستند (طويلة) تُجلب بـ documentId in،
+   * وشبيهة برقم باركود (أرقام قصيرة) تُجلب بـ phone_number in.
+   * تعيد خريطة { المرجع الأصلي: الهاتف }.
+   */
+  async getPhonesByRefs(refs) {
+    const unique = [...new Set((refs || []).map(r => String(r || '').trim()).filter(Boolean))];
+    const map = {};
+    if (unique.length === 0) return map;
+    try {
+      const idLike = unique.filter(r => r.length > 10);
+      const numberLike = unique.filter(r => r.length <= 10);
+      const fetchBy = async (field, values) => {
+        for (let i = 0; i < values.length; i += 10) {
+          const chunk = values.slice(i, i + 10);
+          const constraint = field === '__docId'
+            ? where(documentId(), 'in', chunk)
+            : where(field, 'in', chunk);
+          const snap = await getDocs(query(collection(this.db, 'phones'), constraint));
+          snap.forEach((d) => {
+            const phone = { id: d.id, ...d.data() };
+            map[phone.id] = phone;
+            if (phone.phone_number != null) map[String(phone.phone_number)] = phone;
+          });
+        }
+      };
+      await fetchBy('__docId', idLike);
+      await fetchBy('phone_number', numberLike);
+      return map;
+    } catch (error) {
+      console.error('❌ Error getting phones by refs:', error);
       throw error;
     }
   }
@@ -993,17 +1086,18 @@ class FirebaseDatabase {
 
   async getSettlements(filters = {}) {
     try {
-      let query = collection(this.db, 'settlements');
-      
+      // تنبيه: المتغير المحلي كان يحجب دالة query المستوردة ويرمي TypeError عند الفلترة
+      let q = collection(this.db, 'settlements');
+
       if (filters.type) {
-        query = query(query, where('type', '==', filters.type));
-      }
-      
-      if (filters.status) {
-        query = query(query, where('status', '==', filters.status));
+        q = query(q, where('type', '==', filters.type));
       }
 
-      const querySnapshot = await getDocs(query);
+      if (filters.status) {
+        q = query(q, where('status', '==', filters.status));
+      }
+
+      const querySnapshot = await getDocs(q);
       const settlements = [];
       querySnapshot.forEach(doc => {
         settlements.push({ id: doc.id, ...doc.data() });

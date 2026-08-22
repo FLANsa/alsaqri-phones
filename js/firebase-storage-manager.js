@@ -242,6 +242,15 @@ class FirebaseStorageManager {
   }
 
   async getPhoneByNumber(phoneNumber) {
+    // استعلام where موجّه بدل قراءة مجموعة الهواتف كاملة
+    if (this.isFirebaseAvailable && typeof this.firebaseDB.getPhoneByNumberQuery === 'function') {
+      try {
+        return await this.firebaseDB.getPhoneByNumberQuery(phoneNumber);
+      } catch (error) {
+        console.error('Error getting phone by number from Firebase:', error);
+        return null;
+      }
+    }
     const phones = await this.getPhones();
     const s = String(phoneNumber || '');
     return phones.find(p => String(p.phone_number || '') === s);
@@ -250,6 +259,51 @@ class FirebaseStorageManager {
   async getPhoneBySerial(serialNumber) {
     const phones = await this.getPhones();
     return phones.find(p => p.serial_number === serialNumber);
+  }
+
+  async getPhonesByRefs(refs) {
+    if (this.isFirebaseAvailable && typeof this.firebaseDB.getPhonesByRefs === 'function') {
+      try {
+        return await this.firebaseDB.getPhonesByRefs(refs);
+      } catch (error) {
+        console.error('Error getting phones by refs from Firebase:', error);
+        return {};
+      }
+    }
+    const phones = await this.getPhones();
+    const map = {};
+    (phones || []).forEach(p => {
+      if (p.id != null) map[String(p.id)] = p;
+      if (p.phone_number != null) map[String(p.phone_number)] = p;
+    });
+    return map;
+  }
+
+  async getAccessoryById(accessoryId) {
+    if (this.isFirebaseAvailable && typeof this.firebaseDB.getAccessoryById === 'function') {
+      try {
+        return await this.firebaseDB.getAccessoryById(accessoryId);
+      } catch (error) {
+        console.error('Error getting accessory by id from Firebase:', error);
+        return null;
+      }
+    }
+    const accessories = await this.getAccessories();
+    return (accessories || []).find(a => String(a.id) === String(accessoryId)) || null;
+  }
+
+  async getAccessoryByBarcode(barcode) {
+    if (this.isFirebaseAvailable && typeof this.firebaseDB.getAccessoryByBarcode === 'function') {
+      try {
+        return await this.firebaseDB.getAccessoryByBarcode(barcode);
+      } catch (error) {
+        console.error('Error getting accessory by barcode from Firebase:', error);
+        return null;
+      }
+    }
+    const accessories = await this.getAccessories();
+    const s = String(barcode || '');
+    return (accessories || []).find(a => String(a.barcode || '') === s || String(a.barcode_id || '') === s) || null;
   }
 
   /**

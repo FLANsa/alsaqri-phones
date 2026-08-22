@@ -382,12 +382,10 @@
           showAlert('danger', 'Firebase غير متاح - يرجى التحقق من الاتصال');
           return;
         }
-        
-        const accessories = await window.storage.getAccessories();
-        
-        // البحث عن الأكسسوار
+
+        // البحث في المصفوفة المحمّلة في الذاكرة (نفس بيانات الجدول) بدل إعادة قراءة المجموعة
         const accessory = accessories.find(acc => acc.id === accessoryId || acc.id === parseInt(accessoryId));
-        
+
         if (!accessory) {
           showAlert('danger', 'الأكسسوار غير موجود');
           return;
@@ -485,9 +483,7 @@
           return;
         }
         
-        const accessories = await window.storage.getAccessories();
-        
-        // البحث عن الأكسسوار
+        // البحث في المصفوفة المحمّلة في الذاكرة بدل إعادة قراءة المجموعة
         const accessory = accessories.find(acc => acc.id === accessoryId || acc.id === parseInt(accessoryId));
         
         if (!accessory) {
