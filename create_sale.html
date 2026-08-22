@@ -891,7 +891,8 @@
       const totalPurchaseCost = cart.reduce((s, it) => s + ((it.purchasePrice || 0) * it.quantity), 0);
 
       // حساب الضريبة - السعر يشمل الضريبة (15%)
-      const vatRate = (typeof CONFIG !== 'undefined' && CONFIG.VAT_RATE) ? CONFIG.VAT_RATE : 0.15;
+      // (config.js القديم لم يكن يُحمَّل قط — القيمة هنا هي المعمول بها فعليًا)
+      const vatRate = 0.15;
       const subtotal = total / (1 + vatRate); // المبلغ بدون ضريبة
       const vatAmount = total - subtotal; // قيمة الضريبة
 

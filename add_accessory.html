@@ -512,8 +512,13 @@
             console.log('✅ تم حفظ الأكسسوار في Firebase بنجاح! ID:', accessoryId);
             console.log('📂 الفئة:', accessoryData.category);
             console.log('🏷️ الباركود:', accessoryData.barcode);
+            // تسليم سريع لصفحة طباعة الباركود بدون قراءة Firestore
+            // (كان هذا المفتاح يُقرأ في print_accessory_barcode ولا يكتبه أحد)
+            try {
+              localStorage.setItem('lastAddedAccessory', JSON.stringify({ ...accessoryData, id: accessoryId }));
+            } catch (_) {}
             showAlert('success', `تم إضافة الأكسسوار "${accessoryData.name}" بنجاح!`);
-            
+
             // إظهار زر طباعة الباركود
             document.getElementById('printBarcodeBtn').style.display = 'inline-block';
             
@@ -530,6 +535,9 @@
           accessoryData.id = Date.now().toString();
           accessories.push(accessoryData);
           localStorage.setItem('accessories', JSON.stringify(accessories));
+          try {
+            localStorage.setItem('lastAddedAccessory', JSON.stringify(accessoryData));
+          } catch (_) {}
           console.log('✅ تم حفظ الأكسسوار في localStorage');
           console.log('🏷️ الباركود:', accessoryData.barcode);
           showAlert('success', 'تم إضافة الأكسسوار بنجاح! (محلي)');
