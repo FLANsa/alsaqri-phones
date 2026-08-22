@@ -279,8 +279,11 @@
   }
 
   // التحقق من بيع الهاتف
-  function isPhoneSold(phoneId, salesData = []) {
+  function isPhoneSold(phone, salesData = []) {
+    // علم sold على مستند الهاتف أولًا (متاح بعد تشغيل migrateSoldFlags)
+    if (phone && typeof phone.sold === 'boolean') return phone.sold;
     try {
+      const phoneId = phone && (phone.id || phone.phone_number);
       const rawSales = salesData.length > 0 ? salesData : JSON.parse(localStorage.getItem('sales') || '[]');
       const sales = (rawSales || []).filter(s => s && s.returned !== true && s.status !== 'مسترجعة');
       return sales.some(sale =>
@@ -297,18 +300,23 @@
   async function updateInventorySummary() {
     try {
       console.log('📊 تحديث ملخص المخزون من قاعدة البيانات...');
-      
+
       let phones = [];
       let accessories = [];
       let sales = [];
-      
+
       // تحميل البيانات من Firebase أو localStorage
       if (window.storage && window.storage.isFirebaseAvailable) {
         console.log('🔥 تحميل البيانات من Firebase...');
-        phones = await window.storage.getPhones();
-        accessories = await window.storage.getAccessories();
-        sales = await window.storage.getSales();
-        console.log('✅ تم تحميل البيانات من Firebase:', { phones: phones.length, accessories: accessories.length, sales: sales.length });
+        // قراءات متوازية بدل التسلسل، ومبيعات فقط إذا لزمت (قبل اكتمال علم sold)
+        const [p, a] = await Promise.all([
+          window.storage.getPhones(),
+          window.storage.getAccessories()
+        ]);
+        phones = p; accessories = a;
+        const allFlagged = phones.length > 0 && phones.every(ph => typeof ph.sold === 'boolean');
+        if (!allFlagged) sales = await window.storage.getSales();
+        console.log('✅ تم تحميل البيانات من Firebase:', { phones: phones.length, accessories: accessories.length, sales: sales.length, soldFlagsReady: allFlagged });
       } else {
         console.log('💾 Firebase غير متاح، تحميل من localStorage...');
         phones = JSON.parse(localStorage.getItem('phones') || '[]');
@@ -319,7 +327,7 @@
       // تصفية الهواتف المباعة - إبقاء الهواتف المتاحة فقط
       const availablePhones = phones.filter(phone => {
         const phoneId = phone.id || phone.phone_number;
-        return phoneId && !isPhoneSold(phoneId, sales);
+        return phoneId && !isPhoneSold(phone, sales);
       });
 
       console.log('📱 الهواتف المتاحة:', availablePhones.length, 'من أصل', phones.length);
@@ -541,7 +549,7 @@
     if (!checkLogin()) return;
 
     // انتظار تهيئة Firebase
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    // انتظار جاهزية Firebase فعليًا بدل مهلة ثابتة ثانية (يستيقظ فور جهوزها)\n    await new Promise(resolve => {\n      const t0 = Date.now();\n      const iv = setInterval(() => {\n        if ((window.storage && window.firebaseDatabase) || Date.now() - t0 > 5000) {\n          clearInterval(iv); resolve();\n        }\n      }, 50);\n    });
     
     if (window.storage && window.storage.isFirebaseAvailable) {
       console.log('✅ Firebase متاح في صفحة ملخص المخزون');

@@ -557,7 +557,7 @@
     // تحديث شريط التنقل للمستخدم المحدود
     updateNavigationForUser();
 
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    // انتظار جاهزية Firebase فعليًا بدل مهلة ثابتة ثانية (يستيقظ فور جهوزها)\n    await new Promise(resolve => {\n      const t0 = Date.now();\n      const iv = setInterval(() => {\n        if ((window.storage && window.firebaseDatabase) || Date.now() - t0 > 5000) {\n          clearInterval(iv); resolve();\n        }\n      }, 50);\n    });
     
     
     
@@ -1306,6 +1306,21 @@
             }
           }
         }
+      }
+
+      // إعادة الهواتف إلى متاحة: sold:false (يكمل عمل علم sold —
+      // بدونها تعود الصفحات لقراءة مجموعة sales كاملة لمعرفة المباع)
+      try {
+        const phoneItems = (currentSale.items || []).filter(it => it.type === 'phone' && it.id != null);
+        if (phoneItems.length && window.storage && window.storage.isFirebaseAvailable && typeof window.storage.getPhonesByRefs === 'function') {
+          const phonesMap = await window.storage.getPhonesByRefs(phoneItems.map(it => String(it.id)));
+          for (const it of phoneItems) {
+            const ph = phonesMap[String(it.id)];
+            if (ph && ph.id) await window.storage.updatePhone?.(ph.id, { sold: false });
+          }
+        }
+      } catch (e) {
+        console.warn('⚠️ تعذّر تحديث علم sold عند الاسترجاع:', e);
       }
 
       // تحديث سجل البيع كـ مسترجعة

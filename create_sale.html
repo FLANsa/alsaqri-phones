@@ -284,17 +284,24 @@
     // ====== تحميل البيانات ======
     async function loadDataFromFirebase() {
       try {
-        const [p, a, c, s] = await Promise.all([
+        // مجموعة sales تُقرأ فقط إذا لم تكن كل الهواتف تحمل علم sold
+        // (بعد تشغيل migrateSoldFlags مرة واحدة تتوقف قراءتها هنا نهائيًا)
+        const [p, a, c] = await Promise.all([
           window.storage.getPhones?.() ?? [],
           window.storage.getAccessories?.() ?? [],
-          window.storage.getAccessoryCategories?.() ?? [],
-          window.storage.getSales?.() ?? []
+          window.storage.getAccessoryCategories?.() ?? []
         ]);
         phones = Array.isArray(p) ? p : [];
         accessories = Array.isArray(a) ? a : [];
         accessoryCategories = Array.isArray(c) ? c : [];
-        sales = Array.isArray(s) ? s : [];
-        console.log('📥 Firebase:', { phones: phones.length, accessories: accessories.length, categories: accessoryCategories.length, sales: sales.length });
+        const allFlagged = phones.length > 0 && phones.every(ph => typeof ph.sold === 'boolean');
+        if (!allFlagged) {
+          const s = await window.storage.getSales?.() ?? [];
+          sales = Array.isArray(s) ? s : [];
+        } else {
+          sales = [];
+        }
+        console.log('📥 Firebase:', { phones: phones.length, accessories: accessories.length, categories: accessoryCategories.length, sales: sales.length, soldFlagsReady: allFlagged });
       } catch (err) {
         console.error('❌ خطأ تحميل Firebase:', err);
         await loadDataFromLocalStorage();
@@ -316,6 +323,9 @@
   
     // ====== بيع الهاتف مرة واحدة ======
     function isPhoneSold(phoneId) {
+      // علم sold على مستند الهاتف أولًا (متاح بعد الترحيل)
+      const phone = phones.find(p => p.id === phoneId || p.phone_number === phoneId);
+      if (phone && typeof phone.sold === 'boolean') return phone.sold;
       if (!sales || sales.length === 0) return false;
       const effectiveSales = sales.filter(s => s && s.returned !== true && s.status !== 'مسترجعة');
       return effectiveSales.some(sale =>
@@ -925,6 +935,18 @@
           const saleId = await window.storage.addSale?.(saleData);
           if (!saleId) throw new Error('فشل حفظ البيع في Firebase');
           saleData.id = saleId;
+
+          // وسم الهواتف المباعة sold:true — يتيح للصفحات الاستغناء عن قراءة
+          // مجموعة sales كاملة لمعرفة المباع (انظر migrateSoldFlags)
+          try {
+            const phoneItems = (cart || []).filter(it => it.type === 'phone');
+            for (const it of phoneItems) {
+              const ph = phones.find(p => p.id === it.id || p.phone_number === it.id);
+              if (ph && ph.id) await window.storage.updatePhone?.(ph.id, { sold: true });
+            }
+          } catch (e) {
+            console.warn('⚠️ تعذر وسم الهاتف كمباع (لن يؤثر على الفاتورة):', e);
+          }
         } else {
           const sales = JSON.parse(localStorage.getItem('sales') || '[]');
           saleData.id = Date.now().toString();

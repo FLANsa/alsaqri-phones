@@ -214,6 +214,12 @@
   // ===== هل الهاتف مباع؟ (نفس منطق صفحة المبيعات مع شوية مرونة في الحقول) =====
   function isPhoneSold(phoneId) {
     if (!phoneId) return false;
+
+    // علم sold على مستند الهاتف أولًا (متاح بعد تشغيل migrateSoldFlags)
+    const phone = allPhones.find(p => p.id === phoneId || p.phone_number === phoneId ||
+      p.serial_number === phoneId || p.device_number === phoneId);
+    if (phone && typeof phone.sold === 'boolean') return phone.sold;
+
     if (!allSales || allSales.length === 0) return false;
 
     // استبعدنا العمليات المسترجعة
@@ -263,12 +269,16 @@
       // تحميل البيانات من Firebase أو localStorage
       if (window.storage && window.storage.isFirebaseAvailable) {
         console.log('🔥 تحميل البيانات من Firebase للبحث...');
-        allPhones = await window.storage.getPhones();
-        allAccessories = await window.storage.getAccessories();
-        allSales = await window.storage.getSales();
+        [allPhones, allAccessories] = await Promise.all([
+          window.storage.getPhones(),
+          window.storage.getAccessories()
+        ]);
+        // مجموعة sales تُقرأ فقط إذا لم تكن كل الهواتف تحمل علم sold
+        const allFlagged = allPhones.length > 0 && allPhones.every(p => typeof p.sold === 'boolean');
+        allSales = allFlagged ? [] : await window.storage.getSales();
         console.log('📱 الهواتف المحملة:', allPhones);
         console.log('📦 الأكسسوارات المحملة:', allAccessories);
-        console.log('🧾 المبيعات المحملة:', allSales);
+        console.log('🧾 المبيعات المحملة:', allSales, '(أعلام sold جاهزة:', allFlagged, ')');
       } else {
         console.log('💾 Firebase غير متاح، تحميل من localStorage...');
         allPhones = JSON.parse(localStorage.getItem('phones') || '[]');
@@ -728,9 +738,13 @@
     try {
       if (window.storage && window.storage.isFirebaseAvailable) {
         console.log('🔥 تحميل جميع البيانات من Firebase...');
-        allPhones = await window.storage.getPhones();
-        allAccessories = await window.storage.getAccessories();
-        allSales = await window.storage.getSales(); // ✅ مهم
+        [allPhones, allAccessories] = await Promise.all([
+          window.storage.getPhones(),
+          window.storage.getAccessories()
+        ]);
+        // مجموعة sales تُقرأ فقط قبل اكتمال أعلام sold على الهواتف
+        const allFlagged = allPhones.length > 0 && allPhones.every(p => typeof p.sold === 'boolean');
+        allSales = allFlagged ? [] : await window.storage.getSales(); // ✅ مهم لشارة مباع قبل الترحيل
         console.log('📱 جميع الهواتف:', allPhones);
         console.log('📦 جميع الأكسسوارات:', allAccessories);
         console.log('🧾 جميع المبيعات:', allSales);
@@ -791,7 +805,7 @@
     if (!checkLogin()) return;
 
     // انتظار تهيئة Firebase
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    // انتظار جاهزية Firebase فعليًا بدل مهلة ثابتة ثانية (يستيقظ فور جهوزها)\n    await new Promise(resolve => {\n      const t0 = Date.now();\n      const iv = setInterval(() => {\n        if ((window.storage && window.firebaseDatabase) || Date.now() - t0 > 5000) {\n          clearInterval(iv); resolve();\n        }\n      }, 50);\n    });
     
     if (window.storage && window.storage.isFirebaseAvailable) {
       console.log('✅ Firebase متاح في صفحة البحث');

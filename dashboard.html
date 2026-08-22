@@ -588,6 +588,16 @@
       return JSON.parse(localStorage.getItem('sales') || '[]');
     }
 
+    // مبيعات الفترة فقط — تُستخدم عندما تكون كل الهواتف تحمل علم sold
+    // (بعد تشغيل migrateSoldFlags مرة واحدة) فلا نحتاج المجموعة كاملة
+    async function getSalesPeriodData(startDate, endDate) {
+      if (window.storage?.isFirebaseAvailable && typeof window.storage.getSalesInRange === 'function') {
+        const key = `sales_range_${startDate.getTime()}_${endDate.getTime()}`;
+        return await fetchWithCache(key, () => window.storage.getSalesInRange(startDate, endDate));
+      }
+      return JSON.parse(localStorage.getItem('sales') || '[]');
+    }
+
     async function getMaintenanceData() {
       if (window.firebaseDatabase?.getMaintenanceJobs) {
         return await fetchWithCache('maintenance', () => 
@@ -599,8 +609,12 @@
 
     // ==================== التحقق من بيع الهاتف ====================
 
-    function isPhoneSold(phoneId, salesData) {
+    function isPhoneSold(phone, salesData) {
+      // علم sold على مستند الهاتف (بعد الترحيل) — إجابة فورية بلا مسح المبيعات
+      if (phone && typeof phone.sold === 'boolean') return phone.sold;
+      // المسار القديم: مسح مبيعات غير مسترجعة (يستمر حتى تُشغّل migrateSoldFlags)
       try {
+        const phoneId = phone && (phone.id || phone.phone_number);
         const sales = (salesData || []).filter(s => s && s.returned !== true && s.status !== 'مسترجعة');
         return sales.some(sale =>
           Array.isArray(sale.items) &&
@@ -620,13 +634,21 @@
       try {
         console.log('🚀 Starting dashboard update...');
         
-        // جلب جميع البيانات بشكل متوازي (أسرع!)
-        const [phones, accessories, sales, maintenanceJobs] = await Promise.all([
+        // الهواتف والأكسسوارات والصيانة بشكل متوازي، ثم المبيعات:
+        // إذا كانت كل الهواتف تحمل علم sold (بعد الترحيل) نقرأ فترة التاريخ فقط
+        // بدل مجموعة المبيعات كاملة
+        const [phones, accessories, maintenanceJobs] = await Promise.all([
           getPhonesData(),
           getAccessoriesData(),
-          getSalesData(),
           getMaintenanceData()
         ]);
+
+        const { startDate, endDate } = getDateRange();
+        const allFlagged = Array.isArray(phones) && phones.length > 0 &&
+          phones.every(p => typeof p.sold === 'boolean');
+        const sales = allFlagged
+          ? await getSalesPeriodData(startDate, endDate)
+          : await getSalesData();
 
         console.log('📊 Data loaded:', {
           phones: phones.length,
@@ -638,7 +660,7 @@
         // تصفية الهواتف المتاحة
         const availablePhones = phones.filter(phone => {
           const phoneId = phone.id || phone.phone_number;
-          return phoneId && !isPhoneSold(phoneId, sales);
+          return phoneId && !isPhoneSold(phone, allFlagged ? [] : sales);
         });
 
         // حساب قيم المخزون
@@ -661,8 +683,7 @@
         document.getElementById('total_selling_value').textContent = convertToLatinNumbers(totalSellingValue.toFixed(2)) + ' ريال';
         document.getElementById('total_expected_profit').textContent = convertToLatinNumbers(totalExpectedProfit.toFixed(2)) + ' ريال';
 
-        // تصفية المبيعات حسب الفترة
-        const { startDate, endDate } = getDateRange();
+        // تصفية المبيعات حسب الفترة (النطاق جلبناه أعلاه قبل قراءة المبيعات)
         let effectiveSales = (sales || []).filter(s => s && s.returned !== true && s.status !== 'مسترجعة');
         effectiveSales = filterSalesByDateRange(effectiveSales, startDate, endDate);
         
