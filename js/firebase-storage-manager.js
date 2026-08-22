@@ -37,8 +37,8 @@ class FirebaseStorageManager {
     
     if (this.isFirebaseAvailable) {
       console.log('🔥 Firebase Storage Manager initialized with Firebase');
-      // مزامنة مبكرة لعداد الأجهزة من Firestore (getDoc خفيف ويُخفف الاعتماد على المعاملة)
-      this.primePhoneCounterBase().catch(() => {});
+      // ملاحظة: لم يعد يُقرأ عداد الأجهزة عند تحميل الصفحات — تُؤجّل القراءة إلى
+      // لحظة حفظ هاتف جديد في صفحات الإضافة (انظر primePhoneCounterBase)
     } else {
       console.log('💾 Firebase not available, using LocalStorage fallback');
       this.initializeLocalStorage();

@@ -377,6 +377,19 @@
       return String(next).padStart(6,'0');
     }
 
+    // تهيئة قاعدة العداد المحلي مرة واحدة لكل جلسة قبل توليد باركود جديد
+    // (نُؤجل قراءة counters/phones من فتح الصفحة إلى لحظة الحفظ الفعلية)
+    async function primePhoneCounterOnce() {
+      try {
+        if (sessionStorage.getItem('phoneCounterPrimed') === '1') return;
+        sessionStorage.setItem('phoneCounterPrimed', '1');
+        const db = window.firebaseDatabase;
+        if (db && typeof db.primePhoneCounterBase === 'function') {
+          await db.primePhoneCounterBase();
+        }
+      } catch (e) { /* لا نعطّل الحفظ بسبب فشل التهيئة */ }
+    }
+
     async function savePhoneToFirebase(){
       try{
         // Validate customer ID and phone number
@@ -401,6 +414,7 @@
           const existing = Array.isArray(phones) ? phones.find(p => p.id === window.editingPhoneId || String(p.phone_number) === String(window.editingPhoneId)) : null;
           phone_number = existing ? String(existing.phone_number || '').trim() : generatePhoneNumberLocal();
         } else if (window.storage && typeof window.storage.getNextPhoneNumber === 'function') {
+          await primePhoneCounterOnce();
           phone_number = await window.storage.getNextPhoneNumber();
         } else {
           phone_number = generatePhoneNumberLocal();
