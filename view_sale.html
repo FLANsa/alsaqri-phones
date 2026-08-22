@@ -575,6 +575,12 @@
         showAlert('warning', 'لا توجد بيانات للعرض');
       }
     }
+
+    // طباعة تلقائية عند القدوم من زر الطباعة في قائمة المبيعات (?print=1)
+    // نستخدم مسار iframe مباشرة لأن window.open يُحجب خارج حدث نقرة
+    if (urlParams.get('print') === '1' && currentSale) {
+      setTimeout(() => printReceipt({ auto: true }), 300);
+    }
   });
 
   // تحميل بيانات البيع من Firebase
@@ -916,18 +922,20 @@
   // متغير لمنع الطباعة المتعددة
   let isPrinting = false;
 
-  // طباعة الفاتورة
-  async function printReceipt() {
-    if (isPrinting) { showAlert('info','جاري الطباعة...'); return; }
-    if (!currentSale) { showAlert('warning','لا توجد بيانات للطباعة'); return; }
+  // طباعة الفاتورة — options.auto = true تعني طباعة تلقائية بعد تحميل الصفحة
+  // (تتجاوز نافذة popup لأنها تُحجب خارج حدث نقرة، وتستخدم مسار iframe مباشرة)
+  async function printReceipt(options = {}) {
+    const autoMode = !!(options && options.auto);
+    if (isPrinting) { if (!autoMode) showAlert('info','جاري الطباعة...'); return; }
+    if (!currentSale) { if (!autoMode) showAlert('warning','لا توجد بيانات للطباعة'); return; }
 
     isPrinting = true;
     const printBtn = document.getElementById('printBtn');
     if (printBtn) { printBtn.disabled = true; printBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> جاري الطباعة...'; }
 
     try {
-      // 1) افتح النافذة فورًا (ضمن حدث الضغط) قبل أي await
-      const popup = window.open('', 'printWindow', 'width=420,height=800');
+      // 1) افتح النافذة فورًا (ضمن حدث الضغط) قبل أي await — إلا في الطباعة التلقائية
+      const popup = autoMode ? null : window.open('', 'printWindow', 'width=420,height=800');
       const willUsePopup = !!popup;
 
       // 2) جهّز المحتوى (قد يأخذ وقت)

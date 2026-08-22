@@ -139,13 +139,15 @@
   document.addEventListener('DOMContentLoaded', async () => {
     // انتظار تهيئة Firebase
     await new Promise(resolve => setTimeout(resolve, 1000));
-    
+
     if (window.storage && window.storage.isFirebaseAvailable) {
       console.log('✅ Firebase متاح في صفحة التعديل');
       await loadCategories();
+      await loadAccessoryForEdit();
     } else {
       console.log('⚠️ Firebase غير متاح، استخدام البيانات المحلية');
       populateCategories();
+      await loadAccessoryForEdit();
     }
   });
 
@@ -179,28 +181,40 @@
     { name: "screen_protector", arabic_name: "حماية الشاشة" }
   ];
 
-  // محاكاة عنصر أكسسوار جاري تعديله (بدل accessory من السيرفر)
-  const currentAccessory = {
-    name: "غطاء شفاف",
-    category: "case",
-    arabic_category: "أغلفة",
-    description: "سيليكون مرن",
-    purchase_price: 28.75, // مع الضريبة
-    selling_price: 51.75,  // مع الضريبة
-    quantity_in_stock: 20,
-    supplier: "XYZ للتوريد",
-    notes: ""
-  };
+  // الأكسسوار قيد التعديل — يُحمّل من Firebase بمعرّفه من الرابط (?id=)
+  let currentAccessoryId = null;
+  let currentAccessory = null;
+
+  async function loadAccessoryForEdit() {
+    const params = new URLSearchParams(window.location.search);
+    currentAccessoryId = params.get('id');
+    if (!currentAccessoryId) {
+      alert('لا يوجد أكسسوار محدد للتعديل');
+      window.location.href = 'search.html';
+      return;
+    }
+    // getDoc موجّه واحد بدل البيانات الوهمية الثابتة السابقة
+    const acc = (window.storage && typeof window.storage.getAccessoryById === 'function')
+      ? await window.storage.getAccessoryById(String(currentAccessoryId))
+      : null;
+    if (!acc) {
+      alert('الأكسسوار غير موجود');
+      window.location.href = 'search.html';
+      return;
+    }
+    currentAccessory = acc;
+    fillFormFromAccessory();
+  }
 
   function fillFormFromAccessory() {
-    document.getElementById('accessory_title').textContent = currentAccessory.name || "—";
-    document.getElementById('name').value = currentAccessory.name || "";
-    populateCategories();
+    if (!currentAccessory) return;
+    document.getElementById('accessory_title').textContent = currentAccessory.arabic_name || currentAccessory.name || "—";
+    document.getElementById('name').value = currentAccessory.arabic_name || currentAccessory.name || "";
     document.getElementById('category').value = currentAccessory.category || "";
     document.getElementById('description').value = currentAccessory.description || "";
-    document.getElementById('purchase_price').value = currentAccessory.purchase_price || "";
-    document.getElementById('selling_price').value = currentAccessory.selling_price || "";
-    document.getElementById('quantity').value = currentAccessory.quantity_in_stock ?? 0;
+    document.getElementById('purchase_price').value = currentAccessory.purchase_price ?? "";
+    document.getElementById('selling_price').value = currentAccessory.selling_price ?? "";
+    document.getElementById('quantity').value = currentAccessory.quantity_in_stock ?? currentAccessory.quantity ?? 0;
     document.getElementById('supplier').value = currentAccessory.supplier || "";
     document.getElementById('notes').value = currentAccessory.notes || "";
   }
@@ -218,7 +232,7 @@
 
   // نفس سلوك الصفحة الأصلية: حساب السعر قبل الضريبة بالـ console
   document.addEventListener('DOMContentLoaded', () => {
-    fillFormFromAccessory();
+    // ملء النموذج يتم بعد تحميل الأكسسوار من Firebase (انظر loadAccessoryForEdit)
 
     document.getElementById('purchase_price').addEventListener('input', function () {
       const priceWithVAT = parseFloat(this.value) || 0;
@@ -296,11 +310,16 @@
         return;
       }
 
-      // حفظ في Firebase
+      // حفظ في Firebase — بالمعرّف الصحيح من الرابط (كان النداء السابق بلا معرّف)
       if (window.storage && window.storage.isFirebaseAvailable) {
-        const accessoryId = await window.storage.updateAccessory(payload);
-        if (accessoryId) {
-          console.log('✅ تم تحديث الأكسسوار في Firebase:', accessoryId);
+        if (!currentAccessoryId) {
+          alert('لا يوجد أكسسوار محدد للتعديل');
+          return;
+        }
+        payload.quantity_in_stock = payload.quantity;
+        const ok = await window.storage.updateAccessory(currentAccessoryId, payload);
+        if (ok) {
+          console.log('✅ تم تحديث الأكسسوار في Firebase:', currentAccessoryId);
           alert('تم تحديث الأكسسوار بنجاح!');
           // إعادة توجيه إلى صفحة قائمة الأكسسوارات
           window.location.href = 'list_accessories_simple.html';
