@@ -554,7 +554,7 @@
   document.addEventListener('DOMContentLoaded', async function() {
     updateNavigationForUser();
     // انتظار تهيئة Firebase
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    // انتظار جاهزية Firebase فعليًا بدل مهلة ثابتة ثانية (يستيقظ فور جهوزها)\n    await new Promise(resolve => {\n      const t0 = Date.now();\n      const iv = setInterval(() => {\n        if ((window.storage && window.firebaseDatabase) || Date.now() - t0 > 5000) {\n          clearInterval(iv); resolve();\n        }\n      }, 50);\n    });
     
     if (window.storage && window.storage.isFirebaseAvailable) {
       console.log('✅ Firebase متاح في صفحة مخزون الأكسسوارات');
