@@ -1136,11 +1136,13 @@ class FirebaseDatabase {
   }
 
   // ===== تقارير التسويات =====
-  async getRepSettlements(dateFrom, dateTo) {
+  async getRepSettlements(dateFrom, dateTo, preloadedJobs = null) {
     try {
       console.log('🔍 Getting rep settlements from', dateFrom, 'to', dateTo);
-      
-      const jobs = await this.getMaintenanceJobs({
+
+      // يسمح بتمرير الأعمال المحمّلة مسبقًا لتجنب إعادة قراءة نفس المجموعة
+      // عند حساب تسويات المندوبين والفنيين في نفس الصفحة
+      const jobs = preloadedJobs || await this.getMaintenanceJobs({
         status: 'done',
         dateFrom,
         dateTo
@@ -1230,11 +1232,12 @@ class FirebaseDatabase {
     }
   }
 
-  async getTechSettlements(dateFrom, dateTo) {
+  async getTechSettlements(dateFrom, dateTo, preloadedJobs = null) {
     try {
       console.log('🔍 Getting tech settlements from', dateFrom, 'to', dateTo);
-      
-      const jobs = await this.getMaintenanceJobs({
+
+      // يسمح بتمرير الأعمال المحمّلة مسبقًا لتجنب إعادة قراءة نفس المجموعة
+      const jobs = preloadedJobs || await this.getMaintenanceJobs({
         status: 'done',
         dateFrom,
         dateTo

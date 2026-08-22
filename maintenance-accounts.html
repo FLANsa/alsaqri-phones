@@ -506,14 +506,20 @@
                 console.log('🔄 Loading accounts data...');
                 console.log('📅 Date range:', fromDate, 'to', toDate);
 
-                // Load reps accounts
-                console.log('📊 Loading reps settlements...');
-                repsAccounts = await window.firebaseDatabase.getRepSettlements(fromDate, toDate);
+                // قراءة واحدة للأعمال المنجزة في النطاق تُشارك بين تسويات
+                // المندوبين والفنيين (كانت تُقرأ نفس المجموعة مرتين)
+                console.log('📊 Loading done jobs for settlements...');
+                const doneJobs = await window.firebaseDatabase.getMaintenanceJobs({
+                    status: 'done',
+                    dateFrom: fromDate,
+                    dateTo: toDate
+                });
+                console.log('✅ Done jobs loaded:', doneJobs.length);
+
+                repsAccounts = await window.firebaseDatabase.getRepSettlements(fromDate, toDate, doneJobs);
                 console.log('✅ Reps loaded:', repsAccounts.length);
-                
-                // Load techs accounts
-                console.log('📊 Loading techs settlements...');
-                techsAccounts = await window.firebaseDatabase.getTechSettlements(fromDate, toDate);
+
+                techsAccounts = await window.firebaseDatabase.getTechSettlements(fromDate, toDate, doneJobs);
                 console.log('✅ Techs loaded:', techsAccounts.length);
                 
                 // Load payments

@@ -256,9 +256,21 @@
     
     <script>
         // Initialize page
-        document.addEventListener('DOMContentLoaded', function() {
-            loadStatistics();
-            loadPendingJobs();
+        document.addEventListener('DOMContentLoaded', async function() {
+            // قراءة واحدة لمجموعة الأعمال تُشارك بين الإحصاءات والجدول
+            // (كانت تُقرأ المجموعة كاملة مرتين عند كل فتح)
+            let sharedJobs = null;
+            try {
+                if (window.firebaseDatabase) {
+                    sharedJobs = await window.firebaseDatabase.getMaintenanceJobs();
+                } else {
+                    console.error('Firebase database not initialized');
+                }
+            } catch (error) {
+                console.error('Error loading maintenance jobs:', error);
+            }
+            loadStatistics(sharedJobs);
+            loadPendingJobs(sharedJobs);
             // Initialize navigation
             if (typeof initNavigation === 'function') {
                 initNavigation('maintenance');
@@ -266,18 +278,18 @@
         });
 
         // Load statistics
-        async function loadStatistics() {
+        async function loadStatistics(jobs) {
             try {
                 if (!window.firebaseDatabase) {
                     console.error('Firebase database not initialized');
                     return;
                 }
 
-                const [reps, techs, jobs] = await Promise.all([
+                const [reps, techs] = await Promise.all([
                     window.firebaseDatabase.getReps(),
-                    window.firebaseDatabase.getTechnicians(),
-                    window.firebaseDatabase.getMaintenanceJobs()
+                    window.firebaseDatabase.getTechnicians()
                 ]);
+                jobs = jobs || await window.firebaseDatabase.getMaintenanceJobs();
 
                 const activeReps = reps.filter(rep => rep.active).length;
                 const activeTechs = techs.filter(tech => tech.active).length;
@@ -293,14 +305,14 @@
         }
 
         // Load pending jobs
-        async function loadPendingJobs() {
+        async function loadPendingJobs(jobs) {
             try {
                 if (!window.firebaseDatabase) {
                     console.error('Firebase database not initialized');
                     return;
                 }
 
-                const jobs = await window.firebaseDatabase.getMaintenanceJobs();
+                jobs = jobs || await window.firebaseDatabase.getMaintenanceJobs();
                 const pendingJobs = jobs
                     .filter(job => job.status !== 'done' && job.status !== 'canceled')
                     .sort((a, b) => new Date(b.visitDate.seconds * 1000) - new Date(a.visitDate.seconds * 1000));
