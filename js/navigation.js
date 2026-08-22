@@ -89,12 +89,14 @@ function generateNavigation(role, currentPage = '') {
             </li>
 
             <li class="nav-item dropdown">
-                <a class="nav-link dropdown-toggle ${currentPage.includes('phone') ? 'active' : ''}" href="#" id="phoneDropdown" role="button" data-bs-toggle="dropdown">
+                <a class="nav-link dropdown-toggle ${currentPage.includes('phone') || currentPage === 'list_purchases' ? 'active' : ''}" href="#" id="phoneDropdown" role="button" data-bs-toggle="dropdown">
                     <i class="fas fa-mobile-alt"></i> إدارة الهواتف
                 </a>
                 <ul class="dropdown-menu">
                     <li><a class="dropdown-item ${currentPage === 'add_new_phone' ? 'active' : ''}" href="add_new_phone.html"><i class="fas fa-mobile"></i> هاتف جديد</a></li>
                     <li><a class="dropdown-item ${currentPage === 'add_used_phone' ? 'active' : ''}" href="add_used_phone.html"><i class="fas fa-mobile-alt"></i> هاتف مستعمل</a></li>
+                    <li><hr class="dropdown-divider"></li>
+                    <li><a class="dropdown-item ${currentPage === 'list_purchases' ? 'active' : ''}" href="list_purchases.html"><i class="fas fa-history"></i> آخر المشتريات</a></li>
                 </ul>
             </li>
 
