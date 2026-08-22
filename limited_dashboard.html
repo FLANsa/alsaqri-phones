@@ -218,29 +218,9 @@
     });
 
     async function initializeDashboard() {
-      try {
-        // Initialize storage (Firebase or localStorage)
-        if (typeof window.storage === 'undefined') {
-          if (typeof FirebaseStorageManager !== 'undefined') {
-            window.storage = new FirebaseStorageManager();
-          } else {
-            // Fallback to localStorage if Firebase is not available
-            console.log('Firebase not available, using localStorage fallback');
-            window.storage = {
-              getPhones: () => JSON.parse(localStorage.getItem('phones') || '[]'),
-              getAccessories: () => JSON.parse(localStorage.getItem('accessories') || '[]'),
-              getSales: () => JSON.parse(localStorage.getItem('sales') || '[]')
-            };
-          }
-        }
-
-        // Load dashboard data
-        await updateLimitedDashboard();
-        
-      } catch (error) {
-        console.error('Error initializing limited dashboard:', error);
-        showError('حدث خطأ في تحميل البيانات');
-      }
+      // لا توجد إحصائيات تُقرأ أو تُعرض للمستخدم المحدود في هذه الصفحة
+      // (كانت السقالة السابقة تُعدّ قارئات بيانات لا تستخدمها الواجهة)
+      return;
     }
 
     async function updateLimitedDashboard() {

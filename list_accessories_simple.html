@@ -521,69 +521,6 @@
       }
     }
 
-    // تصدير البيانات من قاعدة البيانات
-    async function exportData() {
-      try {
-        console.log('📤 تصدير البيانات من قاعدة البيانات...');
-        
-        // تحميل من Firebase
-        if (!window.storage || !window.storage.isFirebaseAvailable) {
-          showAlert('danger', 'Firebase غير متاح - يرجى التحقق من الاتصال');
-          return;
-        }
-        
-        const accessories = await window.storage.getAccessories();
-        
-        if (accessories.length === 0) {
-          showAlert('warning', 'لا توجد بيانات لتصديرها');
-          return;
-        }
-
-        const dataStr = JSON.stringify(accessories, null, 2);
-        const dataBlob = new Blob([dataStr], {type: 'application/json'});
-        
-        const link = document.createElement('a');
-        link.href = URL.createObjectURL(dataBlob);
-        link.download = `accessories_${new Date().toISOString().split('T')[0]}.json`;
-        link.click();
-        
-        showAlert('success', `تم تصدير ${accessories.length} أكسسوار بنجاح`);
-        
-      } catch (error) {
-        console.error('❌ خطأ في تصدير البيانات:', error);
-        showAlert('danger', 'حدث خطأ في تصدير البيانات');
-      }
-    }
-
-    // مسح جميع البيانات من قاعدة البيانات
-    async function clearAllData() {
-      if (!confirm('هل أنت متأكد من مسح جميع الأكسسوارات؟\n\nهذا الإجراء لا يمكن التراجع عنه!')) return;
-      
-      if (!confirm('تأكيد أخير: سيتم مسح جميع البيانات نهائياً!')) return;
-
-      try {
-        console.log('🗑️ مسح جميع الأكسسوارات من قاعدة البيانات...');
-        
-        if (!window.storage || !window.storage.isFirebaseAvailable) {
-          showAlert('danger', 'Firebase غير متاح - يرجى التحقق من الاتصال');
-          return;
-        }
-        
-        // حذف جميع الأكسسوارات من Firebase
-        const accessories = await window.storage.getAccessories();
-        for (const accessory of accessories) {
-          await window.storage.deleteAccessory(accessory.id);
-        }
-        showAlert('success', `تم مسح ${accessories.length} أكسسوار من قاعدة البيانات`);
-        
-        await loadAccessories();
-        
-      } catch (error) {
-        console.error('❌ خطأ في مسح البيانات:', error);
-        showAlert('danger', 'حدث خطأ في مسح البيانات');
-      }
-    }
-
   // تسجيل الخروج
   function logout() {
     if (confirm('هل أنت متأكد من تسجيل الخروج؟')) {
