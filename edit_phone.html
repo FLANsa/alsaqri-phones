@@ -470,13 +470,27 @@
       }
     }
 
+    // ===== كاش صفحة لأنواع الهواتف =====
+    // تُقرأ المجموعة مرة واحدة وتُشارك بين تحميل الشركات والموديلات
+    // (كانت تُقرأ مرتين متتاليتين عند فتح الصفحة)
+    let _phoneTypesCache = null;
+    async function getPhoneTypesCached() {
+      if (_phoneTypesCache) return _phoneTypesCache;
+      if (window.storage && window.storage.isFirebaseAvailable) {
+        _phoneTypesCache = await window.storage.getPhoneTypes();
+      } else {
+        _phoneTypesCache = JSON.parse(localStorage.getItem('phone_types') || '{}');
+      }
+      return _phoneTypesCache;
+    }
+
     // ===== تحميل قائمة الشركات المصنعة =====
     async function loadManufacturers() {
       try {
         console.log('🔄 تحميل قائمة الشركات المصنعة من Firebase...');
-        
+
         if (window.storage && window.storage.isFirebaseAvailable) {
-          const phoneTypes = await window.storage.getPhoneTypes();
+          const phoneTypes = await getPhoneTypesCached();
           console.log('📱 أنواع الهواتف المحملة:', phoneTypes);
           
           // phoneTypes is now an object with brand as keys
@@ -524,12 +538,8 @@
         }
         
         let phoneTypes = {};
-        
-        if (window.storage && window.storage.isFirebaseAvailable) {
-          phoneTypes = await window.storage.getPhoneTypes();
-        } else {
-          phoneTypes = JSON.parse(localStorage.getItem('phone_types') || '{}');
-        }
+
+        phoneTypes = await getPhoneTypesCached();
         
         // phoneTypes is now an object with brand as keys and models as arrays
         const models = phoneTypes[manufacturer] || [];

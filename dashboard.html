@@ -708,14 +708,11 @@
         });
 
         const maintenanceProfit = maintenanceInPeriod.reduce((sum, j) => sum + (j.shopProfit || 0), 0);
-        const maintenanceRevenue = maintenanceInPeriod.reduce((sum, j) => sum + (j.amountCharged || 0), 0);
-        
+
         totalActualProfit += maintenanceProfit;
 
         // حساب النسب
         const actualProfitRatio = totalSalesAmount > 0 ? (totalActualProfit / totalSalesAmount) * 100 : 0;
-        const totalRevenue = totalSalesAmount + maintenanceRevenue;
-        const totalProfitRatio = totalRevenue > 0 ? (totalActualProfit / totalRevenue) * 100 : 0;
 
         // تحديث واجهة المبيعات
         document.getElementById('total_sales_count').textContent = convertToLatinNumbers(totalSales);

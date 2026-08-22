@@ -394,10 +394,11 @@
                     return;
                 }
 
-                // Load all required data
+                // المندوبون/الفنيون يُجلبون فقط عند وجود معامل repId/techId في الرابط —
+                // لا يُستخدمون إلا لحل الاسم في شريط الفلاتر المطبقة
                 [repsData, techniciansData] = await Promise.all([
-                    window.firebaseDatabase.getReps(),
-                    window.firebaseDatabase.getTechnicians()
+                    filters.repId ? window.firebaseDatabase.getReps() : Promise.resolve([]),
+                    filters.techId ? window.firebaseDatabase.getTechnicians() : Promise.resolve([])
                 ]);
 
                 // Build query filters
@@ -427,8 +428,8 @@
 
                 console.log('✅ Data loaded:', {
                     jobs: jobsData.length,
-                    reps: repsData.length,
-                    technicians: techniciansData.length
+                    repFiltered: !!filters.repId,
+                    techFiltered: !!filters.techId
                 });
 
                 // Display report
