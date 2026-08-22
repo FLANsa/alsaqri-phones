@@ -552,19 +552,9 @@
                     const selectedTech = techniciansData.find(tech => tech.id === this.value);
                     if (selectedTech) {
                         selectedTechPercent = selectedTech.defaultCommissionPercent;
-                        const techPercentDisplay = document.getElementById('techPercentDisplay');
-                        if (techPercentDisplay) {
-                            techPercentDisplay.textContent = 
-                                `نسبة العمولة: ${(selectedTechPercent * 100).toFixed(1)}%`;
-                        }
                         calculateProfit();
                     } else {
                         selectedTechPercent = 0; // Default
-                        const techPercentDisplay = document.getElementById('techPercentDisplay');
-                        if (techPercentDisplay) {
-                            techPercentDisplay.textContent = 
-                                'سيتم تحديدها تلقائياً عند اختيار الفني';
-                        }
                     }
                 });
             }
@@ -580,22 +570,8 @@
 
             if (totalPartCost > 0 && amountCharged > 0 && selectedTechPercent > 0) {
                 const { profit, techCommission, shopProfit } = computeDerived(totalPartCost, amountCharged, selectedTechPercent);
-                
-                // تحديث القيم في النموذج إذا كانت العناصر موجودة
-                const totalProfitEl = document.getElementById('totalProfit');
-                const techCommissionEl = document.getElementById('techCommission');
-                const shopProfitEl = document.getElementById('shopProfit');
-                const profitCalculationEl = document.getElementById('profitCalculation');
-                
-                if (totalProfitEl) totalProfitEl.textContent = profit.toFixed(2) + ' ريال';
-                if (techCommissionEl) techCommissionEl.textContent = techCommission.toFixed(2) + ' ريال';
-                if (shopProfitEl) shopProfitEl.textContent = shopProfit.toFixed(2) + ' ريال';
-                if (profitCalculationEl) profitCalculationEl.style.display = 'block';
-                
+                // عناصر عرض الأرباح غير موجودة في هذه الصفحة؛ القيم تُحفظ عبر addMaintenanceJob/updateMaintenanceJob
                 console.log('💰 تم حساب الأرباح:', { profit, techCommission, shopProfit });
-            } else {
-                const profitCalculationEl = document.getElementById('profitCalculation');
-                if (profitCalculationEl) profitCalculationEl.style.display = 'none';
             }
         }
 

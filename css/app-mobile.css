@@ -17,13 +17,6 @@ body {
   padding-right: env(safe-area-inset-right, 0);
 }
 
-/* شريط التنقل ثابت مع منطقة آمنة */
-.navbar.fixed-top {
-  top: 0;
-  left: 0;
-  right: 0;
-}
-
 /* --- أهداف اللمس (44px كحد أدنى) --- */
 @media (max-width: 768px) {
   .btn:not(.btn-sm),

@@ -616,20 +616,8 @@
       const totalPurchaseCost = cart.reduce((s, it) => s + ((it.purchasePrice || 0) * it.quantity), 0);                                                     
 
       document.getElementById('cart_total').textContent = total.toFixed(2);
-  
-      // إخفاء صفوف تكلفة الشراء والربح (المنطق يبقى موجود لكن غير مرئي)
-      const cartSummary = document.getElementById('cart_summary');
-      let purchaseCostElement = document.getElementById('cart_purchase_cost');
-      let profitElement = document.getElementById('cart_profit');
 
-      // إزالة العناصر إذا كانت موجودة
-      if (purchaseCostElement) {
-        purchaseCostElement.parentElement.remove();
-      }
-      if (profitElement) {
-        profitElement.parentElement.remove();
-      }
-
+      // صفوف تكلفة الشراء والربح أُزيلت من الواجهة؛ لا عناصر #cart_purchase_cost/#cart_profit منذ زمن
       document.getElementById('complete_sale_btn').disabled = cart.length === 0;
     }
 

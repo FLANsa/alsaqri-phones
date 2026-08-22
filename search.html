@@ -167,13 +167,7 @@
   let totalPages = 1;
   let currentSearchResults = { phones: [], accessories: [] };
 
-  // ===== دعم الأرقام العربية =====
-  function convertArabicToEnglishNumbers(str) {
-    if (!str) return '';
-    const map = {'٠':'0','١':'1','٢':'2','٣':'3','٤':'4','٥':'5','٦':'6','٧':'7','٨':'8','٩':'9'};
-    return str.toString().replace(/[٠-٩]/g, m => map[m] ?? m);
-  }
-  
+  // ===== دعم الأرقام العربية (التعريفات الكاملة في قسم التحويل أدناه) =====
   function parseArabicNumber(value) {
     if (!value || value.trim() === '') return 0;
     const converted = convertArabicToEnglishNumbers(value.toString());
@@ -196,10 +190,6 @@
 
   // ===== الأدوات =====
   const fmtMoney = n => (Number(n)||0).toFixed(2);
-  function includesAny(str, arr) {
-    const s = (str || '').toString().toLowerCase();
-    return arr.some(x => s.includes((x||'').toString().toLowerCase()));
-  }
 
   // ===== تحويل الأرقام العربية إلى إنجليزية =====
   function convertArabicToEnglishNumbers(str) {
