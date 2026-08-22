@@ -11,11 +11,9 @@ import {
   query,
   where,
   orderBy,
-  onSnapshot,
   documentId,
   serverTimestamp,
-  increment,
-  runTransaction
+  increment
 } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
 
 // قاطع دائرة لحصة Firestore — يمنع ضرب BatchGetDocuments مرات متعددة خلال فترة الاستنزاف
@@ -567,17 +565,6 @@ class FirebaseDatabase {
     }
   }
 
-  async deleteSale(saleId) {
-    try {
-      await deleteDoc(doc(this.db, 'sales', saleId));
-      this._cacheClear('sales');
-      console.log('✅ Sale deleted:', saleId);
-    } catch (error) {
-      console.error('❌ Error deleting sale:', error);
-      throw error;
-    }
-  }
-
   // ===== إدارة فئات الأكسسوارات =====
   async addAccessoryCategory(categoryData) {
     try {
@@ -697,93 +684,6 @@ class FirebaseDatabase {
       console.error('❌ Error deleting phone type:', error);
       throw error;
     }
-  }
-
-  // ===== البحث =====
-  async searchPhones(searchTerm) {
-    try {
-      const phones = await this.getPhones();
-      const filteredPhones = phones.filter(phone => {
-        const searchFields = [
-          phone.phone_number,
-          phone.serial_number,
-          phone.brand,
-          phone.model,
-          phone.phone_color,
-          phone.phone_memory,
-          phone.description,
-          phone.customer_name,
-          phone.customer_id
-        ];
-        
-        return searchFields.some(field => 
-          field && field.toString().toLowerCase().includes(searchTerm.toLowerCase())
-        );
-      });
-      console.log('🔍 Search results for phones:', filteredPhones.length);
-      return filteredPhones;
-    } catch (error) {
-      console.error('❌ Error searching phones:', error);
-      throw error;
-    }
-  }
-
-  async searchAccessories(searchTerm) {
-    try {
-      const accessories = await this.getAccessories();
-      const filteredAccessories = accessories.filter(accessory => {
-        const searchFields = [
-          accessory.name,
-          accessory.category,
-          accessory.description,
-          accessory.supplier,
-          accessory.notes
-        ];
-        
-        return searchFields.some(field => 
-          field && field.toString().toLowerCase().includes(searchTerm.toLowerCase())
-        );
-      });
-      console.log('🔍 Search results for accessories:', filteredAccessories.length);
-      return filteredAccessories;
-    } catch (error) {
-      console.error('❌ Error searching accessories:', error);
-      throw error;
-    }
-  }
-
-  // ===== الاستماع للتغييرات في الوقت الفعلي =====
-  onPhonesChange(callback) {
-    return onSnapshot(collection(this.db, 'phones'), (snapshot) => {
-      const phones = [];
-      snapshot.forEach((doc) => {
-        phones.push({ id: doc.id, ...doc.data() });
-      });
-      callback(phones);
-    });
-  }
-
-  onAccessoriesChange(callback) {
-    return onSnapshot(collection(this.db, 'accessories'), (snapshot) => {
-      const accessories = [];
-      snapshot.forEach((doc) => {
-        accessories.push({ id: doc.id, ...doc.data() });
-      });
-      callback(accessories);
-    });
-  }
-
-  onSalesChange(callback) {
-    return onSnapshot(
-      query(collection(this.db, 'sales'), orderBy('createdAt', 'desc')), 
-      (snapshot) => {
-        const sales = [];
-        snapshot.forEach((doc) => {
-          sales.push({ id: doc.id, ...doc.data() });
-        });
-        callback(sales);
-      }
-    );
   }
 
   // ===== نظام الصيانة =====
@@ -1067,66 +967,6 @@ class FirebaseDatabase {
     }
   }
 
-  // ===== التسويات =====
-  async createSettlement(settlementData) {
-    try {
-      const docRef = await addDoc(collection(this.db, 'settlements'), {
-        ...settlementData,
-        status: 'open',
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp()
-      });
-      console.log('✅ Settlement created with ID:', docRef.id);
-      return docRef.id;
-    } catch (error) {
-      console.error('❌ Error creating settlement:', error);
-      throw error;
-    }
-  }
-
-  async getSettlements(filters = {}) {
-    try {
-      // تنبيه: المتغير المحلي كان يحجب دالة query المستوردة ويرمي TypeError عند الفلترة
-      let q = collection(this.db, 'settlements');
-
-      if (filters.type) {
-        q = query(q, where('type', '==', filters.type));
-      }
-
-      if (filters.status) {
-        q = query(q, where('status', '==', filters.status));
-      }
-
-      const querySnapshot = await getDocs(q);
-      const settlements = [];
-      querySnapshot.forEach(doc => {
-        settlements.push({ id: doc.id, ...doc.data() });
-      });
-      
-      console.log('✅ Settlements loaded:', settlements.length);
-      return settlements;
-    } catch (error) {
-      console.error('❌ Error getting settlements:', error);
-      throw error;
-    }
-  }
-
-  async markSettlementPaid(settlementId, notes = '') {
-    try {
-      const settlementRef = doc(this.db, 'settlements', settlementId);
-      await updateDoc(settlementRef, {
-        status: 'paid',
-        paidAt: serverTimestamp(),
-        notes,
-        updatedAt: serverTimestamp()
-      });
-      console.log('✅ Settlement marked as paid:', settlementId);
-    } catch (error) {
-      console.error('❌ Error marking settlement as paid:', error);
-      throw error;
-    }
-  }
-
   // ===== دوال الحساب =====
   // ✅ دالة موحّدة لحساب القيم المشتقة
   computeDerived(partCost, amountCharged, techPercent) {
@@ -1137,19 +977,6 @@ class FirebaseDatabase {
     const techCommission = Math.max(0, profit * tp);       // عمولة الفني
     const shopProfit = profit - techCommission;            // أرباح المحل
     return { profit, techCommission, shopProfit };
-  }
-
-  // دوال منفصلة للتوافق مع الكود القديم
-  calcProfit(partCost, amountCharged) {
-    return Math.max(0, Number((amountCharged - partCost).toFixed(2)));
-  }
-
-  calcTechCommission(profit, percent) {
-    return Number((profit * percent).toFixed(2));
-  }
-
-  calcShopProfit(profit, techCommission) {
-    return Number((profit - techCommission).toFixed(2));
   }
 
   // ===== إدارة المدفوعات =====
@@ -1200,20 +1027,6 @@ class FirebaseDatabase {
       return payments;
     } catch (error) {
       console.error('❌ Error getting payments:', error);
-      throw error;
-    }
-  }
-
-  async updatePayment(paymentId, paymentData) {
-    try {
-      const paymentRef = doc(this.db, 'payments', paymentId);
-      await updateDoc(paymentRef, {
-        ...paymentData,
-        updatedAt: serverTimestamp()
-      });
-      console.log('✅ Payment updated:', paymentId);
-    } catch (error) {
-      console.error('❌ Error updating payment:', error);
       throw error;
     }
   }
@@ -1386,42 +1199,9 @@ class FirebaseDatabase {
       throw error;
     }
   }
-
-  // ===== تهيئة البيانات الافتراضية =====
-  async initializeDefaultData() {
-    try {
-      // تهيئة فئات الأكسسوارات
-      const defaultCategories = [
-        { name: 'accessory', arabic_name: 'إكسسوار', description: 'إكسسوارات عامة' },
-        { name: 'charger', arabic_name: 'شاحن', description: 'شواحن الهواتف' },
-        { name: 'case', arabic_name: 'غلاف', description: 'أغلفة الهواتف' },
-        { name: 'screen_protector', arabic_name: 'حماية الشاشة', description: 'حماية شاشة الهاتف' },
-        { name: 'cable', arabic_name: 'كابل', description: 'كابلات البيانات والشحن' },
-        { name: 'headphone', arabic_name: 'سماعات', description: 'سماعات الهواتف' },
-        { name: 'other', arabic_name: 'أخرى', description: 'فئات أخرى' }
-      ];
-
-      // التحقق من وجود فئات الأكسسوارات
-      const existingCategories = await this.getAccessoryCategories();
-      if (existingCategories.length === 0) {
-        for (const category of defaultCategories) {
-          await this.addAccessoryCategory(category);
-        }
-        console.log('✅ تم إضافة فئات الأكسسوارات الافتراضية');
-      }
-
-      console.log('✅ Default data initialized successfully');
-    } catch (error) {
-      console.error('❌ Error initializing default data:', error);
-    }
-  }
 }
 
 // إنشاء instance واحد للاستخدام في جميع أنحاء التطبيق
 window.firebaseDatabase = new FirebaseDatabase();
 
-// ملاحظة: initializeDefaultData() لم تعد تُستدعى تلقائياً عند كل تحميل صفحة —
-// كانت تقرأ مجموعة الفئات كاملة في كل مرة وتسببت في تضاعف بيانات البذور.
-// الفئات الافتراضية موجودة في قاعدة البيانات؛ عند الحاجة استدعِها يدوياً من الكونسول:
-// window.firebaseDatabase.initializeDefaultData()
 console.log('🔥 Firebase Database Manager initialized successfully!');

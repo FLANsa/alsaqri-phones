@@ -256,11 +256,6 @@ class FirebaseStorageManager {
     return phones.find(p => String(p.phone_number || '') === s);
   }
 
-  async getPhoneBySerial(serialNumber) {
-    const phones = await this.getPhones();
-    return phones.find(p => p.serial_number === serialNumber);
-  }
-
   async getPhonesByRefs(refs) {
     if (this.isFirebaseAvailable && typeof this.firebaseDB.getPhonesByRefs === 'function') {
       try {
@@ -458,37 +453,6 @@ class FirebaseStorageManager {
     return false;
   }
 
-  async deleteSale(saleId) {
-    if (this.isFirebaseAvailable) {
-      try {
-        await this.firebaseDB.deleteSale(saleId);
-        return true;
-      } catch (error) {
-        console.error('Error deleting sale from Firebase:', error);
-        return false;
-      }
-    }
-    
-    // LocalStorage fallback
-    const sales = this.getSales();
-    const filteredSales = sales.filter(s => s.id !== saleId);
-    return this.setSales(filteredSales);
-  }
-
-  async getSaleById(saleId) {
-    if (this.isFirebaseAvailable) {
-      try {
-        return await this.firebaseDB.getSale(saleId);
-      } catch (error) {
-        console.error('Error getting sale from Firebase:', error);
-        return null;
-      }
-    }
-    
-    const sales = this.getSales();
-    return sales.find(s => s.id === saleId);
-  }
-
   /**
    * Phone Types management
    */
@@ -654,174 +618,10 @@ class FirebaseStorageManager {
   }
 
   /**
-   * Search functionality
-   */
-  async searchPhones(searchTerm) {
-    if (this.isFirebaseAvailable) {
-      try {
-        return await this.firebaseDB.searchPhones(searchTerm);
-      } catch (error) {
-        console.error('Error searching phones in Firebase:', error);
-        return [];
-      }
-    }
-    
-    // LocalStorage fallback
-    const phones = await this.getPhones();
-    return phones.filter(phone => {
-      const searchFields = [
-        phone.phone_number,
-        phone.serial_number,
-        phone.brand,
-        phone.model,
-        phone.phone_color,
-        phone.phone_memory,
-        phone.description,
-        phone.customer_name,
-        phone.customer_id
-      ];
-      
-      return searchFields.some(field => 
-        field && field.toString().toLowerCase().includes(searchTerm.toLowerCase())
-      );
-    });
-  }
-
-  async searchAccessories(searchTerm) {
-    if (this.isFirebaseAvailable) {
-      try {
-        return await this.firebaseDB.searchAccessories(searchTerm);
-      } catch (error) {
-        console.error('Error searching accessories in Firebase:', error);
-        return [];
-      }
-    }
-    
-    // LocalStorage fallback
-    const accessories = await this.getAccessories();
-    return accessories.filter(accessory => {
-      const searchFields = [
-        accessory.name,
-        accessory.category,
-        accessory.description,
-        accessory.supplier,
-        accessory.notes
-      ];
-      
-      return searchFields.some(field => 
-        field && field.toString().toLowerCase().includes(searchTerm.toLowerCase())
-      );
-    });
-  }
-
-  /**
-   * Real-time listeners (Firebase only)
-   */
-  onPhonesChange(callback) {
-    if (this.isFirebaseAvailable) {
-      return this.firebaseDB.onPhonesChange(callback);
-    }
-    console.log('Real-time listeners only available with Firebase');
-    return null;
-  }
-
-  onAccessoriesChange(callback) {
-    if (this.isFirebaseAvailable) {
-      return this.firebaseDB.onAccessoriesChange(callback);
-    }
-    console.log('Real-time listeners only available with Firebase');
-    return null;
-  }
-
-  onSalesChange(callback) {
-    if (this.isFirebaseAvailable) {
-      return this.firebaseDB.onSalesChange(callback);
-    }
-    console.log('Real-time listeners only available with Firebase');
-    return null;
-  }
-
-  /**
    * Utility methods
    */
   generateId() {
     return Date.now().toString(36) + Math.random().toString(36).substr(2);
-  }
-
-  /**
-   * Export/Import functionality
-   */
-  async exportData() {
-    const data = {
-      phones: await this.getPhones(),
-      accessories: await this.getAccessories(),
-      sales: await this.getSales(),
-      phoneTypes: await this.getPhoneTypes(),
-      accessoryCategories: await this.getAccessoryCategories(),
-      exportDate: new Date().toISOString(),
-      version: '2.0',
-      firebaseEnabled: this.isFirebaseAvailable
-    };
-    return JSON.stringify(data, null, 2);
-  }
-
-  async importData(jsonData) {
-    try {
-      const data = JSON.parse(jsonData);
-      
-      if (data.phones) {
-        for (const phone of data.phones) {
-          await this.addPhone(phone);
-        }
-      }
-      if (data.accessories) {
-        for (const accessory of data.accessories) {
-          await this.addAccessory(accessory);
-        }
-      }
-      if (data.sales) {
-        for (const sale of data.sales) {
-          await this.addSale(sale);
-        }
-      }
-      if (data.phoneTypes) {
-        for (const [brand, models] of Object.entries(data.phoneTypes)) {
-          for (const model of models) {
-            await this.addPhoneType(brand, model);
-          }
-        }
-      }
-      if (data.accessoryCategories) {
-        for (const category of data.accessoryCategories) {
-          await this.addAccessoryCategory(category);
-        }
-      }
-      
-      return true;
-    } catch (error) {
-      console.error('Error importing data:', error);
-      return false;
-    }
-  }
-
-  /**
-   * Get storage statistics
-   */
-  async getStorageStats() {
-    const phones = await this.getPhones();
-    const accessories = await this.getAccessories();
-    const sales = await this.getSales();
-    const phoneTypes = await this.getPhoneTypes();
-    const accessoryCategories = await this.getAccessoryCategories();
-
-    return {
-      phones: phones.length,
-      accessories: accessories.length,
-      sales: sales.length,
-      phoneTypes: Object.keys(phoneTypes || {}).length,
-      accessoryCategories: (accessoryCategories || []).length,
-      firebaseEnabled: this.isFirebaseAvailable
-    };
   }
 }
 
