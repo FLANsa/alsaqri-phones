@@ -10,7 +10,7 @@
  * - ملاحظة نشر: عند أي تعديل على ملفات الموقع ارفع رقم CACHE_NAME (v2 → v3 ...)
  *   ليمسح المتصفح الكاش القديم فورًا.
  */
-const CACHE_NAME = 'alsaqri-pwa-v2';
+const CACHE_NAME = 'alsaqri-pwa-v3';
 var urlsToCache = [
   '/',
   '/index.html',
