@@ -13,7 +13,8 @@ import {
   orderBy,
   documentId,
   serverTimestamp,
-  increment
+  increment,
+  writeBatch
 } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
 
 // قاطع دائرة لحصة Firestore — يمنع ضرب BatchGetDocuments مرات متعددة خلال فترة الاستنزاف
@@ -36,8 +37,9 @@ function isQuotaError(error) {
 
 // مدة صلاحية الكاش المحلي (لتقليل قراءات Firestore عند التنقل بين الصفحات)
 // ملاحظة: الكاش والإبطال عند الكتابة يعملان لكل جهاز/متصفح على حدة —
-// التعديلات من جهاز آخر قد تتأخر في الظهور حتى دقيقتين على هذا الجهاز
-const CACHE_TTL_MS = 2 * 60 * 1000; // دقيقتان
+// التعديلات من جهاز آخر قد تتأخر في الظهور حتى 5 دقائق على هذا الجهاز
+// (الكتابة من هذا الجهاز تمسح الكاش فورًا)
+const CACHE_TTL_MS = 5 * 60 * 1000; // 5 دقائق
 const CACHE_PREFIX = 'fs_cache_';
 
 class FirebaseDatabase {
@@ -549,6 +551,66 @@ class FirebaseDatabase {
       console.error('❌ Error getting sale:', error);
       throw error;
     }
+  }
+
+  /**
+   * جلب مبيعات نطاق زمني فقط (createdAt بين تاريخين) بدل قراءة المجموعة كاملة —
+   * مناسب لإحصاءات "الفترة" في لوحة التحكم.
+   * @param {Date} from  @param {Date} to
+   */
+  async getSalesInRange(from, to) {
+    try {
+      const q = to
+        ? query(collection(this.db, 'sales'),
+            where('createdAt', '>=', from), where('createdAt', '<=', to),
+            orderBy('createdAt', 'desc'))
+        : query(collection(this.db, 'sales'),
+            where('createdAt', '>=', from),
+            orderBy('createdAt', 'desc'));
+      const snap = await getDocs(q);
+      const sales = [];
+      snap.forEach((d) => sales.push({ id: d.id, ...d.data() }));
+      console.log('💰 Sales in range loaded:', sales.length);
+      return sales;
+    } catch (error) {
+      console.error('❌ Error getting sales in range:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * ترحيل لمرة واحدة: يحسب علم sold لكل هاتف من المبيعات التاريخية
+   * (بيع غير مسترجع يحتوي عنصر هاتف = sold:true) ويكتبه على مستندات phones.
+   * شغّلها مرة واحدة من الكونسول: await window.firebaseDatabase.migrateSoldFlags()
+   * بعد الترحيل، الصفحات تتوقف عن قراءة مجموعة sales كاملة لمعرفة المباع.
+   */
+  async migrateSoldFlags() {
+    const sales = await this.getSales();
+    const soldKeys = new Set();
+    for (const sale of sales) {
+      if (!sale || sale.returned === true || sale.status === 'مسترجعة') continue;
+      for (const item of (sale.items || [])) {
+        if (item && item.type === 'phone' && item.id != null) {
+          soldKeys.add(String(item.id));
+          if (item.phone_id != null) soldKeys.add(String(item.phone_id));
+        }
+      }
+    }
+    const phones = await this.getPhones();
+    let soldCount = 0, availCount = 0, batch = writeBatch(this.db), ops = 0;
+    for (const phone of phones) {
+      const key = String(phone.id != null ? phone.id : phone.phone_number);
+      const alsoNumber = String(phone.phone_number != null ? phone.phone_number : '');
+      const sold = soldKeys.has(key) || (alsoNumber && soldKeys.has(alsoNumber));
+      sold ? soldCount++ : availCount++;
+      batch.update(doc(this.db, 'phones', phone.id), { sold });
+      if (++ops === 400) { await batch.commit(); batch = writeBatch(this.db); ops = 0; }
+    }
+    if (ops > 0) await batch.commit();
+    this._cacheClear('phones');
+    const summary = { phones: phones.length, sold: soldCount, available: availCount };
+    console.log('✅ migrateSoldFlags:', summary);
+    return summary;
   }
 
   async updateSale(saleId, saleData) {

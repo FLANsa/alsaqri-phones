@@ -404,6 +404,23 @@ class FirebaseStorageManager {
     return this.getItem(CONFIG.STORAGE_KEYS.SALES, []);
   }
 
+  async getSalesInRange(from, to) {
+    if (this.isFirebaseAvailable && typeof this.firebaseDB.getSalesInRange === 'function') {
+      try {
+        return await this.firebaseDB.getSalesInRange(from, to);
+      } catch (error) {
+        console.error('Error getting sales in range from Firebase:', error);
+        return [];
+      }
+    }
+    // LocalStorage fallback: فلترة محلية
+    const sales = this.getItem(CONFIG.STORAGE_KEYS.SALES, []) || [];
+    return sales.filter(s => {
+      const d = s.date_created ? new Date(s.date_created) : null;
+      return d && (!from || d >= from) && (!to || d <= to);
+    });
+  }
+
   async setSales(sales) {
     if (this.isFirebaseAvailable) {
       console.log('Firebase mode: sales are managed individually');
