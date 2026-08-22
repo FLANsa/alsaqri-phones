@@ -200,6 +200,7 @@
               <th>الجهاز</th>
               <th>الحالة</th>
               <th>سعر الشراء</th>
+              <th>سعر البيع</th>
               <th>البائع / المورد</th>
               <th>الوضع الحالي</th>
               <th>الإجراءات</th>
@@ -439,6 +440,77 @@
     }
   }
 
+  // ---------- فاتورة الجهاز المباع ----------
+  // تضمن توفر قائمة المبيعات (تعيد استخدام salesForSoldCheck إن كانت محمّلة)
+  let invoiceSalesPromise = null;
+  async function ensureSalesLoaded() {
+    if (salesForSoldCheck && salesForSoldCheck.length > 0) return salesForSoldCheck;
+    if (!invoiceSalesPromise) {
+      invoiceSalesPromise = (window.storage && window.storage.isFirebaseAvailable)
+        ? window.storage.getSales()
+        : Promise.resolve(JSON.parse(localStorage.getItem('sales') || '[]'));
+    }
+    try {
+      salesForSoldCheck = await invoiceSalesPromise || [];
+    } catch (error) {
+      console.error('❌ خطأ في تحميل المبيعات للبحث عن الفاتورة:', error);
+      invoiceSalesPromise = null; // اسمح بإعادة المحاولة في النقر التالي
+      throw error;
+    }
+    return salesForSoldCheck;
+  }
+
+  // يجد بيعًا غير مسترجع يحتوي هذا الهاتف — الربط معكوس: sale.items[].id ← الهاتف
+  function findSaleForPhone(phone) {
+    const refs = new Set(
+      [String(phone?.id ?? ''), String(phone?.phone_number ?? '')].filter(v => v !== '')
+    );
+    return (salesForSoldCheck || []).find(sale =>
+      sale && sale.returned !== true && sale.status !== 'مسترجعة' &&
+      Array.isArray(sale.items) &&
+      sale.items.some(item =>
+        item.type === 'phone' &&
+        (refs.has(String(item.id)) || refs.has(String(item.phone_id)))
+      )
+    );
+  }
+
+  // سعر البيع الفعلي كما سُجّل في الفاتورة (item.unitPrice) وليس selling_price على الجهاز
+  // نفس سلسلة الحقول التي يقرؤها list_sales.html للتوافق مع السجلات القديمة
+  function getInvoiceUnitPrice(phone) {
+    const sale = findSaleForPhone(phone);
+    if (!sale) return null;
+    const refs = new Set(
+      [String(phone?.id ?? ''), String(phone?.phone_number ?? '')].filter(v => v !== '')
+    );
+    const item = sale.items.find(it =>
+      it.type === 'phone' &&
+      (refs.has(String(it.id)) || refs.has(String(it.phone_id)))
+    );
+    if (!item) return null;
+    const price = item.unitPrice || item.price || item.unit_price || item.selling_price;
+    return (price == null || isNaN(Number(price))) ? null : Number(price);
+  }
+
+  // يفتح فاتورة الجهاز المباع في view_sale.html
+  async function openSaleInvoice(phone, btn) {
+    const icon = btn ? btn.innerHTML : '';
+    if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>'; }
+    try {
+      await ensureSalesLoaded();
+      const sale = findSaleForPhone(phone);
+      if (sale && sale.id) {
+        window.location.href = `view_sale.html?id=${encodeURIComponent(sale.id)}`;
+        return;
+      }
+      showAlert('warning', 'لم يتم العثور على فاتورة لهذا الجهاز');
+    } catch (error) {
+      showAlert('danger', 'حدث خطأ أثناء البحث عن الفاتورة');
+    } finally {
+      if (btn) { btn.disabled = false; btn.innerHTML = icon; }
+    }
+  }
+
   // ---------- تحميل البيانات من Firebase ----------
   async function loadPurchasesFromFirebase() {
     try {
@@ -454,15 +526,22 @@
         console.log('✅ تم تحميل الأجهزة من localStorage:', phones.length);
       }
 
-      // نقرأ المبيعات فقط إذا لم تكن كل الأجهزة تحمل علم sold
-      // (نفس نمط لوحة التحكم و search.html لتجنب قراءة غير ضرورية)
+      // نقرأ المبيعات إذا لم تكن كل الأجهزة تحمل علم sold (للكشف عن المباع قديمًا)
+      // أو إذا وُجد جهاز مباع — لعرض سعر البيع الفعلي من الفاتورة وزر فتحها
       const allFlagged = Array.isArray(phones) && phones.length > 0 &&
         phones.every(p => typeof p.sold === 'boolean');
-      if (!allFlagged) {
-        if (window.storage && window.storage.isFirebaseAvailable) {
-          salesForSoldCheck = await window.storage.getSales();
-        } else {
-          salesForSoldCheck = JSON.parse(localStorage.getItem('sales') || '[]');
+      const needSales = !allFlagged || phones.some(p => p.sold === true);
+      if (needSales) {
+        // فشل تحميل المبيعات لا يمنع عرض القائمة — تُعرض الأسعار '-' ويعيد زر الفاتورة المحاولة
+        try {
+          if (window.storage && window.storage.isFirebaseAvailable) {
+            salesForSoldCheck = await window.storage.getSales();
+          } else {
+            salesForSoldCheck = JSON.parse(localStorage.getItem('sales') || '[]');
+          }
+        } catch (salesError) {
+          console.error('❌ تعذر تحميل المبيعات (ستُعرض أسعار البيع فارغة):', salesError);
+          salesForSoldCheck = [];
         }
       } else {
         salesForSoldCheck = [];
@@ -701,6 +780,19 @@
       tdPrice.innerHTML = `<span class="fw-bold text-success">${fmtMoney(phone.purchase_price)} ريال</span>`;
       tr.appendChild(tdPrice);
 
+      // سعر البيع الفعلي من الفاتورة — يُعرض للأجهزة المباعة فقط
+      const isSold = isPhoneSold(phone);
+      const tdSellPrice = document.createElement('td');
+      if (isSold) {
+        const unitPrice = getInvoiceUnitPrice(phone);
+        tdSellPrice.innerHTML = (unitPrice != null)
+          ? `<span class="fw-bold text-primary">${fmtMoney(unitPrice)} ريال</span>`
+          : '-';
+      } else {
+        tdSellPrice.textContent = '-';
+      }
+      tr.appendChild(tdSellPrice);
+
       // البائع / المورد
       const tdSeller = document.createElement('td');
       tdSeller.textContent = (condition !== 'new') ? (getSellerName(phone) || '-') : '-';
@@ -724,6 +816,19 @@
           </a>
         </div>
       `;
+      // زر الفاتورة — للأجهزة المباعة فقط
+      if (isSold) {
+        const invBtn = document.createElement('a');
+        invBtn.href = '#';
+        invBtn.className = 'btn btn-sm btn-primary';
+        invBtn.title = 'عرض الفاتورة';
+        invBtn.innerHTML = '<i class="fas fa-file-invoice"></i>';
+        invBtn.addEventListener('click', ev => {
+          ev.preventDefault();
+          openSaleInvoice(phone, invBtn);
+        });
+        tdAct.querySelector('.btn-group').appendChild(invBtn);
+      }
       tr.appendChild(tdAct);
 
       tbody.appendChild(tr);
@@ -955,6 +1060,7 @@
               <th>الجهاز</th>
               <th>الحالة</th>
               <th>سعر الشراء</th>
+              <th>سعر البيع</th>
               <th>البائع / المورد</th>
               <th>الوضع الحالي</th>
             </tr>
@@ -975,7 +1081,10 @@
       }
 
       const sellerName = (condition !== 'new') ? (getSellerName(phone) || '-') : '-';
-      const soldText = isPhoneSold(phone) ? 'تم بيعه' : 'متاح';
+      const sold = isPhoneSold(phone);
+      const soldText = sold ? 'تم بيعه' : 'متاح';
+      const unitPrice = sold ? getInvoiceUnitPrice(phone) : null;
+      const sellPriceText = (unitPrice != null) ? `${fmtMoney(unitPrice)} ريال` : '-';
 
       reportHTML += `
             <tr>
@@ -984,6 +1093,7 @@
               <td>${deviceName}</td>
               <td>${conditionText}</td>
               <td><strong class="text-success">${fmtMoney(phone.purchase_price || 0)} ريال</strong></td>
+              <td>${sellPriceText}</td>
               <td>${sellerName}</td>
               <td>${soldText}</td>
             </tr>`;
