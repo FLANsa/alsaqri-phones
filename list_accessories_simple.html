@@ -159,6 +159,9 @@
     // إعدادات النظام
     const VAT_RATE = 0.15;
     
+    // مصفوفة الأكسسوارات المحمّلة (تستخدمها الجدول والتعديل والحذف)
+    let accessories = [];
+
     // خريطة الفئات
     const categoryMap = {
       case: "أغلفة",
@@ -265,8 +268,6 @@
     async function loadAccessories() {
       try {
         console.log('📦 تحميل الأكسسوارات من قاعدة البيانات...');
-        
-        let accessories = [];
         
         // تحميل من Firebase
         if (window.storage && window.storage.isFirebaseAvailable) {
@@ -384,7 +385,7 @@
         }
 
         // البحث في المصفوفة المحمّلة في الذاكرة (نفس بيانات الجدول) بدل إعادة قراءة المجموعة
-        const accessory = accessories.find(acc => acc.id === accessoryId || acc.id === parseInt(accessoryId));
+        const accessory = accessories.find(acc => String(acc.id) === String(accessoryId));
 
         if (!accessory) {
           showAlert('danger', 'الأكسسوار غير موجود');
@@ -430,9 +431,8 @@
           return;
         }
 
-        // تحديث البيانات
+        // تحديث البيانات — الحقول المعدَّلة فقط (بدون id أو createdAt القديمة)
         const updatedAccessory = {
-          ...accessory,
           name: newName.trim(),
           arabic_name: newName.trim(),
           quantity_in_stock: convertedQuantity,
@@ -444,26 +444,12 @@
           date_updated: new Date().toISOString()
         };
 
-        // حفظ في Firebase أو localStorage
-        if (window.storage && window.storage.isFirebaseAvailable) {
-          const success = await window.storage.updateAccessory(accessoryId, updatedAccessory);
-          if (success) {
-            showAlert('success', 'تم تحديث الأكسسوار بنجاح');
-            await loadAccessories();
-          } else {
-            showAlert('danger', 'فشل في تحديث الأكسسوار');
-          }
+        const success = await window.storage.updateAccessory(accessory.id, updatedAccessory);
+        if (success) {
+          showAlert('success', 'تم تحديث الأكسسوار بنجاح');
+          await loadAccessories();
         } else {
-          const index = accessories.findIndex(acc => acc.id === accessoryId || acc.id === parseInt(accessoryId));
-          if (index !== -1) {
-            accessories[index] = updatedAccessory;
-            if (saveToStorage('accessories', accessories)) {
-              showAlert('success', 'تم تحديث الأكسسوار بنجاح');
-              loadAccessories();
-            } else {
-              showAlert('danger', 'فشل في تحديث الأكسسوار');
-            }
-          }
+          showAlert('danger', 'فشل في تحديث الأكسسوار');
         }
         
       } catch (error) {
@@ -484,7 +470,7 @@
         }
         
         // البحث في المصفوفة المحمّلة في الذاكرة بدل إعادة قراءة المجموعة
-        const accessory = accessories.find(acc => acc.id === accessoryId || acc.id === parseInt(accessoryId));
+        const accessory = accessories.find(acc => String(acc.id) === String(accessoryId));
         
         if (!accessory) {
           showAlert('danger', 'الأكسسوار غير موجود');
@@ -493,26 +479,12 @@
 
         if (!confirm(`هل أنت متأكد من حذف "${accessory.arabic_name || accessory.name}"؟`)) return;
 
-        // حذف من Firebase أو localStorage
-        if (window.storage && window.storage.isFirebaseAvailable) {
-          const success = await window.storage.deleteAccessory(accessoryId);
-          if (success) {
-            showAlert('success', 'تم حذف الأكسسوار بنجاح');
-            await loadAccessories();
-          } else {
-            showAlert('danger', 'فشل في حذف الأكسسوار');
-          }
+        const success = await window.storage.deleteAccessory(accessory.id);
+        if (success) {
+          showAlert('success', 'تم حذف الأكسسوار بنجاح');
+          await loadAccessories();
         } else {
-          const index = accessories.findIndex(acc => acc.id === accessoryId || acc.id === parseInt(accessoryId));
-          if (index !== -1) {
-            accessories.splice(index, 1);
-            if (saveToStorage('accessories', accessories)) {
-              showAlert('success', 'تم حذف الأكسسوار بنجاح');
-              loadAccessories();
-            } else {
-              showAlert('danger', 'فشل في حذف الأكسسوار');
-            }
-          }
+          showAlert('danger', 'فشل في حذف الأكسسوار');
         }
         
       } catch (error) {
@@ -553,8 +525,8 @@
   // تهيئة الصفحة
   document.addEventListener('DOMContentLoaded', async function() {
     updateNavigationForUser();
-    // انتظار تهيئة Firebase
-    // انتظار جاهزية Firebase فعليًا بدل مهلة ثابتة ثانية (يستيقظ فور جهوزها)\n    await new Promise(resolve => {\n      const t0 = Date.now();\n      const iv = setInterval(() => {\n        if ((window.storage && window.firebaseDatabase) || Date.now() - t0 > 5000) {\n          clearInterval(iv); resolve();\n        }\n      }, 50);\n    });
+    // ملفات Firebase نوعها module وتُنفَّذ قبل إطلاق DOMContentLoaded،
+    // لذا window.storage جاهز هنا دائماً ولا حاجة لأي انتظار.
     
     if (window.storage && window.storage.isFirebaseAvailable) {
       console.log('✅ Firebase متاح في صفحة مخزون الأكسسوارات');

@@ -266,8 +266,8 @@
     document.addEventListener('DOMContentLoaded', async () => {
       // Update navigation based on user role
       updateNavigationForUser();
-      
-      await new Promise(r => setTimeout(r, 400)); // مهلة قصيرة لضمان تهيئة window.storage
+
+      // ملفات Firebase نوعها module وتُنفَّذ قبل إطلاق DOMContentLoaded — لا حاجة لأي مهلة
       if (window.storage && window.storage.isFirebaseAvailable) {
         console.log('✅ Firebase متاح في صفحة المبيعات');
         await loadDataFromFirebase();

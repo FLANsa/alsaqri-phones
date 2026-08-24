@@ -209,9 +209,7 @@
   let currentBarcode = '';
 
   async function loadAccessoryData(){
-    // allow Firebase modules to initialize
-    await new Promise(r => setTimeout(r, 300));
-
+    // ملفات Firebase نوعها module وتُنفَّذ قبل إطلاق DOMContentLoaded — لا حاجة لأي مهلة
     const urlParams = new URLSearchParams(window.location.search);
     const barcode = urlParams.get('barcode');
 

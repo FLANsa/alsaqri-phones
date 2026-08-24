@@ -418,9 +418,20 @@
 
         let phone_number;
         if (window.editingPhoneId) {
-          const phones = await (window.storage ? window.storage.getPhones() : Promise.resolve([]));
-          const existing = Array.isArray(phones) ? phones.find(p => p.id === window.editingPhoneId || String(p.phone_number) === String(window.editingPhoneId)) : null;
-          phone_number = existing ? String(existing.phone_number || '').trim() : generatePhoneNumberLocal();
+          // استرجاع الباركود الحالي بقراءة موجّهة واحدة (تدعم معرّف المستند أو الباركود)
+          let existing = null;
+          try {
+            const map = window.storage && typeof window.storage.getPhonesByRefs === 'function'
+              ? await window.storage.getPhonesByRefs([String(window.editingPhoneId)])
+              : null;
+            existing = (map && map[String(window.editingPhoneId)]) || null;
+          } catch (e) { console.warn('⚠️ تعذر جلب الهاتف المعدَّل:', e); }
+          if (existing) {
+            phone_number = String(existing.phone_number || '').trim();
+          } else {
+            console.warn('⚠️ لم يُعثر على الهاتف المعدَّل في القاعدة — سيُولَّد باركود جديد');
+            phone_number = generatePhoneNumberLocal();
+          }
         } else if (window.storage && typeof window.storage.getNextPhoneNumber === 'function') {
           await primePhoneCounterOnce();
           phone_number = await window.storage.getNextPhoneNumber();
@@ -554,10 +565,10 @@
         
         let phone = null;
         
-        // البحث في Firebase أولاً
-        if (window.storage && window.storage.isFirebaseAvailable) {
-          const phones = await window.storage.getPhones();
-          phone = phones.find(p => p.phone_number === phoneNumber || p.id === phoneNumber);
+        // البحث في Firebase أولاً — قراءة موجّهة لهاتف واحد بدل المجموعة كاملة
+        if (window.storage && typeof window.storage.getPhonesByRefs === 'function') {
+          const map = await window.storage.getPhonesByRefs([phoneNumber]);
+          phone = (map && map[String(phoneNumber)]) || null;
         }
         
         // البحث في localStorage كبديل

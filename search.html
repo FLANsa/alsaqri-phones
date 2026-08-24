@@ -801,8 +801,8 @@
     // التحقق من تسجيل الدخول أولاً
     if (!checkLogin()) return;
 
-    // انتظار تهيئة Firebase
-    // انتظار جاهزية Firebase فعليًا بدل مهلة ثابتة ثانية (يستيقظ فور جهوزها)\n    await new Promise(resolve => {\n      const t0 = Date.now();\n      const iv = setInterval(() => {\n        if ((window.storage && window.firebaseDatabase) || Date.now() - t0 > 5000) {\n          clearInterval(iv); resolve();\n        }\n      }, 50);\n    });
+    // ملفات Firebase نوعها module وتُنفَّذ قبل إطلاق DOMContentLoaded،
+    // لذا window.storage جاهز هنا دائماً ولا حاجة لأي انتظار.
     
     if (window.storage && window.storage.isFirebaseAvailable) {
       console.log('✅ Firebase متاح في صفحة البحث');

@@ -851,10 +851,8 @@
       if (!checkLogin()) return;
 
       initializeDateRange();
-      
-      // انتظار تحميل Firebase
-      await new Promise(resolve => setTimeout(resolve, 500));
-      
+
+      // ملفات Firebase نوعها module وتُنفَّذ قبل إطلاق DOMContentLoaded — لا حاجة لأي مهلة
       await updateDashboard();
     });
   </script>

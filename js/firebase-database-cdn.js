@@ -120,7 +120,10 @@ class FirebaseDatabase {
     const snap = await this._getDocs('full:' + name, collection(this.db, name));
     const rows = [];
     snap.forEach((d) => rows.push({ id: d.id, ...d.data() }));
-    this._cacheSet(name, rows);
+    // لا نخزّن النتيجة الفارغة: سباق إقلاع الاتصال قد يرجع قائمة فارغة رغم وجود
+    // البيانات، وتخزينها يجمّد الأصفار لمدة 5 دقائق. المجموعة الفارغة أصلاً
+    // قراءتها مجانية (0 مستند محسوب) فإعادة محاولة جلبها لا تكلف شيئاً
+    if (rows.length > 0) this._cacheSet(name, rows);
     return rows;
   }
 
