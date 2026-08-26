@@ -136,7 +136,7 @@
                   <th>القيمة الشرائية</th>
                   <th>القيمة البيعية</th>
                   <th>الربح المتوقع</th>
-                  <th>متوسط السعر</th>
+                  <th>متوسط سعر الشراء</th>
                 </tr>
               </thead>
               <tbody id="phone_type_summary">
@@ -165,7 +165,7 @@
                   <th>القيمة الشرائية</th>
                   <th>القيمة البيعية</th>
                   <th>الربح المتوقع</th>
-                  <th>متوسط السعر</th>
+                  <th>متوسط سعر الشراء</th>
                 </tr>
               </thead>
               <tbody id="new_phones_brand_summary">
@@ -194,7 +194,7 @@
                   <th>القيمة الشرائية</th>
                   <th>القيمة البيعية</th>
                   <th>الربح المتوقع</th>
-                  <th>متوسط السعر</th>
+                  <th>متوسط سعر الشراء</th>
                 </tr>
               </thead>
               <tbody id="used_phones_brand_summary">
@@ -430,7 +430,7 @@
       if (type.phones.length > 0) {
         const totalPurchase = type.phones.reduce((sum, p) => sum + (p.purchase_price || p.price || 0), 0);
         const totalSelling = type.phones.reduce((sum, p) => sum + (p.selling_price || p.price || 0), 0);
-        const averagePrice = type.phones.length > 0 ? totalSelling / type.phones.length : 0;
+        const averagePrice = type.phones.length > 0 ? totalPurchase / type.phones.length : 0;
 
         const tr = document.createElement('tr');
         tr.innerHTML = `
@@ -478,7 +478,7 @@
     newBrandTbody.innerHTML = '';
     
     Object.values(newBrandSummary).forEach(brand => {
-      const averagePrice = brand.total_phones > 0 ? brand.total_selling_value / brand.total_phones : 0;
+      const averagePrice = brand.total_phones > 0 ? brand.total_purchase_value / brand.total_phones : 0;
       const tr = document.createElement('tr');
       tr.innerHTML = `
         <td>${brand.brand}</td>
@@ -522,7 +522,7 @@
     usedBrandTbody.innerHTML = '';
     
     Object.values(usedBrandSummary).forEach(brand => {
-      const averagePrice = brand.total_phones > 0 ? brand.total_selling_value / brand.total_phones : 0;
+      const averagePrice = brand.total_phones > 0 ? brand.total_purchase_value / brand.total_phones : 0;
       const tr = document.createElement('tr');
       tr.innerHTML = `
         <td>${brand.brand}</td>
