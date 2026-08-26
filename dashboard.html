@@ -281,80 +281,30 @@
   <script type="module" src="js/firebase-storage-manager.js?v=20260119"></script>
 
   <script>
-    // ==================== إعدادات التخزين المؤقت ====================
-    const CACHE_CONFIG = {
-      duration: 5 * 60 * 1000, // 5 دقائق
-      keys: {
-        phones: 'cached_phones',
-        accessories: 'cached_accessories',
-        sales: 'cached_sales',
-        maintenance: 'cached_maintenance',
-        timestamps: {
-          phones: 'cached_phones_time',
-          accessories: 'cached_accessories_time',
-          sales: 'cached_sales_time',
-          maintenance: 'cached_maintenance_time'
-        }
-      }
-    };
-
-    let startTime = 0;
-
     // ==================== أدوات التخزين المؤقت ====================
-    
-    function getCachedData(key) {
+    // الكاش الوحيد هو كاش طبقة البيانات (IndexedDB داخل firebase-database-cdn.js).
+    // كان هنا كاش ثانٍ في localStorage يكرر ما تفعله الطبقة ويستهلك حصتها،
+    // فأُزيل — وكل قراءة الآن تمر عبر الكاش الموحّد.
+
+    function sweepLegacyCacheKeys() {
+      // مفاتيخ نسخ سابقة لم تعد تُقرأ — تنظيف لمرة واحدة لتوفير حصة localStorage
+      const dead = ['cached_phones', 'cached_accessories', 'cached_sales', 'cached_maintenance',
+        'cached_phones_time', 'cached_accessories_time', 'cached_sales_time', 'cached_maintenance_time'];
       try {
-        // المفاتيح المسماة تُترجم عبر الجدول؛ المفاتيح الديناميكية (sales_range_...)
-        // تُستخدم كما هي — قبل هذا الفحص كانت تُخزَّن كلها تحت مفتاح "undefined"
-        const dataKey = CACHE_CONFIG.keys[key] ?? key;
-        const timeKey = CACHE_CONFIG.keys.timestamps[key] ?? (key + '_time');
-        const data = localStorage.getItem(dataKey);
-        const timestamp = localStorage.getItem(timeKey);
-
-        if (!data || !timestamp) return null;
-
-        const age = Date.now() - parseInt(timestamp);
-        if (age > CACHE_CONFIG.duration) {
-          console.log(`🕐 Cache expired for ${key}`);
-          return null;
-        }
-
-        console.log(`📦 Using cached data for ${key} (${Math.round(age/1000)}s old)`);
-        return JSON.parse(data);
-      } catch (e) {
-        console.error('Cache read error:', e);
-        return null;
-      }
-    }
-
-    function setCachedData(key, data) {
-      try {
-        const dataKey = CACHE_CONFIG.keys[key] ?? key;
-        const timeKey = CACHE_CONFIG.keys.timestamps[key] ?? (key + '_time');
-        localStorage.setItem(dataKey, JSON.stringify(data));
-        localStorage.setItem(timeKey, Date.now().toString());
-      } catch (e) {
-        console.error('Cache write error:', e);
-      }
+        dead.forEach(k => localStorage.removeItem(k));
+        Object.keys(localStorage)
+          .filter(k => k.startsWith('sales_range_') || k.startsWith('fs_cache_'))
+          .forEach(k => localStorage.removeItem(k));
+      } catch (e) { /* تجاهل */ }
     }
 
     function clearCache() {
-      Object.values(CACHE_CONFIG.keys).forEach(key => {
-        if (typeof key === 'string') {
-          localStorage.removeItem(key);
-        } else if (typeof key === 'object') {
-          Object.values(key).forEach(subKey => localStorage.removeItem(subKey));
-        }
-      });
-      // مسح كاش طبقة البيانات (fs_cache_) ومفاتيح فترات المبيعات الديناميكية
-      // حتى يُظهر زر التحديث أحدث البيانات فوراً بدل انتظار انتهاء صلاحية 5 دقائق
-      try {
-        Object.keys(localStorage)
-          .filter(k => k.startsWith('fs_cache_') || k.startsWith('sales_range_') || k === 'undefined')
-          .forEach(k => localStorage.removeItem(k));
-      } catch (e) { /* تجاهل */ }
+      sweepLegacyCacheKeys();
+      window.firebaseDatabase?.clearAllCache?.();
       console.log('🗑️ Cache cleared');
     }
+
+    let startTime = 0;
 
     // ==================== أدوات مساعدة ====================
 
@@ -546,76 +496,41 @@
     }
 
     function applyDateFilter() {
-      clearCache(); // مسح الكاش عند تغيير الفلتر
+      // لا نمسح الكاش: نطاق التاريخ يُقرأ من كاش طبقة البيانات (استعلام
+      // موجّه مخزن لكل فترة)، والبقية من الكاش الموحّد المشترك
       updateDashboard();
     }
 
     function resetToCurrentMonth() {
       initializeDateRange();
-      clearCache();
       updateDashboard();
     }
 
-    // ==================== جلب البيانات المُحسَّن ====================
-
-    async function fetchWithCache(key, fetchFunction, useCache = true) {
-      // محاولة استخدام الكاش أولاً
-      if (useCache) {
-        const cached = getCachedData(key);
-        if (cached !== null) {
-            return cached;
-        }
-      }
-
-      // جلب من Firestore
-      console.log(`🌐 Fetching ${key} from Firestore...`);
-      const startFetch = Date.now();
-      const data = await fetchFunction();
-      const fetchTime = Date.now() - startFetch;
-      
-      // حفظ في الكاش
-      setCachedData(key, data);
-      
-      console.log(`✅ Fetched ${key}: ${Array.isArray(data) ? data.length : 0} items in ${fetchTime}ms`);
-      return data;
-    }
+    // ==================== جلب البيانات ====================
+    // قراءة مباشرة عبر طبقة البيانات — كاشها الموحّد (IndexedDB) يكفي
+    // ولا حاجة لطبقة تخزين مؤقت ثانية هنا.
 
     async function getPhonesData() {
-      if (window.storage?.isFirebaseAvailable) {
-        return await fetchWithCache('phones', () => window.storage.getPhones());
-      }
-      return JSON.parse(localStorage.getItem('phones') || '[]');
+      return await window.storage.getPhones();
     }
 
     async function getAccessoriesData() {
-      if (window.storage?.isFirebaseAvailable) {
-        return await fetchWithCache('accessories', () => window.storage.getAccessories());
-      }
-      return JSON.parse(localStorage.getItem('accessories') || '[]');
+      return await window.storage.getAccessories();
     }
 
     async function getSalesData() {
-      if (window.storage?.isFirebaseAvailable) {
-        return await fetchWithCache('sales', () => window.storage.getSales());
-      }
-      return JSON.parse(localStorage.getItem('sales') || '[]');
+      return await window.storage.getSales();
     }
 
     // مبيعات الفترة فقط — تُستخدم عندما تكون كل الهواتف تحمل علم sold
     // (بعد تشغيل migrateSoldFlags مرة واحدة) فلا نحتاج المجموعة كاملة
     async function getSalesPeriodData(startDate, endDate) {
-      if (window.storage?.isFirebaseAvailable && typeof window.storage.getSalesInRange === 'function') {
-        const key = `sales_range_${startDate.getTime()}_${endDate.getTime()}`;
-        return await fetchWithCache(key, () => window.storage.getSalesInRange(startDate, endDate));
-      }
-      return JSON.parse(localStorage.getItem('sales') || '[]');
+      return await window.storage.getSalesInRange(startDate, endDate);
     }
 
     async function getMaintenanceData() {
       if (window.firebaseDatabase?.getMaintenanceJobs) {
-        return await fetchWithCache('maintenance', () => 
-          window.firebaseDatabase.getMaintenanceJobs({ status: 'done' })
-        );
+        return await window.firebaseDatabase.getMaintenanceJobs({ status: 'done' });
       }
       return [];
     }
@@ -850,6 +765,7 @@
     document.addEventListener('DOMContentLoaded', async function() {
       if (!checkLogin()) return;
 
+      sweepLegacyCacheKeys();
       initializeDateRange();
 
       // ملفات Firebase نوعها module وتُنفَّذ قبل إطلاق DOMContentLoaded — لا حاجة لأي مهلة

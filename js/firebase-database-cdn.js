@@ -2,13 +2,16 @@
 // طبقة بيانات Firestore — الصقري للاتصالات (نسخة معاد بناؤها)
 //
 // مبادئ التصميم:
-// 1. كاش موحّد 5 دقائق لكل المجموعات، وكل كتابة تمسح كاش مجموعتها فوراً
-//    (الكاش لكل جهاز/متصفح؛ التعديل من جهاز آخر يظهر خلال 5 دقائق)
-// 2. قراءة موجّهة لسجل واحد (where/getDoc) بدل قراءة المجموعة كاملة
-// 3. الفلاتر المركّبة (الحالة/الفني/التاريخ/المندوب) تجري داخل الذاكرة
-//    فوق القراءة المخزنة — لا استعلامات متكررة ولا فهارس مركّبة
-// 4. الكتابات المتعددة تمر عبر writeBatch (حد 400 عملية للدفعة)
-// 5. قاطع دائرة 5 دقائق عند نفاد حصة Firestore (resource-exhausted)
+// 1. كاش IndexedDB موحّد 5 دقائق لكل المجموعات (بلا حصة 5MB التي كانت
+//    تُسقط الكاش صامتةً في localStorage) — الكاش لكل جهاز/متصفح، والتعديل
+//    من جهاز آخر يظهر خلال 5 دقائق
+// 2. كل كتابة تُرقّع صفوف الكاش المتأثرة بدل مسح المجموعة كاملة، وتمسح
+//    فقط نتائج الاستعلامات المشتقة للمجموعة نفسها
+// 3. ضيّق النطاق على الخادم متى أمكن: نطاق زمني أو حالة واحدة (فهارس
+//    أحادية بلا فهارس مركّبة) — والفلاتر المركّبة داخل الذاكرة
+// 4. قراءة موجّهة لسجل واحد (where/getDoc) بدل قراءة المجموعة كاملة
+// 5. الكتابات المتعددة تمر عبر writeBatch (حد 400 عملية للدفعة)
+// 6. قاطع دائرة 5 دقائق عند نفاد حصة Firestore (resource-exhausted)
 // ============================================================
 import {
   collection,
@@ -47,9 +50,89 @@ function isQuotaError(error) {
   return !!(error && (error.code === 'resource-exhausted' || error.code === 'unavailable'));
 }
 
-// ---------- الكاش المحلي ----------
+// ---------- الكاش المحلي (IndexedDB) ----------
+// كان الكاش في localStorage ومات صامتةً عند امتلاء حصته (~5MB): كل صفحة
+// تصبح قراءة كاملة للمجموعات. IndexedDB سعته أكبر بمراتب ولا يعاني ذلك.
 const CACHE_TTL_MS = 5 * 60 * 1000;
-const CACHE_PREFIX = 'fs_cache_';
+const IDB_NAME = 'alsaqri_fs_cache';
+const IDB_STORE = 'kv';
+// لقطة المجموعة الكاملة تحت 'full:<name>'، ونتائج الاستعلامات المشتقة
+// تحت '<name>#...' حتى تُمسح دفعة واحدة عند أي كتابة على المجموعة
+const FULL_KEY = (name) => 'full:' + name;
+const DERIVED_PREFIX = (name) => name + '#';
+
+let _idbPromise = null;
+function idbOpen() {
+  if (!_idbPromise) {
+    _idbPromise = new Promise((resolve, reject) => {
+      try {
+        const req = indexedDB.open(IDB_NAME, 1);
+        req.onupgradeneeded = () => {
+          if (!req.result.objectStoreNames.contains(IDB_STORE)) req.result.createObjectStore(IDB_STORE);
+        };
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => reject(req.error);
+      } catch (e) { reject(e); }
+    });
+    // اسمح بمحاولة افتتاح جديدة إذا فشلت الحالية (وضع التصفح الخاص مثلاً)
+    _idbPromise.catch(() => { _idbPromise = null; });
+  }
+  return _idbPromise;
+}
+
+function idbRun(mode, fn) {
+  return idbOpen().then((db) => new Promise((resolve, reject) => {
+    let tx;
+    try { tx = db.transaction(IDB_STORE, mode); } catch (e) { reject(e); return; }
+    const done = new Promise((res, rej) => {
+      tx.oncomplete = res;
+      tx.onerror = () => rej(tx.error);
+      tx.onabort = () => rej(tx.error || new Error('idb aborted'));
+    });
+    try { fn(tx.objectStore(IDB_STORE)); } catch (e) { reject(e); return; }
+    done.then(() => resolve(), reject);
+  }));
+}
+const idbGetKey = (store, key) => new Promise((resolve, reject) => {
+  const req = store.get(key);
+  req.onsuccess = () => resolve(req.result);
+  req.onerror = () => reject(req.error);
+});
+
+async function idbGet(key) {
+  try {
+    let value;
+    await idbRun('readonly', async (store) => { value = await idbGetKey(store, key); });
+    return value;
+  } catch (_) { return undefined; }
+}
+
+async function idbSet(key, value) {
+  try {
+    await idbRun('readwrite', (store) => { store.put(value, key); });
+  } catch (e) {
+    console.warn('⚠️ فشل تخزين الكاش في IndexedDB:', key, e);
+  }
+}
+
+async function idbDelete(key) {
+  try { await idbRun('readwrite', (store) => { store.delete(key); }); } catch (_) {}
+}
+
+/** احذف كل المفاتيح التي تبدأ ببادئة معينة (نطاق مفاتيح متصل) */
+async function idbDeletePrefix(prefix) {
+  try {
+    await idbRun('readwrite', (store) => {
+      const range = IDBKeyRange.bound(prefix, prefix + '\uffff', false, false);
+      const cur = store.openCursor(range);
+      cur.onsuccess = () => { const c = cur.result; if (c) { c.delete(); c.continue(); } };
+    });
+  } catch (_) {}
+}
+
+async function idbClearAll() {
+  try { await idbRun('readwrite', (store) => { store.clear(); }); } catch (_) {}
+}
 
 class FirebaseDatabase {
   constructor() {
@@ -58,6 +141,14 @@ class FirebaseDatabase {
     // عدّاد قراءات Firestore للمراقبة — يُصفَّر مع كل تحميل صفحة
     // اقرأه من الكونسول: window.firebaseDatabase._reads
     this._reads = { rpcs: 0, docs: 0, full: {} };
+    // طابور ترقيع تسلسلي يمنع سباق قراءة/كتابة بين عمليتي كتابة متتاليتين
+    this._patchQueue = Promise.resolve();
+    // إزالة مخلفات الكاش القديم من localStorage (لم تعد تُقرأ وتستهلك الحصة)
+    try {
+      Object.keys(localStorage)
+        .filter(k => k.startsWith('fs_cache_'))
+        .forEach(k => localStorage.removeItem(k));
+    } catch (_) {}
   }
 
   _trackReads(label, docs) {
@@ -84,47 +175,133 @@ class FirebaseDatabase {
   }
 
   // ===== أدوات الكاش =====
-  _cacheGet(key) {
+  /** يعيد الدخول كاملاً { t, data } أو null — الفحص الزمني هنا */
+  async _cacheEntryGet(key) {
     try {
-      const raw = localStorage.getItem(CACHE_PREFIX + key);
-      if (!raw) return null;
-      const { t, data } = JSON.parse(raw);
-      if (Date.now() - t > CACHE_TTL_MS) {
-        localStorage.removeItem(CACHE_PREFIX + key);
+      const entry = await idbGet(key);
+      if (!entry || typeof entry !== 'object' || !entry.data) return null;
+      if (Date.now() - entry.t > CACHE_TTL_MS) {
+        idbDelete(key); // إزالة الإدخال المنتهي — دون انتظار
         return null;
       }
-      return data;
-    } catch (e) {
+      return entry;
+    } catch (_) {
       return null;
     }
   }
 
-  _cacheSet(key, data) {
-    try {
-      localStorage.setItem(CACHE_PREFIX + key, JSON.stringify({ t: Date.now(), data }));
-    } catch (e) {
-      // تجاوز حد التخزين: أزل هذا المفتاح فقط وتابع بلا كاش له
-      console.warn('⚠️ Cache skipped for', key, '- storage quota exceeded');
-      this._cacheClear(key);
-    }
+  async _cacheSet(key, data, t = Date.now()) {
+    await idbSet(key, { t, data });
   }
 
-  _cacheClear(key) {
-    try { localStorage.removeItem(CACHE_PREFIX + key); } catch (e) { /* تجاهل */ }
+  /** مسح كاش مجموعة كاملة — فقط للمسارات النادرة التي تعيد كتابة كل الصفوف */
+  _dropCollectionCache(name) {
+    return this._queuePatch(async () => {
+      await idbDeletePrefix(DERIVED_PREFIX(name));
+      await idbDelete(FULL_KEY(name));
+    });
+  }
+
+  /** تسلسل عمليات الترقيع: كل عملية تنتظر انتهاء سابقتها فلا سباق قراءة/كتابة */
+  _queuePatch(fn) {
+    const run = this._patchQueue.then(fn).catch((e) => console.warn('⚠️ ترقيع الكاش:', e));
+    this._patchQueue = run;
+    return run;
+  }
+
+  /** مسح كل الكاش المحلي — يُستدعى عند تسجيل الخروج وزر التحديث */
+  async clearAllCache() {
+    await idbClearAll();
+    console.log('🗑️ تم مسح كاش Firestore المحلي بالكامل');
+  }
+
+  /**
+   * يطبّق كتابة على المجموعة: يمسح نتائج استعلاماتها المشتقة دائماً،
+   * ويُرقّع اللقطة الكاملة المخزنة عبر mutator إن وُجدت.
+   * mutator يستقبل نسخة الصفوف ويعيد النسخة الجديدة، أو null للإبقاء عليها.
+   */
+  _applyWrite(name, mutateFull) {
+    return this._queuePatch(async () => {
+      // المشتقات تُمسح حتى بلا لقطة كاملة (قد تكون موجودة واللقطة منتهية)
+      await idbDeletePrefix(DERIVED_PREFIX(name));
+      if (!mutateFull) return;
+      const key = FULL_KEY(name);
+      const entry = await this._cacheEntryGet(key);
+      if (!entry || !Array.isArray(entry.data)) return;
+      const rows = mutateFull(entry.data.slice());
+      if (Array.isArray(rows)) await this._cacheSet(key, rows, entry.t); // نحافظ على عمر الكاش الأصلي
+    });
+  }
+
+  /** إضافة مستند جديد إلى الكاش إن وُجد (createdAt/updatedAt محلية مؤقتة) */
+  _patchAddRow(name, row) {
+    return this._applyWrite(name, (rows) => {
+      const i = rows.findIndex(r => String(r.id) === String(row.id));
+      if (i >= 0) rows[i] = { ...rows[i], ...row };
+      else rows.push(row);
+      return rows;
+    });
+  }
+
+  /** دمج حقول في مستند موجود داخل الكاش إن وُجد */
+  _patchUpdateRow(name, id, fields) {
+    return this._applyWrite(name, (rows) => {
+      const i = rows.findIndex(r => String(r.id) === String(id));
+      if (i === -1) return null;
+      rows[i] = { ...rows[i], ...fields };
+      return rows;
+    });
+  }
+
+  /** حذف مستند من الكاش إن وُجد */
+  _patchRemoveRow(name, id) {
+    return this._applyWrite(name, (rows) =>
+      rows.filter(r => String(r.id) !== String(id)));
+  }
+
+  /** ترقيع عدة صفوف بشرط مسند (مثلاً أعلام sold دفعة واحدة) */
+  _patchRowsWhere(name, predicate, fieldsFn) {
+    return this._applyWrite(name, (rows) => {
+      let touched = false;
+      const next = rows.map(r => {
+        if (!predicate(r)) return r;
+        touched = true;
+        return { ...r, ...fieldsFn(r) };
+      });
+      return touched ? next : null;
+    });
   }
 
   // قراءة مجموعة كاملة عبر الكاش — قراءة واحدة كل 5 دقائق مهما تعددت الاستدعاءات
   async _getCollectionCached(name) {
-    const cached = this._cacheGet(name);
-    if (cached) return cached;
-    const snap = await this._getDocs('full:' + name, collection(this.db, name));
+    const entry = await this._cacheEntryGet(FULL_KEY(name));
+    if (entry) return entry.data;
+    const snap = await this._getDocs(FULL_KEY(name), collection(this.db, name));
     const rows = [];
     snap.forEach((d) => rows.push({ id: d.id, ...d.data() }));
     // لا نخزّن النتيجة الفارغة: سباق إقلاع الاتصال قد يرجع قائمة فارغة رغم وجود
     // البيانات، وتخزينها يجمّد الأصفار لمدة 5 دقائق. المجموعة الفارغة أصلاً
     // قراءتها مجانية (0 مستند محسوب) فإعادة محاولة جلبها لا تكلف شيئاً
-    if (rows.length > 0) this._cacheSet(name, rows);
+    if (rows.length > 0) await this._cacheSet(FULL_KEY(name), rows);
     return rows;
+  }
+
+  /** قراءة نتيجة استعلام مشتقة عبر الكاش مع مفتاح قياسي، أو جلبها من Firestore */
+  async _derivedQueryCached(cacheKey, label, buildQuery, mapRow) {
+    const entry = await this._cacheEntryGet(cacheKey);
+    if (entry) return entry.data;
+    const snap = await this._getDocs(label, buildQuery());
+    const rows = [];
+    snap.forEach((d) => rows.push(mapRow(d)));
+    if (rows.length > 0) await this._cacheSet(cacheKey, rows);
+    return rows;
+  }
+
+  /** تطبيع قيمة تاريخ فلاتر الاستعلام (Date | ISO | نص) إلى Date أو null */
+  _normFilterDate(v) {
+    if (!v) return null;
+    const d = v instanceof Date ? v : new Date(v);
+    return isNaN(d.getTime()) ? null : d;
   }
 
   // يحوّل قيمة تاريخ (Timestamp | {seconds} | ISO | Date) إلى Date أو null
@@ -329,7 +506,11 @@ class FirebaseDatabase {
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp()
       });
-      this._cacheClear('phones');
+      // ترقيع الكاش محلياً بدل مسح المجموعة (تواريخ محلية مؤقتة حتى أول جلب)
+      await this._patchAddRow('phones', {
+        id: docRef.id, ...phoneData,
+        createdAt: new Date(), updatedAt: new Date()
+      });
       console.log('✅ Phone added with ID:', docRef.id);
       return docRef.id;
     } catch (error) {
@@ -355,7 +536,7 @@ class FirebaseDatabase {
         ...phoneData,
         updatedAt: serverTimestamp()
       });
-      this._cacheClear('phones');
+      await this._patchUpdateRow('phones', phoneId, { ...phoneData, updatedAt: new Date() });
       console.log('✅ Phone updated:', phoneId);
     } catch (error) {
       console.error('❌ Error updating phone:', error);
@@ -366,7 +547,7 @@ class FirebaseDatabase {
   async deletePhone(phoneId) {
     try {
       await deleteDoc(doc(this.db, 'phones', phoneId));
-      this._cacheClear('phones');
+      await this._patchRemoveRow('phones', phoneId);
       console.log('✅ Phone deleted:', phoneId);
     } catch (error) {
       console.error('❌ Error deleting phone:', error);
@@ -435,7 +616,11 @@ class FirebaseDatabase {
       if (++ops === 400) { await batch.commit(); batch = writeBatch(this.db); ops = 0; }
     }
     if (ops > 0) await batch.commit();
-    this._cacheClear('phones');
+    await this._patchRowsWhere(
+      'phones',
+      (r) => ids.includes(String(r.id)),
+      () => ({ sold: !!sold, updatedAt: new Date() })
+    );
     console.log('✅ setPhonesSold:', ids.length, '→', !!sold);
     return ids.length;
   }
@@ -469,7 +654,8 @@ class FirebaseDatabase {
       if (++ops === 400) { await batch.commit(); batch = writeBatch(this.db); ops = 0; }
     }
     if (ops > 0) await batch.commit();
-    this._cacheClear('phones');
+    // إعادة كتابة جماعية نادرة (من الكونسول) — مسح كاش الهواتف كاملاً مقبول هنا
+    await this._dropCollectionCache('phones');
     const summary = { phones: phones.length, sold: soldCount, available: availCount, skipped, written: soldCount + availCount - skipped };
     console.log('✅ migrateSoldFlags:', summary);
     return summary;
@@ -484,7 +670,10 @@ class FirebaseDatabase {
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp()
       });
-      this._cacheClear('accessories');
+      await this._patchAddRow('accessories', {
+        id: docRef.id, ...accessoryData,
+        createdAt: new Date(), updatedAt: new Date()
+      });
       console.log('✅ Accessory added:', docRef.id);
       return docRef.id;
     } catch (error) {
@@ -510,7 +699,7 @@ class FirebaseDatabase {
         ...accessoryData,
         updatedAt: serverTimestamp()
       });
-      this._cacheClear('accessories');
+      await this._patchUpdateRow('accessories', accessoryId, { ...accessoryData, updatedAt: new Date() });
       console.log('✅ Accessory updated:', accessoryId);
     } catch (error) {
       console.error('❌ Error updating accessory:', error);
@@ -521,7 +710,7 @@ class FirebaseDatabase {
   async deleteAccessory(accessoryId) {
     try {
       await deleteDoc(doc(this.db, 'accessories', accessoryId));
-      this._cacheClear('accessories');
+      await this._patchRemoveRow('accessories', accessoryId);
       console.log('✅ Accessory deleted:', accessoryId);
     } catch (error) {
       console.error('❌ Error deleting accessory:', error);
@@ -596,7 +785,11 @@ class FirebaseDatabase {
       if (++ops === 400) { await batch.commit(); batch = writeBatch(this.db); ops = 0; }
     }
     if (ops > 0) await batch.commit();
-    this._cacheClear('accessories');
+    await this._patchRowsWhere(
+      'accessories',
+      (r) => list.some(u => String(u.id) === String(r.id)),
+      (r) => ({ ...list.find(u => String(u.id) === String(r.id)).data, updatedAt: new Date() })
+    );
     console.log('✅ batchUpdateAccessories:', list.length);
     return list.length;
   }
@@ -610,7 +803,10 @@ class FirebaseDatabase {
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp()
       });
-      this._cacheClear('accessory_categories');
+      await this._patchAddRow('accessory_categories', {
+        id: docRef.id, ...categoryData,
+        createdAt: new Date(), updatedAt: new Date()
+      });
       console.log('✅ Category added:', docRef.id);
       return docRef.id;
     } catch (error) {
@@ -638,7 +834,8 @@ class FirebaseDatabase {
       const deletes = [];
       snap.forEach((d) => deletes.push(deleteDoc(d.ref)));
       await Promise.all(deletes);
-      this._cacheClear('accessory_categories');
+      await this._applyWrite('accessory_categories', (rows) =>
+        rows.filter(r => r.arabic_name !== categoryName));
       console.log('✅ Accessory category deleted:', categoryName);
       return true;
     } catch (error) {
@@ -656,7 +853,10 @@ class FirebaseDatabase {
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp()
       });
-      this._cacheClear('phone_types');
+      await this._patchAddRow('phone_types', {
+        id: docRef.id, ...phoneTypeData,
+        createdAt: new Date(), updatedAt: new Date()
+      });
       console.log('✅ Phone type added:', docRef.id);
       return docRef.id;
     } catch (error) {
@@ -684,7 +884,8 @@ class FirebaseDatabase {
       const deletes = [];
       snap.forEach((d) => deletes.push(deleteDoc(d.ref)));
       await Promise.all(deletes);
-      this._cacheClear('phone_types');
+      await this._applyWrite('phone_types', (rows) =>
+        rows.filter(r => !(r.brand === brand && r.model === model)));
       console.log('✅ Phone type deleted:', brand, model);
       return true;
     } catch (error) {
@@ -702,7 +903,10 @@ class FirebaseDatabase {
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp()
       });
-      this._cacheClear('sales');
+      await this._patchAddRow('sales', {
+        id: docRef.id, ...saleData,
+        createdAt: new Date(), updatedAt: new Date()
+      });
       console.log('✅ Sale added with ID:', docRef.id);
       return docRef.id;
     } catch (error) {
@@ -742,7 +946,7 @@ class FirebaseDatabase {
         ...saleData,
         updatedAt: serverTimestamp()
       });
-      this._cacheClear('sales');
+      await this._patchUpdateRow('sales', saleId, { ...saleData, updatedAt: new Date() });
       console.log('✅ Sale updated:', saleId);
     } catch (error) {
       console.error('❌ Error updating sale:', error);
@@ -750,21 +954,27 @@ class FirebaseDatabase {
     }
   }
 
-  /** مبيعات نطاق زمني فقط (createdAt بين تاريخين) — لإحصاءات الفترة */
+  /** مبيعات نطاق زمني فقط (createdAt بين تاريخين) — لإحصاءات الفترة.
+   *  الاستعلام موجّه على الخادم (فهرس أحادي) ونتيجته مخزنة كاستعلام مشتق. */
   async getSalesInRange(from, to) {
     try {
-      const q = to
-        ? query(collection(this.db, 'sales'),
-            where('createdAt', '>=', from), where('createdAt', '<=', to),
-            orderBy('createdAt', 'desc'))
-        : query(collection(this.db, 'sales'),
-            where('createdAt', '>=', from),
-            orderBy('createdAt', 'desc'));
-      const snap = await this._getDocs('sales:range', q);
-      const sales = [];
-      snap.forEach((d) => sales.push({ id: d.id, ...d.data() }));
-      console.log('💰 Sales in range loaded:', sales.length);
-      return sales;
+      const fMs = this._normFilterDate(from)?.getTime() || '';
+      const tMs = this._normFilterDate(to)?.getTime() || '';
+      const cacheKey = DERIVED_PREFIX('sales') + `range_${fMs}_${tMs}`;
+      const rows = await this._derivedQueryCached(
+        cacheKey,
+        'sales:range',
+        () => to
+          ? query(collection(this.db, 'sales'),
+              where('createdAt', '>=', from), where('createdAt', '<=', to),
+              orderBy('createdAt', 'desc'))
+          : query(collection(this.db, 'sales'),
+              where('createdAt', '>=', from),
+              orderBy('createdAt', 'desc')),
+        (d) => ({ id: d.id, ...d.data() })
+      );
+      console.log('💰 Sales in range loaded:', rows.length);
+      return rows;
     } catch (error) {
       console.error('❌ Error getting sales in range:', error);
       throw error;
@@ -781,7 +991,10 @@ class FirebaseDatabase {
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp()
       });
-      this._cacheClear('reps');
+      await this._patchAddRow('reps', {
+        id: docRef.id, ...repData, active: true,
+        createdAt: new Date(), updatedAt: new Date()
+      });
       console.log('✅ Rep added with ID:', docRef.id);
       return docRef.id;
     } catch (error) {
@@ -804,7 +1017,7 @@ class FirebaseDatabase {
   async updateRep(repId, repData) {
     try {
       await updateDoc(doc(this.db, 'reps', repId), { ...repData, updatedAt: serverTimestamp() });
-      this._cacheClear('reps');
+      await this._patchUpdateRow('reps', repId, { ...repData, updatedAt: new Date() });
       console.log('✅ Rep updated:', repId);
     } catch (error) {
       console.error('❌ Error updating rep:', error);
@@ -815,7 +1028,7 @@ class FirebaseDatabase {
   async deleteRep(repId) {
     try {
       await deleteDoc(doc(this.db, 'reps', repId));
-      this._cacheClear('reps');
+      await this._patchRemoveRow('reps', repId);
       console.log('✅ Rep deleted:', repId);
     } catch (error) {
       console.error('❌ Error deleting rep:', error);
@@ -834,7 +1047,11 @@ class FirebaseDatabase {
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp()
       });
-      this._cacheClear('technicians');
+      await this._patchAddRow('technicians', {
+        id: docRef.id, ...techData, active: true,
+        defaultCommissionPercent: techData.defaultCommissionPercent || 0.5,
+        createdAt: new Date(), updatedAt: new Date()
+      });
       console.log('✅ Technician added with ID:', docRef.id);
       return docRef.id;
     } catch (error) {
@@ -857,7 +1074,7 @@ class FirebaseDatabase {
   async updateTechnician(techId, techData) {
     try {
       await updateDoc(doc(this.db, 'technicians', techId), { ...techData, updatedAt: serverTimestamp() });
-      this._cacheClear('technicians');
+      await this._patchUpdateRow('technicians', techId, { ...techData, updatedAt: new Date() });
       console.log('✅ Technician updated:', techId);
     } catch (error) {
       console.error('❌ Error updating technician:', error);
@@ -868,7 +1085,7 @@ class FirebaseDatabase {
   async deleteTechnician(techId) {
     try {
       await deleteDoc(doc(this.db, 'technicians', techId));
-      this._cacheClear('technicians');
+      await this._patchRemoveRow('technicians', techId);
       console.log('✅ Technician deleted:', techId);
     } catch (error) {
       console.error('❌ Error deleting technician:', error);
@@ -879,25 +1096,54 @@ class FirebaseDatabase {
   // ===== الصيانة: الأعمال =====
 
   /**
-   * قراءة واحدة كاملة عبر الكاش ثم فلترة داخل الذاكرة —
-   * كل الفلاتر مجانية بلا استعلامات إضافية ولا فهارس مركّبة.
-   * الفلاتر: status, techId, repId (parts[] أو repId مباشر), dateFrom, dateTo
+   * ضيّق النطاق على الخادم متى توفر فلتر (نطاق زمني على visitDate، أو حالة
+   * واحدة) — فهارس أحادية بلا فهارس مركّبة. بقية الفلاتر داخل الذاكرة فوق
+   * النتيجة المخزنة: techId, repId, وأي فلتر زمني/حالة لم يُطبّق على الخادم.
    */
   async getMaintenanceJobs(filters = {}) {
     try {
-      const all = await this._getCollectionCached('maintenanceJobs');
-      let jobs = all;
+      const df = this._normFilterDate(filters.dateFrom);
+      const dt = this._normFilterDate(filters.dateTo);
+      let jobs;
 
+      if (df || dt) {
+        const key = DERIVED_PREFIX('maintenanceJobs') +
+          `q_d${df ? df.getTime() : ''}_${dt ? dt.getTime() : ''}`;
+        jobs = await this._derivedQueryCached(
+          key,
+          'maintenanceJobs:range',
+          () => {
+            const constraints = [];
+            if (df) constraints.push(where('visitDate', '>=', df));
+            if (dt) constraints.push(where('visitDate', '<=', dt));
+            return query(collection(this.db, 'maintenanceJobs'), ...constraints);
+          },
+          (d) => ({ id: d.id, ...d.data() })
+        );
+      } else if (filters.status) {
+        const key = DERIVED_PREFIX('maintenanceJobs') + `q_s_${filters.status}`;
+        jobs = await this._derivedQueryCached(
+          key,
+          'maintenanceJobs:status',
+          () => query(collection(this.db, 'maintenanceJobs'),
+                      where('status', '==', filters.status)),
+          (d) => ({ id: d.id, ...d.data() })
+        );
+      } else {
+        jobs = await this._getCollectionCached('maintenanceJobs');
+      }
+
+      // الفلاتر المركّبة دائماً في الذاكرة (آمنة حتى لو طُبّق جزء منها خادمياً)
       if (filters.status) jobs = jobs.filter(j => j.status === filters.status);
       if (filters.techId) jobs = jobs.filter(j => j.techId === filters.techId);
 
       const jobDate = (job) => this._asDate(job.visitDate);
       if (filters.dateFrom) {
-        const dateFrom = filters.dateFrom instanceof Date ? filters.dateFrom : new Date(filters.dateFrom);
+        const dateFrom = df;
         jobs = jobs.filter(job => { const d = jobDate(job); return d && d >= dateFrom; });
       }
       if (filters.dateTo) {
-        const dateTo = filters.dateTo instanceof Date ? filters.dateTo : new Date(filters.dateTo);
+        const dateTo = dt;
         jobs = jobs.filter(job => { const d = jobDate(job); return d && d <= dateTo; });
       }
 
@@ -911,7 +1157,7 @@ class FirebaseDatabase {
       }
 
       jobs = jobs.slice().sort((a, b) => (jobDate(b) || 0) - (jobDate(a) || 0));
-      console.log('✅ Maintenance jobs loaded:', jobs.length, '(cache of', all.length + ')');
+      console.log('✅ Maintenance jobs loaded:', jobs.length);
       return jobs;
     } catch (error) {
       console.error('❌ Error getting maintenance jobs:', error);
@@ -948,7 +1194,11 @@ class FirebaseDatabase {
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp()
       });
-      this._cacheClear('maintenanceJobs');
+      await this._patchAddRow('maintenanceJobs', {
+        id: docRef.id, ...jobData,
+        profit, techCommission, shopProfit, status: 'pending',
+        createdAt: new Date(), updatedAt: new Date()
+      });
       console.log('✅ Maintenance job added with ID:', docRef.id);
       return docRef.id;
     } catch (error) {
@@ -959,16 +1209,30 @@ class FirebaseDatabase {
 
   async updateMaintenanceJob(jobId, jobData) {
     try {
-      // إعادة حساب الأرباح المشتقة إذا تغيرت القيم
+      // إعادة حساب الأرباح المشتقة إذا تغيرت القيم.
+      // إن اكتملت قيم التسعير في jobData نحسب مباشرة بلا قراءة للمستند؛
+      // نقرأ الحالي فقط عند نقص قيمة (تعديل جزئي).
       if (jobData.partCost !== undefined || jobData.amountCharged !== undefined || jobData.techPercent !== undefined) {
-        const currentJob = await this.getMaintenanceJob(jobId);
-        const partCost =
-          jobData.totalPartCost !== undefined ? jobData.totalPartCost
-          : currentJob.totalPartCost !== undefined ? currentJob.totalPartCost
-          : jobData.partCost !== undefined ? jobData.partCost
-          : currentJob.partCost;
-        const amountCharged = jobData.amountCharged !== undefined ? jobData.amountCharged : currentJob.amountCharged;
-        const techPercent = jobData.techPercent !== undefined ? jobData.techPercent : currentJob.techPercent;
+        const pricingComplete =
+          (jobData.totalPartCost !== undefined || jobData.partCost !== undefined) &&
+          jobData.amountCharged !== undefined &&
+          jobData.techPercent !== undefined;
+
+        let partCost, amountCharged, techPercent;
+        if (pricingComplete) {
+          partCost = jobData.totalPartCost !== undefined ? jobData.totalPartCost : jobData.partCost;
+          amountCharged = jobData.amountCharged;
+          techPercent = jobData.techPercent;
+        } else {
+          const currentJob = await this.getMaintenanceJob(jobId);
+          partCost =
+            jobData.totalPartCost !== undefined ? jobData.totalPartCost
+            : currentJob.totalPartCost !== undefined ? currentJob.totalPartCost
+            : jobData.partCost !== undefined ? jobData.partCost
+            : currentJob.partCost;
+          amountCharged = jobData.amountCharged !== undefined ? jobData.amountCharged : currentJob.amountCharged;
+          techPercent = jobData.techPercent !== undefined ? jobData.techPercent : currentJob.techPercent;
+        }
 
         const { profit, techCommission, shopProfit } = this.computeDerived(partCost, amountCharged, techPercent);
         jobData.profit = profit;
@@ -977,7 +1241,7 @@ class FirebaseDatabase {
       }
 
       await updateDoc(doc(this.db, 'maintenanceJobs', jobId), { ...jobData, updatedAt: serverTimestamp() });
-      this._cacheClear('maintenanceJobs');
+      await this._patchUpdateRow('maintenanceJobs', jobId, { ...jobData, updatedAt: new Date() });
       console.log('✅ Maintenance job updated:', jobId);
     } catch (error) {
       console.error('❌ Error updating maintenance job:', error);
@@ -988,7 +1252,7 @@ class FirebaseDatabase {
   async deleteMaintenanceJob(jobId) {
     try {
       await deleteDoc(doc(this.db, 'maintenanceJobs', jobId));
-      this._cacheClear('maintenanceJobs');
+      await this._patchRemoveRow('maintenanceJobs', jobId);
       console.log('✅ Maintenance job deleted:', jobId);
     } catch (error) {
       console.error('❌ Error deleting maintenance job:', error);
@@ -998,26 +1262,46 @@ class FirebaseDatabase {
 
   // ===== الصيانة: المدفوعات =====
 
-  /** قراءة مخزنة + فلترة داخل الذاكرة (dateFrom/dateTo/entityType/entityId) */
+  /**
+   * ضيّق على الخادم بنطاق paymentDate إن توفر (فهرس أحادي)، والباقي في
+   * الذاكرة: entityType, entityId وأي فلتر زمني لم يُطبّق خادمياً.
+   */
   async getPayments(filters = {}) {
     try {
-      const all = await this._getCollectionCached('payments');
-      let payments = all;
+      const df = this._normFilterDate(filters.dateFrom);
+      const dt = this._normFilterDate(filters.dateTo);
+      let payments;
+
+      if (df || dt) {
+        const key = DERIVED_PREFIX('payments') +
+          `q_d${df ? df.getTime() : ''}_${dt ? dt.getTime() : ''}`;
+        payments = await this._derivedQueryCached(
+          key,
+          'payments:range',
+          () => {
+            const constraints = [];
+            if (df) constraints.push(where('paymentDate', '>=', df));
+            if (dt) constraints.push(where('paymentDate', '<=', dt));
+            return query(collection(this.db, 'payments'), ...constraints);
+          },
+          (d) => ({ id: d.id, ...d.data() })
+        );
+      } else {
+        payments = await this._getCollectionCached('payments');
+      }
 
       const payDate = (p) => this._asDate(p.paymentDate);
       if (filters.dateFrom) {
-        const dateFrom = this._asDate(filters.dateFrom);
-        payments = payments.filter(p => { const d = payDate(p); return d && dateFrom && d >= dateFrom; });
+        payments = payments.filter(p => { const d = payDate(p); return d && df && d >= df; });
       }
       if (filters.dateTo) {
-        const dateTo = this._asDate(filters.dateTo);
-        payments = payments.filter(p => { const d = payDate(p); return d && dateTo && d <= dateTo; });
+        payments = payments.filter(p => { const d = payDate(p); return d && dt && d <= dt; });
       }
       if (filters.entityType) payments = payments.filter(p => p.entityType === filters.entityType);
       if (filters.entityId) payments = payments.filter(p => p.entityId === filters.entityId);
 
       payments = payments.slice().sort((a, b) => (payDate(b) || 0) - (payDate(a) || 0));
-      console.log('✅ Payments loaded:', payments.length, '(cache of', all.length + ')');
+      console.log('✅ Payments loaded:', payments.length);
       return payments;
     } catch (error) {
       console.error('❌ Error getting payments:', error);
@@ -1032,7 +1316,10 @@ class FirebaseDatabase {
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp()
       });
-      this._cacheClear('payments');
+      await this._patchAddRow('payments', {
+        id: docRef.id, ...paymentData,
+        createdAt: new Date(), updatedAt: new Date()
+      });
       console.log('✅ Payment added with ID:', docRef.id);
       return docRef.id;
     } catch (error) {
@@ -1044,7 +1331,7 @@ class FirebaseDatabase {
   async deletePayment(paymentId) {
     try {
       await deleteDoc(doc(this.db, 'payments', paymentId));
-      this._cacheClear('payments');
+      await this._patchRemoveRow('payments', paymentId);
       console.log('✅ Payment deleted:', paymentId);
     } catch (error) {
       console.error('❌ Error deleting payment:', error);
