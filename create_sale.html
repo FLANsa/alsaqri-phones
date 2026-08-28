@@ -94,6 +94,11 @@
                 </select>
               </div>
               <div class="mb-3">
+                <label for="seller_name" class="form-label"><i class="fas fa-user-tie"></i> اسم البائع</label>
+                <input type="text" class="form-control" id="seller_name" name="seller_name" placeholder="مثال: أحمد">
+                <div class="form-text">يُحفظ مع الفاتورة ويظهر في صفحة العرض والطباعة</div>
+              </div>
+              <div class="mb-3">
                 <label for="notes" class="form-label">ملاحظات</label>
                 <textarea class="form-control" id="notes" name="notes" rows="2"></textarea>
               </div>
@@ -263,9 +268,20 @@
       }
     }
 
+    function fillSellerNameFromSession() {
+      const el = document.getElementById('seller_name');
+      if (!el || el.value.trim()) return;
+      try {
+        const u = JSON.parse(localStorage.getItem('current_user') || 'null');
+        const name = u && (u.name || u.username || u.displayName || u.email || '');
+        if (name) el.value = name;
+      } catch (_) {}
+    }
+
     document.addEventListener('DOMContentLoaded', async () => {
       // Update navigation based on user role
       updateNavigationForUser();
+      fillSellerNameFromSession();
 
       // ملفات Firebase نوعها module وتُنفَّذ قبل إطلاق DOMContentLoaded — لا حاجة لأي مهلة
       if (window.storage && window.storage.isFirebaseAvailable) {
@@ -923,6 +939,7 @@
         customer_phone: document.getElementById('customer_phone').value.trim() || '',
         customer_email: document.getElementById('customer_email').value || '',
         customer_address: document.getElementById('customer_address').value || '',
+        seller_name: document.getElementById('seller_name')?.value?.trim() || '',
         payment_method: document.getElementById('payment_method').value,
         notes: document.getElementById('notes').value || '',
         warranty: document.getElementById('warranty_input')?.value?.trim() || '',

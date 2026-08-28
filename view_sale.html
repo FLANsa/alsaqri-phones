@@ -295,6 +295,10 @@
                 <td><strong>طريقة الدفع:</strong></td>
                 <td id="payment_method">-</td>
               </tr>
+              <tr>
+                <td><strong>البائع:</strong></td>
+                <td id="seller_name">-</td>
+              </tr>
           </table>
         </div>
       </div>
@@ -449,6 +453,7 @@
         <h2>فاتورة ضريبية مبسطة</h2>
         <p>فاتورة: <span id="receipt_sale_number">-</span></p>
         <p>تاريخ الفاتورة: <span id="receipt_date">-</span></p>
+        <p>البائع: <span id="receipt_seller_name">-</span></p>
     </div>
 
       <div class="customer-info" id="receipt_customer_info" style="display: none;">
@@ -618,6 +623,8 @@
 
     document.getElementById('status').innerHTML = getStatusBadge(currentSale.status || 'مكتمل');
     document.getElementById('payment_method').textContent = currentSale.payment_method || 'نقدي';
+    const sellerEl = document.getElementById('seller_name');
+    if (sellerEl) sellerEl.textContent = (currentSale.seller_name || currentSale.sellerName || '').trim() || 'غير محدد';
 
     document.getElementById('customer_name').textContent = currentSale.customer_name || 'عميل نقدي';
     document.getElementById('customer_phone').textContent = currentSale.customer_phone || 'غير محدد';
@@ -1050,6 +1057,10 @@
       const saleDate = getSaleDateValue(currentSale);
       receiptDateElement.textContent = saleDate ? formatDate(saleDate) : todayRiyadh();
     }
+
+    // البائع في الفاتورة
+    const receiptSellerEl = document.getElementById('receipt_seller_name');
+    if (receiptSellerEl) receiptSellerEl.textContent = (currentSale.seller_name || currentSale.sellerName || '').trim() || 'غير محدد';
 
     // الضمان في الفاتورة (إن وجد)
     const w = (currentSale.warranty || '').trim();
