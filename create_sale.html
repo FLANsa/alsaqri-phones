@@ -95,8 +95,8 @@
               </div>
               <div class="mb-3">
                 <label for="seller_name" class="form-label"><i class="fas fa-user-tie"></i> اسم البائع</label>
-                <input type="text" class="form-control" id="seller_name" name="seller_name" placeholder="مثال: أحمد">
-                <div class="form-text">يُحفظ مع الفاتورة ويظهر في صفحة العرض والطباعة</div>
+                <input type="text" class="form-control" id="seller_name" name="seller_name" list="seller_name_options" placeholder="اكتب اسم البائع">
+                <datalist id="seller_name_options"></datalist>
               </div>
               <div class="mb-3">
                 <label for="notes" class="form-label">ملاحظات</label>
@@ -268,20 +268,41 @@
       }
     }
 
-    function fillSellerNameFromSession() {
-      const el = document.getElementById('seller_name');
-      if (!el || el.value.trim()) return;
+    // ====== أسماء البائعين المحفوظة (اقتراحات عبر datalist) ======
+    function loadSellerNameOptions() {
       try {
-        const u = JSON.parse(localStorage.getItem('current_user') || 'null');
-        const name = u && (u.name || u.username || u.displayName || u.email || '');
-        if (name) el.value = name;
+        const list = document.getElementById('seller_name_options');
+        if (!list) return;
+        list.innerHTML = '';
+        const options = JSON.parse(localStorage.getItem('seller_name_options') || '[]');
+        if (Array.isArray(options)) {
+          options.forEach(val => {
+            if (!val) return;
+            const opt = document.createElement('option');
+            opt.value = val;
+            list.appendChild(opt);
+          });
+        }
+      } catch (_) {}
+    }
+
+    function rememberSellerName(name) {
+      const val = (name || '').trim();
+      if (!val) return;
+      try {
+        const options = JSON.parse(localStorage.getItem('seller_name_options') || '[]');
+        if (!Array.isArray(options)) return;
+        if (!options.includes(val)) {
+          options.push(val);
+          localStorage.setItem('seller_name_options', JSON.stringify(options));
+          loadSellerNameOptions();
+        }
       } catch (_) {}
     }
 
     document.addEventListener('DOMContentLoaded', async () => {
       // Update navigation based on user role
       updateNavigationForUser();
-      fillSellerNameFromSession();
 
       // ملفات Firebase نوعها module وتُنفَّذ قبل إطلاق DOMContentLoaded — لا حاجة لأي مهلة
       if (window.storage && window.storage.isFirebaseAvailable) {
@@ -294,6 +315,7 @@
       updateProductTypeDropdown();
       setupArabicNumberSupport();
       loadWarrantyOptions();
+      loadSellerNameOptions();
       loadProducts(); // أول تحميل
     });
   
@@ -990,6 +1012,7 @@
         }
 
         localStorage.setItem('lastSale', JSON.stringify(saleData));
+        rememberSellerName(saleData.seller_name);
         alert(`تم إنشاء عملية البيع!\nرقم العملية: ${saleNumber}\nالمجموع الإجمالي: ${total.toFixed(2)} ريال\nسعر الشراء: ${totalPurchaseCost.toFixed(2)} ريال`);
   
         cart = [];

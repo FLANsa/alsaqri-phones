@@ -297,7 +297,15 @@
               </tr>
               <tr>
                 <td><strong>البائع:</strong></td>
-                <td id="seller_name">-</td>
+                <td>
+                  <span id="seller_name">-</span>
+                  <button type="button" class="btn btn-link btn-sm p-0 me-1 align-baseline" id="edit_seller_btn" title="تعديل البائع" onclick="toggleEditSeller()">تعديل</button>
+                  <span id="seller_edit_wrap" style="display: none;">
+                    <input type="text" id="seller_name_input" class="form-control form-control-sm d-inline-block w-auto" placeholder="اسم البائع">
+                    <button type="button" class="btn btn-success btn-sm ms-1" onclick="saveSellerName()">حفظ</button>
+                    <button type="button" class="btn btn-secondary btn-sm ms-1" onclick="toggleEditSeller()">إلغاء</button>
+                  </span>
+                </td>
               </tr>
           </table>
         </div>
@@ -453,7 +461,7 @@
         <h2>فاتورة ضريبية مبسطة</h2>
         <p>فاتورة: <span id="receipt_sale_number">-</span></p>
         <p>تاريخ الفاتورة: <span id="receipt_date">-</span></p>
-        <p>البائع: <span id="receipt_seller_name">-</span></p>
+        <p id="receipt_seller_line" style="display:none;">البائع: <span id="receipt_seller_name">-</span></p>
     </div>
 
       <div class="customer-info" id="receipt_customer_info" style="display: none;">
@@ -623,8 +631,11 @@
 
     document.getElementById('status').innerHTML = getStatusBadge(currentSale.status || 'مكتمل');
     document.getElementById('payment_method').textContent = currentSale.payment_method || 'نقدي';
-    const sellerEl = document.getElementById('seller_name');
-    if (sellerEl) sellerEl.textContent = (currentSale.seller_name || currentSale.sellerName || '').trim() || 'غير محدد';
+    updateSellerDisplay();
+    const sellerEditWrap = document.getElementById('seller_edit_wrap');
+    if (sellerEditWrap) sellerEditWrap.style.display = 'none';
+    const editSellerBtn = document.getElementById('edit_seller_btn');
+    if (editSellerBtn) editSellerBtn.style.display = 'inline';
 
     document.getElementById('customer_name').textContent = currentSale.customer_name || 'عميل نقدي';
     document.getElementById('customer_phone').textContent = currentSale.customer_phone || 'غير محدد';
@@ -774,6 +785,61 @@
     if (status === 'مسترجعة') return '<span class="badge bg-secondary">مسترجعة</span>';
     if (status === 'ملغي') return '<span class="badge bg-danger">ملغي</span>';
     return '<span class="badge bg-warning">' + status + '</span>';
+  }
+
+  // ---------- البائع: عرض وتعديل ----------
+  function getSellerNameValue(sale) {
+    return ((sale && (sale.seller_name || sale.sellerName)) || '').trim();
+  }
+
+  function updateSellerDisplay() {
+    const sellerEl = document.getElementById('seller_name');
+    if (sellerEl) sellerEl.textContent = getSellerNameValue(currentSale) || 'غير محدد';
+  }
+
+  // إظهار/إخفاء نموذج تعديل اسم البائع
+  function toggleEditSeller() {
+    const wrap = document.getElementById('seller_edit_wrap');
+    const btn = document.getElementById('edit_seller_btn');
+    const input = document.getElementById('seller_name_input');
+    if (!wrap || !currentSale) return;
+    if (wrap.style.display === 'none') {
+      if (input) input.value = getSellerNameValue(currentSale);
+      wrap.style.display = 'inline';
+      if (btn) btn.style.display = 'none';
+      if (input) input.focus();
+    } else {
+      wrap.style.display = 'none';
+      if (btn) btn.style.display = 'inline';
+    }
+  }
+
+  // حفظ اسم البائع في الفاتورة — يظهر فوراً في الصفحة وفي الإيصال المطبوع
+  async function saveSellerName() {
+    const input = document.getElementById('seller_name_input');
+    const wrap = document.getElementById('seller_edit_wrap');
+    const editBtn = document.getElementById('edit_seller_btn');
+    if (!currentSale || !input) return;
+    if (!currentSale.id) {
+      showAlert('warning', 'لا يمكن تعديل البائع: الفاتورة غير محفوظة في قاعدة البيانات');
+      return;
+    }
+    const name = (input.value || '').trim();
+    try {
+      if (window.storage && typeof window.storage.updateSale === 'function') {
+        await window.storage.updateSale(currentSale.id, { seller_name: name });
+      } else {
+        showAlert('danger', 'لا يمكن تحديث البائع: التخزين غير متاح');
+        return;
+      }
+      currentSale.seller_name = name;
+      updateSellerDisplay();
+      if (wrap) wrap.style.display = 'none';
+      if (editBtn) editBtn.style.display = 'inline';
+      showAlert('success', name ? 'تم تحديث اسم البائع' : 'تم حذف اسم البائع من الفاتورة');
+    } catch (e) {
+      showAlert('danger', 'فشل تحديث البائع: ' + (e && e.message ? e.message : e));
+    }
   }
 
   // ---------- أدوات مساعدة للوقت/التاريخ ----------
@@ -1058,9 +1124,12 @@
       receiptDateElement.textContent = saleDate ? formatDate(saleDate) : todayRiyadh();
     }
 
-    // البائع في الفاتورة
+    // البائع في الفاتورة — يظهر فقط إن وُجد اسم
+    const sellerName = getSellerNameValue(currentSale);
     const receiptSellerEl = document.getElementById('receipt_seller_name');
-    if (receiptSellerEl) receiptSellerEl.textContent = (currentSale.seller_name || currentSale.sellerName || '').trim() || 'غير محدد';
+    if (receiptSellerEl) receiptSellerEl.textContent = sellerName;
+    const receiptSellerLine = document.getElementById('receipt_seller_line');
+    if (receiptSellerLine) receiptSellerLine.style.display = sellerName ? 'block' : 'none';
 
     // الضمان في الفاتورة (إن وجد)
     const w = (currentSale.warranty || '').trim();
