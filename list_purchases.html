@@ -770,11 +770,13 @@
       tdBarcode.innerHTML = `<span class="badge bg-primary">${phone.phone_number || 'غير محدد'}</span>`;
       tr.appendChild(tdBarcode);
 
-      // الجهاز (ماركة + موديل)
+      // الجهاز (ماركة + موديل) + الوصف
       const tdDevice = document.createElement('td');
       const brand = phone.brand || phone.manufacturer || '';
       const model = phone.model || '';
-      tdDevice.innerHTML = `<strong>${brand || 'غير محدد'}</strong>${model ? ` ${model}` : ''}`;
+      const desc = (phone.description || '').toString().trim();
+      tdDevice.innerHTML = `<strong>${brand || 'غير محدد'}</strong>${model ? ` ${model}` : ''}` +
+        (desc ? `<br><small class="text-muted">${desc}</small>` : '');
       tr.appendChild(tdDevice);
 
       // الحالة: جديد / مستعمل (+ حالة الاستخدام للمستعمل)
@@ -1094,6 +1096,8 @@
       const brand = phone.brand || phone.manufacturer || 'غير محدد';
       const model = phone.model || '';
       const deviceName = model ? `${brand} ${model}` : brand;
+      const reportDesc = (phone.description || '').toString().trim();
+      const deviceCell = reportDesc ? `${deviceName}<br><small>${reportDesc}</small>` : deviceName;
 
       let conditionText = 'جديد';
       if (condition !== 'new') {
@@ -1113,7 +1117,7 @@
             <tr>
               <td>${dt ? formatDateTime(dt) : '-'}</td>
               <td><strong>${phone.phone_number || '-'}</strong></td>
-              <td>${deviceName}</td>
+              <td>${deviceCell}</td>
               <td>${conditionText}</td>
               <td><strong class="text-success">${fmtMoney(phone.purchase_price || 0)} ريال</strong></td>
               <td>${sellPriceText}</td>
