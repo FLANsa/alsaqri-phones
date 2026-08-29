@@ -201,6 +201,7 @@
               <th>الحالة</th>
               <th>سعر الشراء</th>
               <th>سعر البيع</th>
+              <th>تاريخ البيع</th>
               <th>البائع / المورد</th>
               <th>الوضع الحالي</th>
               <th>الإجراءات</th>
@@ -360,6 +361,19 @@
       normalizeToDate(phone?.date_added)  || // تُكتب عند الإضافة (ISO string)
       normalizeToDate(phone?.createdAt)   || // يضيفها addPhone (Firestore Timestamp)
       normalizeToDate(phone?.created_at)  ||
+      null
+    );
+  }
+
+  // يرجّع تاريخ فاتورة بيع الجهاز (للمباع فقط) من سجل البيع المرتبط
+  function getPhoneSaleDate(phone) {
+    const sale = findSaleForPhone(phone);
+    if (!sale) return null;
+    return (
+      normalizeToDate(sale.date_created) ||
+      normalizeToDate(sale.date_added)   ||
+      normalizeToDate(sale.createdAt)    ||
+      normalizeToDate(sale.created_at)   ||
       null
     );
   }
@@ -793,6 +807,12 @@
       }
       tr.appendChild(tdSellPrice);
 
+      // تاريخ البيع من الفاتورة — للأجهزة المباعة فقط
+      const tdSaleDate = document.createElement('td');
+      const saleDt = isSold ? getPhoneSaleDate(phone) : null;
+      tdSaleDate.textContent = saleDt ? formatDateTime(saleDt) : '-';
+      tr.appendChild(tdSaleDate);
+
       // البائع / المورد
       const tdSeller = document.createElement('td');
       tdSeller.textContent = (condition !== 'new') ? (getSellerName(phone) || '-') : '-';
@@ -1061,6 +1081,7 @@
               <th>الحالة</th>
               <th>سعر الشراء</th>
               <th>سعر البيع</th>
+              <th>تاريخ البيع</th>
               <th>البائع / المورد</th>
               <th>الوضع الحالي</th>
             </tr>
@@ -1085,6 +1106,8 @@
       const soldText = sold ? 'تم بيعه' : 'متاح';
       const unitPrice = sold ? getInvoiceUnitPrice(phone) : null;
       const sellPriceText = (unitPrice != null) ? `${fmtMoney(unitPrice)} ريال` : '-';
+      const saleDt = sold ? getPhoneSaleDate(phone) : null;
+      const saleDateText = saleDt ? formatDateTime(saleDt) : '-';
 
       reportHTML += `
             <tr>
@@ -1094,6 +1117,7 @@
               <td>${conditionText}</td>
               <td><strong class="text-success">${fmtMoney(phone.purchase_price || 0)} ريال</strong></td>
               <td>${sellPriceText}</td>
+              <td>${saleDateText}</td>
               <td>${sellerName}</td>
               <td>${soldText}</td>
             </tr>`;
