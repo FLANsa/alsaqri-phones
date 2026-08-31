@@ -152,6 +152,82 @@
           </select>
         </div>
 
+        <!-- الوضع الحالي: متاح / تم بيعه -->
+        <div class="col-md-3">
+          <label for="status_filter" class="form-label">الوضع الحالي</label>
+          <select class="form-select" id="status_filter" name="status_filter" onchange="applyCurrentFilter()">
+            <option value="all">الكل (متاح ومباع)</option>
+            <option value="available">متاح</option>
+            <option value="sold">تم بيعه</option>
+          </select>
+        </div>
+
+        <!-- تصفية بتاريخ البيع -->
+        <div class="col-md-3">
+          <label for="sale_filter_type" class="form-label">تاريخ البيع</label>
+          <select class="form-select" id="sale_filter_type" name="sale_filter_type" onchange="toggleSaleDateInput()">
+            <option value="all">بدون تصفية</option>
+            <option value="day">يوم محدد</option>
+            <option value="month">شهر محدد</option>
+            <option value="year">سنة محددة</option>
+            <option value="date_range">من تاريخ إلى تاريخ</option>
+          </select>
+        </div>
+
+        <div class="col-md-3" id="sale_day_container" style="display:none;">
+          <label for="sale_filter_date" class="form-label">تاريخ البيع</label>
+          <input type="date" class="form-control" id="sale_filter_date" name="sale_filter_date" value="">
+        </div>
+
+        <div class="col-md-6" id="sale_month_container" style="display:none;">
+          <div class="row">
+            <div class="col-md-6">
+              <label for="sale_filter_month_year" class="form-label">السنة</label>
+              <select class="form-select" id="sale_filter_month_year" name="sale_filter_month_year">
+                <option value="">اختر السنة</option>
+              </select>
+            </div>
+            <div class="col-md-6">
+              <label for="sale_filter_month_month" class="form-label">الشهر</label>
+              <select class="form-select" id="sale_filter_month_month" name="sale_filter_month_month">
+                <option value="">اختر الشهر</option>
+                <option value="01">يناير</option>
+                <option value="02">فبراير</option>
+                <option value="03">مارس</option>
+                <option value="04">أبريل</option>
+                <option value="05">مايو</option>
+                <option value="06">يونيو</option>
+                <option value="07">يوليو</option>
+                <option value="08">أغسطس</option>
+                <option value="09">سبتمبر</option>
+                <option value="10">أكتوبر</option>
+                <option value="11">نوفمبر</option>
+                <option value="12">ديسمبر</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <div class="col-md-3" id="sale_year_container" style="display:none;">
+          <label for="sale_filter_year" class="form-label">السنة</label>
+          <select class="form-select" id="sale_filter_year" name="sale_filter_year">
+            <option value="">اختر السنة</option>
+          </select>
+        </div>
+
+        <div class="col-md-6" id="sale_range_container" style="display:none;">
+          <div class="row">
+            <div class="col-md-6">
+              <label for="sale_filter_date_from" class="form-label">من تاريخ</label>
+              <input type="date" class="form-control" id="sale_filter_date_from" name="sale_filter_date_from" value="">
+            </div>
+            <div class="col-md-6">
+              <label for="sale_filter_date_to" class="form-label">إلى تاريخ</label>
+              <input type="date" class="form-control" id="sale_filter_date_to" name="sale_filter_date_to" value="">
+            </div>
+          </div>
+        </div>
+
         <!-- بحث نصي -->
         <div class="col-md-3">
           <label for="filter_search" class="form-label">بحث</label>
@@ -657,6 +733,83 @@
       summaryText = summaryText ? `${summaryText} — ${conditionLabel}` : `أجهزة ${conditionLabel} فقط`;
     }
 
+    // تصفية حسب الوضع الحالي (متاح / تم بيعه)
+    const statusFilter = document.getElementById('status_filter').value;
+    if (statusFilter !== 'all') {
+      const wantSold = statusFilter === 'sold';
+      filtered = filtered.filter(p => isPhoneSold(p) === wantSold);
+      const statusLabel = wantSold ? 'تم بيعه' : 'متاح';
+      summaryText = summaryText ? `${summaryText} — ${statusLabel}` : `الأجهزة ${statusLabel} فقط`;
+    }
+
+    // تصفية بتاريخ البيع (تاريخ فاتورة البيع للأجهزة المباعة)
+    const saleType = document.getElementById('sale_filter_type').value;
+    let saleSummary = '';
+    if (saleType==='day') {
+      const val = document.getElementById('sale_filter_date').value;
+      if (val) {
+        const [y,m,d] = val.split('-').map(Number);
+        filtered = filtered.filter(p => {
+          const dt = getPhoneSaleDate(p);
+          return dt && sameDay(dt, y, m, d);
+        });
+        saleSummary = `بيع يوم ${convertToLatinNumbers(val)}`;
+      }
+    } else if (saleType==='month') {
+      const year = parseInt(document.getElementById('sale_filter_month_year').value);
+      const month = parseInt(document.getElementById('sale_filter_month_month').value);
+      if (year && month) {
+        filtered = filtered.filter(p => {
+          const dt = getPhoneSaleDate(p);
+          return dt && sameMonth(dt, year, month);
+        });
+        saleSummary = `بيع شهر ${convertToLatinNumbers(month)}/${convertToLatinNumbers(year)}`;
+      }
+    } else if (saleType==='year') {
+      const year = parseInt(document.getElementById('sale_filter_year').value);
+      if (year) {
+        filtered = filtered.filter(p => {
+          const dt = getPhoneSaleDate(p);
+          return dt && sameYear(dt, year);
+        });
+        saleSummary = `بيع سنة ${convertToLatinNumbers(year)}`;
+      }
+    } else if (saleType==='date_range') {
+      const dateFrom = document.getElementById('sale_filter_date_from').value;
+      const dateTo = document.getElementById('sale_filter_date_to').value;
+      if (dateFrom && dateTo) {
+        const fromDate = new Date(dateFrom);
+        fromDate.setHours(0, 0, 0, 0);
+        const toDate = new Date(dateTo);
+        toDate.setHours(23, 59, 59, 999);
+        filtered = filtered.filter(p => {
+          const dt = getPhoneSaleDate(p);
+          if (!dt) return false;
+          return dt >= fromDate && dt <= toDate;
+        });
+        saleSummary = `بيع من ${convertToLatinNumbers(dateFrom)} إلى ${convertToLatinNumbers(dateTo)}`;
+      } else if (dateFrom) {
+        const fromDate = new Date(dateFrom);
+        fromDate.setHours(0, 0, 0, 0);
+        filtered = filtered.filter(p => {
+          const dt = getPhoneSaleDate(p);
+          if (!dt) return false;
+          return dt >= fromDate;
+        });
+        saleSummary = `بيع من ${convertToLatinNumbers(dateFrom)}`;
+      } else if (dateTo) {
+        const toDate = new Date(dateTo);
+        toDate.setHours(23, 59, 59, 999);
+        filtered = filtered.filter(p => {
+          const dt = getPhoneSaleDate(p);
+          if (!dt) return false;
+          return dt <= toDate;
+        });
+        saleSummary = `بيع حتى ${convertToLatinNumbers(dateTo)}`;
+      }
+    }
+    if (saleSummary) summaryText = summaryText ? `${summaryText} — ${saleSummary}` : saleSummary;
+
     // بحث نصي: الجهاز، الباركود، التسلسلي، البائع
     const searchQuery = (document.getElementById('filter_search')?.value || '').trim().toLowerCase();
     if (searchQuery) {
@@ -679,9 +832,13 @@
 
     const selYear1 = document.getElementById('filter_month_year');
     const selYear2 = document.getElementById('filter_year');
+    const selYear3 = document.getElementById('sale_filter_month_year');
+    const selYear4 = document.getElementById('sale_filter_year');
     years.forEach(y => {
       const o1 = document.createElement('option'); o1.value = y; o1.textContent = y; selYear1.appendChild(o1);
       const o2 = document.createElement('option'); o2.value = y; o2.textContent = y; selYear2.appendChild(o2);
+      const o3 = document.createElement('option'); o3.value = y; o3.textContent = y; selYear3.appendChild(o3);
+      const o4 = document.createElement('option'); o4.value = y; o4.textContent = y; selYear4.appendChild(o4);
     });
   }
 
@@ -699,6 +856,19 @@
     else if (type==='date_range') rangeC.style.display = 'block';
   }
 
+  function toggleSaleDateInput() {
+    const type = document.getElementById('sale_filter_type').value;
+    const dayC = document.getElementById('sale_day_container');
+    const monC = document.getElementById('sale_month_container');
+    const yearC = document.getElementById('sale_year_container');
+    const rangeC = document.getElementById('sale_range_container');
+    dayC.style.display = 'none'; monC.style.display = 'none'; yearC.style.display = 'none'; rangeC.style.display = 'none';
+    if (type==='day') dayC.style.display = 'block';
+    else if (type==='month') monC.style.display = 'block';
+    else if (type==='year') yearC.style.display = 'block';
+    else if (type==='date_range') rangeC.style.display = 'block';
+  }
+
   // ---------- تطبيق/إعادة التصفية ----------
   function applyFilter() {
     applyCurrentFilter();
@@ -707,6 +877,7 @@
   function resetFilter() {
     document.getElementById('filterForm').reset();
     toggleDateInput();
+    toggleSaleDateInput();
     document.getElementById('filter_search').value = '';
     const printBtn = document.getElementById('printReportBtn');
     if (printBtn) printBtn.style.display = 'none';
@@ -913,8 +1084,13 @@
 
     // احسب المجاميع
     let totalPurchaseAmount = 0;
+    let totalSoldProfit = 0; // أرباح الأجهزة المباعة: سعر البيع في الفاتورة − سعر الشراء
     currentFilteredPurchases.forEach(phone => {
       totalPurchaseAmount += phone.purchase_price || 0;
+      if (isPhoneSold(phone)) {
+        const unitPrice = getInvoiceUnitPrice(phone);
+        if (unitPrice != null) totalSoldProfit += unitPrice - (phone.purchase_price || 0);
+      }
     });
     const newCount  = currentFilteredPurchases.filter(p => getPhoneCondition(p) === 'new').length;
     const usedCount = currentFilteredPurchases.length - newCount;
@@ -996,7 +1172,7 @@
             border-radius: 5px;
             margin-bottom: 20px;
             display: grid;
-            grid-template-columns: repeat(4, 1fr);
+            grid-template-columns: repeat(5, 1fr);
             gap: 15px;
           }
           .summary-item {
@@ -1071,6 +1247,10 @@
           <div class="summary-item">
             <label>أجهزة مستعملة</label>
             <div class="value">${convertToLatinNumbers(usedCount)}</div>
+          </div>
+          <div class="summary-item">
+            <label>أرباح الأجهزة المباعة</label>
+            <div class="value text-success">${fmtMoney(totalSoldProfit)} ريال</div>
           </div>
         </div>
 
@@ -1211,6 +1391,7 @@
 
     populateYears();
     toggleDateInput();
+    toggleSaleDateInput();
     await loadPurchasesFromFirebase();
   });
 </script>
