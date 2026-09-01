@@ -686,7 +686,8 @@
             currentEditId = null;
             document.getElementById('jobModalTitle').textContent = 'إضافة عمل صيانة جديد';
             document.getElementById('jobForm').reset();
-            document.getElementById('visitDate').value = new Date().toISOString().split('T')[0];
+            const _vd = new Date();
+            document.getElementById('visitDate').value = `${_vd.getFullYear()}-${String(_vd.getMonth()+1).padStart(2,'0')}-${String(_vd.getDate()).padStart(2,'0')}`;
             selectedTechPercent = 0.5; // Reset to default
             
             // مسح القطع السابقة (القطع غير إلزامية)

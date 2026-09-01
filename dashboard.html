@@ -489,8 +489,14 @@
       const endDateInput = document.getElementById('end_date');
       
       if (startDateInput && endDateInput) {
-        startDateInput.value = startDate.toISOString().split('T')[0];
-        endDateInput.value = endDate.toISOString().split('T')[0];
+        const toLocalDateStr = (d) => {
+          const y = d.getFullYear();
+          const m = String(d.getMonth() + 1).padStart(2, '0');
+          const day = String(d.getDate()).padStart(2, '0');
+          return `${y}-${m}-${day}`;
+        };
+        startDateInput.value = toLocalDateStr(startDate);
+        endDateInput.value = toLocalDateStr(endDate);
         updatePeriodIndicator();
       }
     }

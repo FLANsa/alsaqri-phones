@@ -475,8 +475,14 @@
             const today = new Date();
             const thirtyDaysAgo = new Date(today.getTime() - (30 * 24 * 60 * 60 * 1000));
             
-            document.getElementById('dateTo').value = today.toISOString().split('T')[0];
-            document.getElementById('dateFrom').value = thirtyDaysAgo.toISOString().split('T')[0];
+            const toLocalDateStr = (d) => {
+              const y = d.getFullYear();
+              const m = String(d.getMonth() + 1).padStart(2, '0');
+              const day = String(d.getDate()).padStart(2, '0');
+              return `${y}-${m}-${day}`;
+            };
+            document.getElementById('dateTo').value = toLocalDateStr(today);
+            document.getElementById('dateFrom').value = toLocalDateStr(thirtyDaysAgo);
             
             // Initialize navigation
             if (typeof initNavigation === 'function') {
@@ -799,7 +805,8 @@
             document.getElementById('paymentEntityId').value = entityId;
             document.getElementById('paymentEntityType').value = entityType;
             document.getElementById('paymentAmount').value = '';
-            document.getElementById('paymentDate').value = new Date().toISOString().split('T')[0];
+            const _pd = new Date();
+            document.getElementById('paymentDate').value = `${_pd.getFullYear()}-${String(_pd.getMonth()+1).padStart(2,'0')}-${String(_pd.getDate()).padStart(2,'0')}`;
             document.getElementById('paymentMethod').value = 'cash';
             document.getElementById('paymentNotes').value = '';
             
