@@ -452,6 +452,18 @@
         if(purchase_price<=0 || selling_price<=0){ alert('يرجى إدخال أسعار صحيحة'); return false; }
         if(!phone_condition){ alert('يرجى اختيار حالة الهاتف'); return false; }
 
+        // منع تسجيل نفس الجهاز مرتين وهو متاح (فحص الرقم التسلسلي/IMEI) —
+        // الجهاز المباع (sold) يُسمح بإعادة تسجيله عند شرائه مرة أخرى
+        const serialNumber = document.getElementById('serial_number').value.trim();
+        if (serialNumber && window.storage && typeof window.storage.findAvailablePhoneBySerial === 'function') {
+          const dupBySerial = await window.storage.findAvailablePhoneBySerial(serialNumber, window.editingPhoneId || null);
+          if (dupBySerial) {
+            alert(`⚠️ هذا الجهاز مسجل مسبقاً وهو متاح في المخزون!\n\nالباركود: ${dupBySerial.phone_number || '—'}\n\nلا يمكن تسجيل نفس الرقم التسلسلي والجهاز متاح. يُسمح بإعادة تسجيله فقط بعد بيعه.`);
+            document.getElementById('serial_number').focus();
+            return false;
+          }
+        }
+
         let phone_number;
         if (window.editingPhoneId) {
           // استرجاع الباركود الحالي بقراءة موجّهة واحدة (تدعم معرّف المستند أو الباركود)
@@ -703,7 +715,18 @@
       const editPhoneNumber = urlParams.get('edit');
       
       const form = document.querySelector('form');
-      form.addEventListener('submit', async (e)=>{ e.preventDefault(); if(await saveUsedPhoneToFirebase()){ form.reset(); await populateBrandsFromFirebase(); } });
+      form.addEventListener('submit', async (e)=>{
+        e.preventDefault();
+        // قفل الإرسال أثناء الحفظ — يمنع النقر المزدوج من إنشاء سجلين
+        const submitBtn = form.querySelector('button[type="submit"]');
+        if (submitBtn && submitBtn.disabled) return;
+        if (submitBtn) submitBtn.disabled = true;
+        try {
+          if(await saveUsedPhoneToFirebase()){ form.reset(); await populateBrandsFromFirebase(); }
+        } finally {
+          if (submitBtn) submitBtn.disabled = false;
+        }
+      });
       await populateBrandsFromFirebase();
       setupInputValidation();
       setupArabicNumberSupport();

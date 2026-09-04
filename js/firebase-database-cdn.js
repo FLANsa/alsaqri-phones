@@ -435,6 +435,43 @@ class FirebaseDatabase {
   }
 
   /**
+   * البحث عن جهاز متاح (غير مباع) بنفس الرقم التسلسلي — يمنع تسجيل نفس
+   * الجهاز الفيزيائي مرتين وهو متاح، ويقبل إعادة شرائه بعد بيعه (sold=true).
+   * excludeId يستبعد الجهاز قيد التعديل (يقبل معرّف المستند أو الباركود).
+   * @returns {Promise<object|null>} الهاتف المتاح المطابق أو null
+   */
+  async findAvailablePhoneBySerial(serial, excludeId = null) {
+    const normalized = String(serial || '').trim();
+    if (!normalized) return null;
+    if (isQuotaCooling()) {
+      console.warn('⛔ findAvailablePhoneBySerial: تجاوز الفحص بسبب قاطع دائرة Firestore.');
+      return null;
+    }
+    try {
+      const snap = await this._getDocs('phones:bySerial',
+        query(collection(this.db, 'phones'), where('serial_number', '==', normalized))
+      );
+      let found = null;
+      snap.forEach((d) => {
+        if (found) return;
+        const data = d.data();
+        if (excludeId != null &&
+            (String(d.id) === String(excludeId) || String(data.phone_number || '') === String(excludeId))) return;
+        if (data.sold === true) return;
+        found = { id: d.id, ...data };
+      });
+      return found;
+    } catch (error) {
+      if (isQuotaError(error)) {
+        markQuotaExhausted();
+        console.warn('⚠️ findAvailablePhoneBySerial: تعذر الفحص، سنسمح بالحفظ.', error && error.code);
+        return null;
+      }
+      throw error;
+    }
+  }
+
+  /**
    * مزامنة العداد مع أقصى رقم موجود فعلاً — يقرأ أعلى 3 مستندات فقط
    * (الأرقام مسبوكة بصيغة 6 أرقام فالترتيب النصي = الرقمي) بدل المجموعة كاملة
    */

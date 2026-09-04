@@ -186,6 +186,27 @@ class FirebaseStorageManager {
     return this.setPhones(arr) ? phone.id : false;
   }
 
+  /** البحث عن جهاز متاح (غير مباع) بنفس الرقم التسلسلي — لمنع التسجيل المكرر */
+  async findAvailablePhoneBySerial(serial, excludeId = null) {
+    if (this.isFirebaseAvailable) {
+      try {
+        return await this.firebaseDB.findAvailablePhoneBySerial(serial, excludeId);
+      } catch (error) {
+        console.error('Error checking serial duplicate:', error);
+        return null; // فشل الفحص لا يمنع الحفظ
+      }
+    }
+    // LocalStorage fallback
+    const phones = await this.getPhones();
+    const arr = Array.isArray(phones) ? phones : [];
+    return arr.find(p =>
+      String(p.serial_number || '').trim() === String(serial || '').trim() &&
+      p.sold !== true &&
+      (excludeId == null ||
+        (String(p.id || '') !== String(excludeId) && String(p.phone_number || '') !== String(excludeId)))
+    ) || null;
+  }
+
   async updatePhone(phoneId, updatedPhone) {
     if (this.isFirebaseAvailable) {
       try {
