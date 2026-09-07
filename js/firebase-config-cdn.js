@@ -1,6 +1,6 @@
 // Firebase Configuration for Phone Store Demo - CDN Version
 // إعدادات Firebase لمشروع Al Saqri - نسخة CDN
-// تم التحديث: 2026-01-19
+// تم التحديث: 2026-09-07
 // Project: alsaqri-dc3ca
 
 const firebaseConfig = {
@@ -16,7 +16,7 @@ const firebaseConfig = {
 // تهيئة Firebase باستخدام CDN
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
 import { getFirestore } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
-import { getAuth } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
+import { getAuth, signInAnonymously } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
 import { getAnalytics } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-analytics.js';
 
 // تهيئة التطبيق
@@ -27,18 +27,30 @@ const db = getFirestore(app);
 const auth = getAuth(app);
 const analytics = getAnalytics(app);
 
+// تسجيل دخول مجهول تلقائي — قواعد Firestore تشترط request.auth != null
+// إن ظهر خطأ auth/operation-not-approved (أو operation-not-allowed):
+// فعّل مزوّد Anonymous من Firebase Console ← Authentication ← Sign-in method
+signInAnonymously(auth).catch(function (err) {
+  console.error(
+    'تعذر تسجيل الدخول المجهول (' + (err && err.code) + '). ' +
+    'فعّل مزوّد Anonymous في Firebase Console ← Authentication ← Sign-in method، ' +
+    'وأضف نطاق الموقع إلى Authorized domains — وإلا سترفض قواعد Firestore كل قراءة وكتابة.',
+    err
+  );
+});
+
 // تصدير الخدمات للاستخدام في الملفات الأخرى
 window.firebaseDB = db;
 window.firebaseAuth = auth;
 window.firebaseAnalytics = analytics;
 
-// تأكيد تحميل الإعدادات الصحيحة
-console.log('🔥 Firebase initialized successfully!');
-console.log('📌 Project ID:', firebaseConfig.projectId);
-console.log('🌐 Auth Domain:', firebaseConfig.authDomain);
-console.log('📊 Firestore Database:', db);
-console.log('🔐 Authentication:', auth);
-console.log('📈 Analytics:', analytics);
+// كتم سجلات console.log في الإنتاج (console.error/warn تبقى ظاهرة).
+// للتصحيح: نفّذ localStorage.setItem('__verbose', '1') ثم أعد تحميل الصفحة
+try {
+  if (localStorage.getItem('__verbose') !== '1') {
+    console.log = function () {};
+  }
+} catch (_) {}
 
 // تحذير إذا كان المشروع خاطئ
 if (firebaseConfig.projectId !== 'alsaqri-dc3ca') {

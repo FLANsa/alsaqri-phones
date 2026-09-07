@@ -80,10 +80,7 @@ function initPageGuard() {
     console.log('✅ Access granted');
 }
 
-// Initialize guard when DOM is loaded
-document.addEventListener('DOMContentLoaded', initPageGuard);
-
-// Also run immediately in case DOM is already loaded
+// Initialize guard when DOM is loaded (exactly once)
 if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', initPageGuard);
 } else {

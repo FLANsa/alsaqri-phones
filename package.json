@@ -27,10 +27,6 @@
   },
   "homepage": "https://github.com/FLANsa/phone-store-demo",
   "engines": {
-    "node": ">=14.0.0",
     "python": ">=3.7.0"
-  },
-  "dependencies": {
-    "firebase": "^10.14.1"
   }
 }

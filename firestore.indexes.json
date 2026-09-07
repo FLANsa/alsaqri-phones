@@ -1,34 +1,6 @@
 {
   "indexes": [
     {
-      "collectionGroup": "products",
-      "queryScope": "COLLECTION",
-      "fields": [
-        {
-          "fieldPath": "category",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "price",
-          "order": "ASCENDING"
-        }
-      ]
-    },
-    {
-      "collectionGroup": "products",
-      "queryScope": "COLLECTION",
-      "fields": [
-        {
-          "fieldPath": "brand",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "model",
-          "order": "ASCENDING"
-        }
-      ]
-    },
-    {
       "collectionGroup": "sales",
       "queryScope": "COLLECTION",
       "fields": [
@@ -149,24 +121,6 @@
         {
           "fieldPath": "visitDate",
           "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "__name__",
-          "order": "ASCENDING"
-        }
-      ]
-    },
-    {
-      "collectionGroup": "maintenanceJobs",
-      "queryScope": "COLLECTION",
-      "fields": [
-        {
-          "fieldPath": "status",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "visitDate",
-          "order": "DESCENDING"
         },
         {
           "fieldPath": "__name__",

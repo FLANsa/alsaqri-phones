@@ -1,14 +1,21 @@
-# Al Saqri - Environment Variables
+# Al Saqri - Environment Variables (قالب فقط — بلا أسرار)
 # متغيرات البيئة لنظام إدارة متجر الجوالات
-# تم التحديث: 2026-01-19
+# تم التحديث: 2026-09-07
+#
+# ⚠️ تحذير: نسخ سابقة من هذا الملف كانت تحتوي أسراراً حقيقية (JWT/SESSION/ENCRYPTION)
+# ولا تزال في تاريخ git. هذه الأسرار غير مستخدمة في أي كود حالياً (لا يوجد خادم يقرأها)،
+# لكن إن عُمد استخدامها يوماً يجب توليد قيم جديدة — القيم القديمة معروضة في التاريخ العام.
+# لإزالتها من التاريخ: git filter-repo أو BFG Repo-Cleaner (يتطلب إعادة كتابة التاريخ).
 
 # Firebase Configuration (Project: alsaqri-dc3ca)
-FIREBASE_API_KEY=AIzaSyB_MvtG7xnY5c18GybVF_SYJfxOa8mxgc8
+# ملاحظة: مفاتيح Firebase Web علنية بطبيعتها (موجودة في حزمة المتصفح)،
+# والحماية الفعلية تأتي من firestore.rules و storage.rules
+FIREBASE_API_KEY=<موجود في js/firebase-config-cdn.js>
 FIREBASE_AUTH_DOMAIN=alsaqri-dc3ca.firebaseapp.com
 FIREBASE_PROJECT_ID=alsaqri-dc3ca
 FIREBASE_STORAGE_BUCKET=alsaqri-dc3ca.firebasestorage.app
 FIREBASE_MESSAGING_SENDER_ID=325709838350
-FIREBASE_APP_ID=1:325709838350:web:c3c5dfadc079ce825ae45f
+FIREBASE_APP_ID=<موجود في js/firebase-config-cdn.js>
 FIREBASE_MEASUREMENT_ID=G-Q8E93ZR4FZ
 
 # Application Settings
@@ -33,10 +40,10 @@ DATABASE_COLLECTION_ACCESSORIES=accessories
 DATABASE_COLLECTION_SALES=sales
 DATABASE_COLLECTION_PHONE_TYPES=phone_types
 
-# Security Settings
-JWT_SECRET=abdulmalik-secret-key-2026
-SESSION_SECRET=abdulmalik-session-secret
-ENCRYPTION_KEY=abdulmalik-encryption-key
+# Security Settings (غير مستخدمة حالياً — لا يوجد خادم يقرأها)
+JWT_SECRET=<بدّل قبل أي استخدام حقيقي>
+SESSION_SECRET=<بدّل قبل أي استخدام حقيقي>
+ENCRYPTION_KEY=<بدّل قبل أي استخدام حقيقي>
 
 # VAT Settings (Saudi Arabia)
 VAT_RATE=0.15
@@ -51,7 +58,7 @@ UPLOAD_PATH=uploads/
 SMTP_HOST=smtp.gmail.com
 SMTP_PORT=587
 SMTP_USER=your-email@gmail.com
-SMTP_PASS=your-app-password
+SMTP_PASS=<بدّل قبل أي استخدام حقيقي>
 
 # Logging Settings
 LOG_LEVEL=info
