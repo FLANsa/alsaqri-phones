@@ -5,7 +5,7 @@
 
 // تحويل الأرقام العربية إلى إنجليزية
 function convertArabicToEnglishNumbers(str) {
-    if (!str) return '';
+    if (str == null) return '';
     const map = {
         '٠': '0', '١': '1', '٢': '2', '٣': '3', '٤': '4',
         '٥': '5', '٦': '6', '٧': '7', '٨': '8', '٩': '9'
@@ -15,7 +15,7 @@ function convertArabicToEnglishNumbers(str) {
 
 // تحويل الأرقام الإنجليزية إلى عربية
 function convertEnglishToArabicNumbers(str) {
-    if (!str) return '';
+    if (str == null) return '';
     const map = {
         '0': '٠', '1': '١', '2': '٢', '3': '٣', '4': '٤',
         '5': '٥', '6': '٦', '7': '٧', '8': '٨', '9': '٩'
@@ -25,7 +25,7 @@ function convertEnglishToArabicNumbers(str) {
 
 // تحليل رقم عربي إلى رقم إنجليزي قابل للاستخدام في الحسابات
 function parseArabicNumber(value) {
-    if (!value || value.trim() === '') return 0;
+    if (value == null || String(value).trim() === '') return 0;
     const converted = convertArabicToEnglishNumbers(value.toString());
     const num = parseFloat(converted);
     return isNaN(num) ? 0 : num;
@@ -56,7 +56,7 @@ function setupArabicNumberSupport() {
                 const cv = convertArabicToEnglishNumbers(this.value);
                 if (cv !== this.value) {
                     this.value = cv;
-                    this.setSelectionRange(pos, pos);
+                    if (pos !== null) this.setSelectionRange(pos, pos);
                 }
                 
                 // تشغيل دوال إضافية إذا كانت موجودة
@@ -77,15 +77,13 @@ if (typeof document !== 'undefined') {
         
         // إعادة تشغيل عند تحديث المحتوى الديناميكي
         if (document.body) {
+            let scheduled = null;
             const observer = new MutationObserver(function(mutations) {
-                mutations.forEach(function(mutation) {
-                    if (mutation.type === 'childList') {
-                        // إعادة تطبيق الدعم على العناصر الجديدة
-                        setTimeout(setupArabicNumberSupport, 100);
-                    }
-                });
+                if (!mutations.some(mutation => mutation.addedNodes.length)) return;
+                clearTimeout(scheduled);
+                scheduled = setTimeout(setupArabicNumberSupport, 100);
             });
-            
+
             observer.observe(document.body, {
                 childList: true,
                 subtree: true
