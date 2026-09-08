@@ -1031,7 +1031,7 @@
     // الرأس + البطاقات التلخيصية
     const newCount  = purchases.filter(p => getPhoneCondition(p) === 'new').length;
     const usedCount = purchases.length - newCount;
-    const totalPurchaseAmount = purchases.reduce((sum, p) => sum + (p.purchase_price || 0), 0);
+    const totalPurchaseAmount = purchases.reduce((sum, p) => sum + (Number(p.purchase_price) || 0), 0);
 
     document.getElementById('total_purchases_count').textContent = convertToLatinNumbers(purchases.length);
     document.getElementById('sum_total_purchases_count').textContent = convertToLatinNumbers(purchases.length);
@@ -1087,10 +1087,11 @@
     let totalPurchaseAmount = 0;
     let totalSoldProfit = 0; // أرباح الأجهزة المباعة: سعر البيع في الفاتورة − سعر الشراء
     currentFilteredPurchases.forEach(phone => {
-      totalPurchaseAmount += phone.purchase_price || 0;
+      const purchasePrice = Number(phone.purchase_price) || 0;
+      totalPurchaseAmount += purchasePrice;
       if (isPhoneSold(phone)) {
         const unitPrice = getInvoiceUnitPrice(phone);
-        if (unitPrice != null) totalSoldProfit += unitPrice - (phone.purchase_price || 0);
+        if (unitPrice != null) totalSoldProfit += Number(unitPrice) - purchasePrice;
       }
     });
     const newCount  = currentFilteredPurchases.filter(p => getPhoneCondition(p) === 'new').length;

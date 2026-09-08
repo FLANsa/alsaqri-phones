@@ -664,7 +664,7 @@
       if (!foundPhone) {
         foundAccessory = (accessories || []).find(acc => {
           const accBarcode = acc.barcode || acc.barcode_id;
-          return accBarcode && uniqueTerms.some(term => String(accBarcode) === term) && (acc.quantity_in_stock || acc.quantity || 0) > 0;
+          return accBarcode && uniqueTerms.some(term => String(accBarcode) === term) && Number(acc.quantity_in_stock ?? acc.quantity ?? 0) > 0;
         });
       }
   
@@ -691,7 +691,7 @@
         const category = foundAccessory.category || '';
         const price = Number(foundAccessory.selling_price) || 0;
         const purchase = Number(foundAccessory.purchase_price) || 0;
-        const quantity = foundAccessory.quantity_in_stock || foundAccessory.quantity || 0;
+        const quantity = Number(foundAccessory.quantity_in_stock ?? foundAccessory.quantity ?? 0) || 0;
         const profit = price - purchase;
   
         resultDiv.innerHTML = `
@@ -720,7 +720,7 @@
 
         if (anyPhone && isPhoneSold(anyPhone.id || anyPhone.phone_number)) {
           resultDiv.innerHTML = `<div class="alert alert-danger"><i class="fas fa-times-circle"></i> هذا الهاتف تم بيعه مسبقاً</div>`;
-        } else if (anyAccessory && (anyAccessory.quantity_in_stock || anyAccessory.quantity || 0) <= 0) {
+        } else if (anyAccessory && Number(anyAccessory.quantity_in_stock ?? anyAccessory.quantity ?? 0) <= 0) {
           resultDiv.innerHTML = `<div class="alert alert-danger"><i class="fas fa-times-circle"></i> نفدت كمية هذا الإكسسوار</div>`;
         } else {
           resultDiv.innerHTML = `<div class="alert alert-warning"><i class="fas fa-exclamation-triangle"></i> لم يتم العثور على منتج بالباركود: ${barcode}</div>`;
@@ -772,7 +772,7 @@
       const sellingPrice = Number(acc.selling_price) || 0;
       const purchasePrice = Number(acc.purchase_price) || 0;
       const profit = sellingPrice - purchasePrice;
-      const quantity = acc.quantity_in_stock || acc.quantity || 0;
+      const quantity = Number(acc.quantity_in_stock ?? acc.quantity ?? 0) || 0;
 
       cart.push({
         id: accessoryId,

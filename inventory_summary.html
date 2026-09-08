@@ -331,30 +331,33 @@
 
       // حساب الإحصائيات الأساسية للهواتف (الهواتف المتاحة فقط)
       const totalPhones = availablePhones.length;
-      const totalPurchaseValue = availablePhones.reduce((sum, p) => sum + (p.purchase_price || p.price || 0), 0);
-      const totalSellingValue = availablePhones.reduce((sum, p) => sum + (p.selling_price || p.price || 0), 0);
+      const phonePurchasePrice = p => Number(p.purchase_price ?? p.price ?? 0) || 0;
+      const phoneSellingPrice = p => Number(p.selling_price ?? p.price ?? 0) || 0;
+      const accessoryQuantity = a => Number(a.quantity_in_stock ?? a.quantity ?? 0) || 0;
+      const totalPurchaseValue = availablePhones.reduce((sum, p) => sum + phonePurchasePrice(p), 0);
+      const totalSellingValue = availablePhones.reduce((sum, p) => sum + phoneSellingPrice(p), 0);
       const totalProfit = totalSellingValue - totalPurchaseValue;
 
       // إحصائيات الهواتف الجديدة
       const newPhonesCount = newPhones.length;
-      const newPhonesPurchaseValue = newPhones.reduce((sum, p) => sum + (p.purchase_price || p.price || 0), 0);
-      const newPhonesSellingValue = newPhones.reduce((sum, p) => sum + (p.selling_price || p.price || 0), 0);
+      const newPhonesPurchaseValue = newPhones.reduce((sum, p) => sum + phonePurchasePrice(p), 0);
+      const newPhonesSellingValue = newPhones.reduce((sum, p) => sum + phoneSellingPrice(p), 0);
       const newPhonesProfit = newPhonesSellingValue - newPhonesPurchaseValue;
 
       // إحصائيات الهواتف المستعملة
       const usedPhonesCount = usedPhones.length;
-      const usedPhonesPurchaseValue = usedPhones.reduce((sum, p) => sum + (p.purchase_price || p.price || 0), 0);
-      const usedPhonesSellingValue = usedPhones.reduce((sum, p) => sum + (p.selling_price || p.price || 0), 0);
+      const usedPhonesPurchaseValue = usedPhones.reduce((sum, p) => sum + phonePurchasePrice(p), 0);
+      const usedPhonesSellingValue = usedPhones.reduce((sum, p) => sum + phoneSellingPrice(p), 0);
       const usedPhonesProfit = usedPhonesSellingValue - usedPhonesPurchaseValue;
 
 
       // حساب إحصائيات الأكسسوارات
       const totalAccessories = accessories.length;
-      const totalAccessoryQuantity = accessories.reduce((sum, a) => sum + (a.quantity_in_stock || a.quantity || 0), 0);
+      const totalAccessoryQuantity = accessories.reduce((sum, a) => sum + accessoryQuantity(a), 0);
       const totalAccessoryPurchaseValue = accessories.reduce((sum, a) => 
-        sum + ((a.purchase_price || 0) * (a.quantity_in_stock || a.quantity || 0)), 0);
+        sum + ((Number(a.purchase_price) || 0) * accessoryQuantity(a)), 0);
       const totalAccessorySellingValue = accessories.reduce((sum, a) => 
-        sum + ((a.selling_price || 0) * (a.quantity_in_stock || a.quantity || 0)), 0);
+        sum + ((Number(a.selling_price) || 0) * accessoryQuantity(a)), 0);
 
       console.log('📈 الإحصائيات المحسوبة:', {
         totalPhones,

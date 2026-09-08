@@ -511,7 +511,7 @@
                     <td><span class="text-info">${a.barcode || 'غير محدد'}</span></td>
                     <td><span class="text-info">${a.serial_number || 'غير محدد'}</span></td>
                     <td><span class="badge bg-primary">${a.category || 'غير محدد'}</span></td>
-                    <td><span class="badge bg-success">${a.quantity_in_stock || a.quantity || 0}</span></td>
+                    <td><span class="badge bg-success">${Number(a.quantity_in_stock ?? a.quantity ?? 0) || 0}</span></td>
                     <td><span class="text-success">${fmtMoney(a.purchase_price || 0)} ريال</span></td>
                     <td><span class="text-primary">${fmtMoney(a.selling_price || 0)} ريال</span></td>
                     <td>
@@ -652,7 +652,7 @@
       const details = `
 الاسم: ${accessory.arabic_name || accessory.name || 'غير محدد'}
 الفئة: ${accessory.category || 'غير محدد'}
-الكمية: ${accessory.quantity_in_stock || accessory.quantity || 0}
+الكمية: ${Number(accessory.quantity_in_stock ?? accessory.quantity ?? 0) || 0}
 سعر الشراء: ${fmtMoney(accessory.purchase_price || 0)} ريال
 سعر البيع: ${fmtMoney(accessory.selling_price || 0)} ريال
 المورد: ${accessory.supplier || 'غير محدد'}

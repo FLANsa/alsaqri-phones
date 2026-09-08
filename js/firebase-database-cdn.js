@@ -1349,7 +1349,7 @@ class FirebaseDatabase {
   computeDerived(partCost, amountCharged, techPercent) {
     const pc = Number(partCost) || 0;
     const ac = Number(amountCharged) || 0;
-    const tp = (typeof techPercent === 'number' && !isNaN(techPercent)) ? techPercent : 0;
+    const tp = Number(techPercent) || 0;
     const profit = ac - pc;
     const techCommission = Math.max(0, profit * tp);
     const shopProfit = profit - techCommission;
@@ -1368,7 +1368,7 @@ class FirebaseDatabase {
                              job.parts.reduce((sum, part) => sum + (Number(part.partCost) || 0), 0) :
                              Number(job.partCost) || 0;
         const amountCharged = Number(job.amountCharged) || 0;
-        const techPercent = (typeof job.techPercent === 'number' && !isNaN(job.techPercent)) ? job.techPercent : 0;
+        const techPercent = Number(job.techPercent) || 0;
         const { profit, techCommission, shopProfit } = this.computeDerived(totalPartCost, amountCharged, techPercent);
 
         if (job.parts && Array.isArray(job.parts) && job.parts.length > 0) {
@@ -1433,7 +1433,7 @@ class FirebaseDatabase {
                              job.parts.reduce((sum, part) => sum + (Number(part.partCost) || 0), 0) :
                              Number(job.partCost) || 0;
         const amountCharged = Number(job.amountCharged) || 0;
-        const techPercent = (typeof job.techPercent === 'number' && !isNaN(job.techPercent)) ? job.techPercent : 0;
+        const techPercent = Number(job.techPercent) || 0;
         const { profit, techCommission, shopProfit } = this.computeDerived(totalPartCost, amountCharged, techPercent);
 
         if (!techTotals[job.techId]) {

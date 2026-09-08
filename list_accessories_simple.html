@@ -309,7 +309,7 @@
               <span class="badge bg-primary">${categoryMap[accessory.category] || accessory.category}</span>
             </td>
             <td>
-              <span class="badge bg-success">${accessory.quantity_in_stock || accessory.quantity || 0}</span>
+              <span class="badge bg-success">${Number(accessory.quantity_in_stock ?? accessory.quantity ?? 0) || 0}</span>
             </td>
             <td>
               ${formatMoney(accessory.purchase_price)} ريال
@@ -355,11 +355,12 @@
       console.log('📊 حساب الإحصائيات من قاعدة البيانات...');
       
       const totalItems = accessories.length;
-      const totalQuantity = accessories.reduce((sum, acc) => sum + (acc.quantity_in_stock || acc.quantity || 0), 0);
+      const quantityOf = acc => Number(acc.quantity_in_stock ?? acc.quantity ?? 0) || 0;
+      const totalQuantity = accessories.reduce((sum, acc) => sum + quantityOf(acc), 0);
       const totalPurchaseValue = accessories.reduce((sum, acc) => 
-        sum + ((acc.purchase_price || 0) * (acc.quantity_in_stock || acc.quantity || 0)), 0);
+        sum + ((Number(acc.purchase_price) || 0) * quantityOf(acc)), 0);
       const totalSellingValue = accessories.reduce((sum, acc) => 
-        sum + ((acc.selling_price || 0) * (acc.quantity_in_stock || acc.quantity || 0)), 0);
+        sum + ((Number(acc.selling_price) || 0) * quantityOf(acc)), 0);
 
       console.log('📈 الإحصائيات المحسوبة:', {
         totalItems,
@@ -397,7 +398,7 @@
         const newName = prompt('اسم الأكسسوار:', accessory.arabic_name || accessory.name);
         if (newName === null) return; // المستخدم ضغط إلغاء
         
-        const newQuantity = prompt('الكمية:', accessory.quantity_in_stock || accessory.quantity);
+        const newQuantity = prompt('الكمية:', accessory.quantity_in_stock ?? accessory.quantity ?? 0);
         if (newQuantity === null) return;
         
         const newPurchasePrice = prompt('سعر الشراء (بدون ضريبة):', accessory.purchase_price);

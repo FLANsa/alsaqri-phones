@@ -429,7 +429,7 @@
         function computeDerived(partCost, amountCharged, techPercent) {
             const pc = Number(partCost) || 0;
             const ac = Number(amountCharged) || 0;
-            const tp = (typeof techPercent === 'number' && !isNaN(techPercent)) ? techPercent : 0; // افتراضي 0%
+            const tp = Number(techPercent) || 0; // يدعم القيم الرقمية القديمة المحفوظة كنص
             const profit = ac - pc;                                // الربح الإجمالي
             const techCommission = Math.max(0, profit * tp);       // عمولة الفني
             const shopProfit = profit - techCommission;            // أرباح المحل
@@ -618,7 +618,7 @@
                     
                     // ✅ إعادة حساب القيم المشتقة بشكل صحيح للعرض
                     const amountCharged = Number(job.amountCharged) || 0;
-                    const techPercent = (typeof job.techPercent === 'number' && !isNaN(job.techPercent)) ? job.techPercent : 0;
+                    const techPercent = Number(job.techPercent) || 0;
                     const { profit, techCommission, shopProfit } = computeDerived(totalPartCost, amountCharged, techPercent);
                     
                     // معالجة التاريخ
@@ -1050,7 +1050,8 @@
 
             // استخدم النسبة المخزّنة إن وجدت، وإلا المختارة حالياً، وإلا من بيانات الفني، وإلا 0%
             const selectedTech = techniciansData.find(t => t.id === job.techId);
-            const techPercent = (typeof job.techPercent === 'number') ? job.techPercent :
+            const storedTechPercent = Number(job.techPercent);
+            const techPercent = Number.isFinite(storedTechPercent) ? storedTechPercent :
                                 (typeof selectedTechPercent === 'number' ? selectedTechPercent :
                                 (selectedTech && typeof selectedTech.defaultCommissionPercent === 'number') ? 
                                 selectedTech.defaultCommissionPercent : 0);

@@ -535,7 +535,7 @@
                             <li>
                                 <span class="part-name">${part.partName || '-'}</span>
                                 <br><span class="part-rep">المندوب: ${part.repName || '-'}</span>
-                                <br><span class="part-cost">${(part.partCost || 0).toFixed(2)} ريال</span>
+                                <br><span class="part-cost">${(Number(part.partCost) || 0).toFixed(2)} ريال</span>
                             </li>
                         `;
                         totalPartCost += Number(part.partCost) || 0;
@@ -547,7 +547,7 @@
                             <li>
                                 <span class="part-name">${job.partName}</span>
                                 <br><span class="part-rep">المندوب: ${job.repName || '-'}</span>
-                                <br><span class="part-cost">${(job.partCost || 0).toFixed(2)} ريال</span>
+                                <br><span class="part-cost">${(Number(job.partCost) || 0).toFixed(2)} ريال</span>
                             </li>
                         </ul>
                     `;
@@ -591,10 +591,10 @@
                     <td>${partsHTML}</td>
                     <td>${job.techName || '-'}</td>
                     <td>${totalPartCost.toFixed(2)} ريال</td>
-                    <td>${(job.amountCharged || 0).toFixed(2)} ريال</td>
-                    <td>${(job.profit || 0).toFixed(2)} ريال</td>
-                    <td>${(job.techCommission || 0).toFixed(2)} ريال</td>
-                    <td>${(job.shopProfit || 0).toFixed(2)} ريال</td>
+                    <td>${(Number(job.amountCharged) || 0).toFixed(2)} ريال</td>
+                    <td>${(Number(job.profit) || 0).toFixed(2)} ريال</td>
+                    <td>${(Number(job.techCommission) || 0).toFixed(2)} ريال</td>
+                    <td>${(Number(job.shopProfit) || 0).toFixed(2)} ريال</td>
                     <td><span class="status-badge ${statusClass}">${statusText}</span></td>
                 `;
                 tbody.appendChild(row);
@@ -662,4 +662,3 @@
     <script src="js/pwa-register.js"></script>
 </body>
 </html>
-

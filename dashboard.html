@@ -584,14 +584,15 @@
         });
 
         // حساب قيم المخزون
-        const phonesPurchaseValue = availablePhones.reduce((sum, p) => sum + (p.purchase_price || 0), 0);
-        const phonesSellingValue = availablePhones.reduce((sum, p) => sum + (p.selling_price || 0), 0);
+        const phonesPurchaseValue = availablePhones.reduce((sum, p) => sum + (Number(p.purchase_price) || 0), 0);
+        const phonesSellingValue = availablePhones.reduce((sum, p) => sum + (Number(p.selling_price) || 0), 0);
         
-        const availableAccessories = accessories.filter(a => (a.quantity_in_stock || a.quantity || 0) > 0);
+        const accessoryQuantity = a => Number(a.quantity_in_stock ?? a.quantity ?? 0) || 0;
+        const availableAccessories = accessories.filter(a => accessoryQuantity(a) > 0);
         const accessoriesPurchaseValue = availableAccessories.reduce((sum, a) => 
-          sum + (a.purchase_price || 0) * (a.quantity_in_stock || a.quantity || 0), 0);
+          sum + (Number(a.purchase_price) || 0) * accessoryQuantity(a), 0);
         const accessoriesSellingValue = availableAccessories.reduce((sum, a) => 
-          sum + (a.selling_price || 0) * (a.quantity_in_stock || a.quantity || 0), 0);
+          sum + (Number(a.selling_price) || 0) * accessoryQuantity(a), 0);
 
         const totalPurchaseValue = phonesPurchaseValue + accessoriesPurchaseValue;
         const totalSellingValue = phonesSellingValue + accessoriesSellingValue;
@@ -611,7 +612,7 @@
 
         // حساب إحصائيات المبيعات
         const totalSales = effectiveSales.length;
-        const totalSalesAmount = effectiveSales.reduce((sum, s) => sum + (s.total_amount || 0), 0);
+        const totalSalesAmount = effectiveSales.reduce((sum, s) => sum + (Number(s.total_amount) || 0), 0);
 
         // حساب الربح الفعلي
         let totalActualProfit = 0;
@@ -620,8 +621,8 @@
         effectiveSales.forEach(sale => {
           if (sale.items && Array.isArray(sale.items)) {
             sale.items.forEach(item => {
-              const sellingPrice = item.unitPrice || item.unit_price || 0;
-              const quantity = item.quantity || 1;
+              const sellingPrice = Number(item.unitPrice ?? item.unit_price ?? 0) || 0;
+              const quantity = Number(item.quantity ?? 1) || 1;
               const totalSellingPrice = sellingPrice * quantity;
 
               let purchasePrice = 0;
@@ -629,10 +630,10 @@
                 const phone = phones.find(p => 
                   p.id === item.id || p.phone_id === item.id || p.phone_number === item.id
                 );
-                purchasePrice = phone?.purchase_price_with_vat || phone?.purchase_price || 0;
+                purchasePrice = Number(phone?.purchase_price_with_vat ?? phone?.purchase_price ?? 0) || 0;
               } else {
                 const accessory = accessories.find(a => a.id === item.id || a.sku === item.id);
-                purchasePrice = accessory?.purchase_price_with_vat || accessory?.purchase_price || 0;
+                purchasePrice = Number(accessory?.purchase_price_with_vat ?? accessory?.purchase_price ?? 0) || 0;
               }
 
               const totalPurchasePrice = purchasePrice * quantity;
@@ -648,7 +649,7 @@
           return jobDate && jobDate >= startDate && jobDate <= endDate;
         });
 
-        const maintenanceProfit = maintenanceInPeriod.reduce((sum, j) => sum + (j.shopProfit || 0), 0);
+        const maintenanceProfit = maintenanceInPeriod.reduce((sum, j) => sum + (Number(j.shopProfit) || 0), 0);
 
         totalActualProfit += maintenanceProfit;
 

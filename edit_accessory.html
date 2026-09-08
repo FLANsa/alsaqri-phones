@@ -231,23 +231,6 @@
     });
   }
 
-  // نفس سلوك الصفحة الأصلية: حساب السعر قبل الضريبة بالـ console
-  document.addEventListener('DOMContentLoaded', () => {
-    // ملء النموذج يتم بعد تحميل الأكسسوار من Firebase (انظر loadAccessoryForEdit)
-
-    document.getElementById('purchase_price').addEventListener('input', function () {
-      const priceWithVAT = parseFloat(this.value) || 0;
-      const priceWithoutVAT = priceWithVAT / 1.15;
-      console.log('Purchase price without VAT:', priceWithoutVAT.toFixed(2));
-    });
-
-    document.getElementById('selling_price').addEventListener('input', function () {
-      const priceWithVAT = parseFloat(this.value) || 0;
-      const priceWithoutVAT = priceWithVAT / 1.15;
-      console.log('Selling price without VAT:', priceWithoutVAT.toFixed(2));
-    });
-  });
-
   // بدائل محلية لعمليات إضافة/حذف/تحديث الفئات (بدون خادم)
   function addAccessoryCategory() {
     const categoryName = prompt('أدخل اسم الفئة الإنجليزية (المفتاح):');

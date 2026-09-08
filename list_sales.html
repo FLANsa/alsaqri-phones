@@ -575,7 +575,7 @@
     let totalAmount = 0;
 
     pageSlice.forEach(sale => {
-      totalAmount   += sale.total_amount || 0;
+      totalAmount += Number(sale.total_amount) || 0;
 
       const tr = document.createElement('tr');
 
