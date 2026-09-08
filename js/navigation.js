@@ -3,24 +3,8 @@
  * Phone Store Demo - Centralized navigation management
  */
 
-/**
- * Get current user role from localStorage
- * @returns {string} 'admin' | 'user' | 'guest'
- */
-function getCurrentRole() {
-    try {
-        const user = JSON.parse(localStorage.getItem('current_user') || 'null');
-        if (!user) return 'guest';
-        // Check both is_admin and role fields for compatibility
-        if (user.is_admin === true || user.role === 'admin') {
-            return 'admin';
-        }
-        return 'user';
-    } catch (error) {
-        console.error('Error getting user role:', error);
-        return 'guest';
-    }
-}
+// ملاحظة: getCurrentRole معرّفة في js/guard.js (المصدر الوحيد) —
+// هذه الصفحة تقرأها منها، وguard.js مضمّن في كل صفحة تحمل navigation.js.
 
 /**
  * Generate navigation HTML based on user role
@@ -149,10 +133,18 @@ function initNavigation(currentPage = '') {
 }
 
 /**
- * Logout function
+ * Logout function — خروج حقيقي: جلسة Firebase + الكاش + localStorage
  */
 function logout() {
     if (confirm('هل أنت متأكد من تسجيل الخروج؟')) {
+        // مسح كاش Firestore (IndexedDB) — يمنع تسريب بيانات المستخدم السابق
+        try { window.firebaseDatabase?.clearAllCache?.(); } catch (e) { /* تجاهل */ }
+        // خروج Firebase الفعلي
+        try {
+            if (window.firebaseSignOut && window.firebaseAuth) {
+                window.firebaseSignOut(window.firebaseAuth).catch(function () {});
+            }
+        } catch (e) { /* تجاهل */ }
         localStorage.removeItem('current_user');
         alert('تم تسجيل الخروج');
         window.location.href = 'login.html';

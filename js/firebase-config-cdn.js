@@ -16,7 +16,7 @@ const firebaseConfig = {
 // تهيئة Firebase باستخدام CDN
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
 import { getFirestore } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
-import { getAuth, signInAnonymously } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
+import { getAuth, signOut } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
 import { getAnalytics } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-analytics.js';
 
 // تهيئة التطبيق
@@ -27,22 +27,15 @@ const db = getFirestore(app);
 const auth = getAuth(app);
 const analytics = getAnalytics(app);
 
-// تسجيل دخول مجهول تلقائي — قواعد Firestore تشترط request.auth != null
-// إن ظهر خطأ auth/operation-not-approved (أو operation-not-allowed):
-// فعّل مزوّد Anonymous من Firebase Console ← Authentication ← Sign-in method
-signInAnonymously(auth).catch(function (err) {
-  console.error(
-    'تعذر تسجيل الدخول المجهول (' + (err && err.code) + '). ' +
-    'فعّل مزوّد Anonymous في Firebase Console ← Authentication ← Sign-in method، ' +
-    'وأضف نطاق الموقع إلى Authorized domains — وإلا سترفض قواعد Firestore كل قراءة وكتابة.',
-    err
-  );
-});
+// تسجيل الدخول يحدث في login.html عبر Firebase Auth (حسابا admin/user).
+// لا يوجد تسجيل مجهول — قواعد Firestore تشترط request.auth != null
+// والجلسات الحقيقية فقط هي المقبولة.
 
 // تصدير الخدمات للاستخدام في الملفات الأخرى
 window.firebaseDB = db;
 window.firebaseAuth = auth;
 window.firebaseAnalytics = analytics;
+window.firebaseSignOut = signOut;
 
 // كتم سجلات console.log في الإنتاج (console.error/warn تبقى ظاهرة).
 // للتصحيح: نفّذ localStorage.setItem('__verbose', '1') ثم أعد تحميل الصفحة

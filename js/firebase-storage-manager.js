@@ -710,25 +710,6 @@ class FirebaseStorageManager {
   }
 
   /**
-   * User management
-   */
-  getCurrentUser() {
-    return this.getItem(CONFIG.STORAGE_KEYS.CURRENT_USER);
-  }
-
-  setCurrentUser(user) {
-    return this.setItem(CONFIG.STORAGE_KEYS.CURRENT_USER, user);
-  }
-
-  logout() {
-    return this.removeItem(CONFIG.STORAGE_KEYS.CURRENT_USER);
-  }
-
-  isLoggedIn() {
-    return !!this.getCurrentUser();
-  }
-
-  /**
    * Utility methods
    */
   generateId() {
@@ -742,14 +723,4 @@ const storage = new FirebaseStorageManager();
 // Export for use in other modules
 if (typeof window !== 'undefined') {
   window.storage = storage;
-  window.FirebaseStorageManager = FirebaseStorageManager;
-}
-
-// Make available globally for non-module usage
-window.FirebaseStorageManager = FirebaseStorageManager;
-window.storage = storage;
-
-// Also export for module usage
-if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { FirebaseStorageManager, storage };
 }

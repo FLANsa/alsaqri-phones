@@ -70,30 +70,6 @@ function setupArabicNumberSupport() {
     console.log('✅ تم تفعيل دعم الأرقام العربية');
 }
 
-// دالة مساعدة لتحويل القيم عند الحفظ
-function convertFormValues(formElement) {
-    const inputs = formElement.querySelectorAll('input[type="number"], .arabic-number-field');
-    inputs.forEach(input => {
-        if (input.value) {
-            input.value = convertArabicToEnglishNumbers(input.value);
-        }
-    });
-}
-
-// دالة مساعدة لقراءة القيم الرقمية من النماذج
-function getNumericValue(elementId) {
-    const element = document.getElementById(elementId);
-    if (!element) return 0;
-    return parseArabicNumber(element.value);
-}
-
-// دالة مساعدة لتعيين قيمة رقمية مع دعم الأرقام العربية
-function setNumericValue(elementId, value) {
-    const element = document.getElementById(elementId);
-    if (!element) return;
-    element.value = value.toString();
-}
-
 // تشغيل تلقائي عند تحميل الصفحة
 if (typeof document !== 'undefined') {
     document.addEventListener('DOMContentLoaded', function() {
@@ -116,17 +92,4 @@ if (typeof document !== 'undefined') {
             });
         }
     });
-}
-
-// تصدير الدوال للاستخدام في الملفات الأخرى
-if (typeof module !== 'undefined' && module.exports) {
-    module.exports = {
-        convertArabicToEnglishNumbers,
-        convertEnglishToArabicNumbers,
-        parseArabicNumber,
-        setupArabicNumberSupport,
-        convertFormValues,
-        getNumericValue,
-        setNumericValue
-    };
 }

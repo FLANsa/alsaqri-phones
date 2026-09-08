@@ -5,5 +5,28 @@
   },
   "storage": {
     "rules": "storage.rules"
+  },
+  "hosting": {
+    "public": ".",
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/.*/**",
+      ".git",
+      ".git/**",
+      ".zcode",
+      ".zcode/**",
+      "**/node_modules/**",
+      "**/*.md",
+      "**/*.txt",
+      "**/*.log",
+      "**/package.json",
+      "**/package-lock.json",
+      "firestore.rules",
+      "firestore.indexes.json",
+      "storage.rules",
+      "render.yaml",
+      "render-deploy*.md"
+    ]
   }
 }

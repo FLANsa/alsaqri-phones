@@ -4,7 +4,7 @@
 
 ```
 js/
-├── firebase-config-cdn.js        # تهيئة Firebase (CDN 10.7.1) + تسجيل دخول مجهول تلقائي
+├── firebase-config-cdn.js        # تهيئة Firebase (CDN 10.7.1) + تصدير الخدمات (Auth/DB/SignOut)
 ├── firebase-database-cdn.js      # طبقة Firestore الأساسية: كاش IndexedDB 5 دقائق،
 │                                 # كتابات batch، قراءات موجّهة — window.firebaseDatabase
 ├── firebase-storage-manager.js   # واجهة موحّدة فوق طبقة Firestore — window.storage
@@ -43,4 +43,4 @@ python3 -m http.server 8000
 - كاش IndexedDB باسم `alsaqri_fs_cache` بعمر 5 دقائق لكل مجموعة.
 - عند نفاد حصة Firestore يوجد قاطع دائرة 5 دقائق (انظر `firebase-database-cdn.js`).
 - سجلات `console.log` مكتومة إنتاجياً؛ للتصحيح: `localStorage.setItem('__verbose','1')`.
-- قواعد Firestore تشترط جلسة مسجلة (تسجيل دخول مجهول تلقائي) — راجع `firestore.rules`.
+- الحماية: جلسة Firebase حقيقية (حسابا admin/user عبر login.html) + guard.js على كل الصفحات المحمية — راجع `firestore.rules`.

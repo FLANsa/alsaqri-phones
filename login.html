@@ -31,6 +31,7 @@
     .btn-primary { background-color: #2c3e50; border-color: #2c3e50; }
     .btn-primary:hover { background-color: #1a252f; border-color: #1a252f; }
   </style>
+  <script type="module" src="js/firebase-config-cdn.js?v=20260908"></script>
 </head>
 <body>
 
@@ -95,89 +96,87 @@
       ${message}
       <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
     `;
-    
+
     document.body.appendChild(alertDiv);
-    
+
     setTimeout(() => {
       if (alertDiv.parentNode) {
         alertDiv.remove();
       }
     }, 4000);
   }
+</script>
+
+<script type="module">
+  // تسجيل الدخول عبر Firebase Authentication — التحقق يتم على خوادم Firebase
+  // لا توجد أي بيانات دخول في هذا الملف.
+  import { signInWithEmailAndPassword, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
+
+  const ACCOUNTS = {
+    admin: { email: 'admin@alsaqri.store',  name: 'مدير النظام',   role: 'admin', dashboard: 'dashboard.html' },
+    user:  { email: 'user@alsaqri.store',   name: 'موظف المبيعات', role: 'user',  dashboard: 'limited_dashboard.html' }
+  };
+
+  function saveSession(account, fbUser) {
+    localStorage.setItem('current_user', JSON.stringify({
+      username: account.email.split('@')[0],
+      name: account.name,
+      role: account.role,
+      uid: fbUser ? fbUser.uid : null,
+      loginTime: new Date().toISOString()
+    }));
+  }
+
+  // جلسة قائمة مسبقاً → مزامنة الدور والتحويل مباشرة
+  onAuthStateChanged(window.firebaseAuth, (fbUser) => {
+    if (!fbUser) return;
+    const email = (fbUser.email || '').toLowerCase();
+    const account = Object.values(ACCOUNTS).find(a => a.email === email);
+    if (!account) {
+      // جلسة لا تنتمي لأحد الحسابين المعتمدين — خروج احتياطي
+      window.firebaseSignOut(window.firebaseAuth).catch(() => {});
+      localStorage.removeItem('current_user');
+      return;
+    }
+    saveSessionAndGo(account, fbUser);
+  });
+
+  function saveSessionAndGo(account, fbUser) {
+    saveSession(account, fbUser);
+    window.location.href = account.dashboard;
+  }
 
   // معالجة تسجيل الدخول
-  function handleLogin(e){
+  window.handleLogin = function(e) {
     e.preventDefault();
-    
+
     const username = document.getElementById('username').value.trim();
     const password = document.getElementById('password').value;
-    
-    // التحقق من البيانات
+
     if (!username || !password) {
       showAlert('danger', 'يرجى إدخال اسم المستخدم وكلمة المرور');
       return;
     }
 
-    // بيانات المستخدمين الافتراضية (يمكن تطويرها لاحقاً)
-    // كلمات المرور مخزنة كقِيَم SHA-256 (ليس نصاً واضحاً)
-    // كلمة المرور لكلا المستخدمين: 123123
-    const validUsers = [
-      { username: 'admin', passwordHash: '96cae35ce8a9b0244178bf28e4966c2ce1b8385723a96a6b838858cdd6ca0a1e', name: 'مدير النظام', role: 'admin', dashboard: 'dashboard.html' },
-      { username: 'user',  passwordHash: '96cae35ce8a9b0244178bf28e4966c2ce1b8385723a96a6b838858cdd6ca0a1e', name: 'موظف المبيعات', role: 'user',  dashboard: 'limited_dashboard.html' }
-    ];
-
-    // حساب SHA-256 محلياً لكلمة المرور المدخلة ثم المقارنة مع المخزن
-    async function sha256Hex(text){
-      const enc = new TextEncoder().encode(text);
-      const buf = await crypto.subtle.digest('SHA-256', enc);
-      const bytes = Array.from(new Uint8Array(buf));
-      return bytes.map(b => b.toString(16).padStart(2,'0')).join('');
-    }
-
-    (async () => {
-      const inputHash = await sha256Hex(password);
-      const user = validUsers.find(u => u.username === username && u.passwordHash === inputHash);
-
-    if (user) {
-      // حفظ بيانات المستخدم في التخزين المحلي
-      const sessionData = {
-        username: user.username,
-        name: user.name,
-        role: user.role,
-        loginTime: new Date().toISOString()
-      };
-      
-      localStorage.setItem('current_user', JSON.stringify(sessionData));
-      
-      showAlert('success', `مرحباً ${user.name}! جاري التحويل إلى الصفحة الرئيسية...`);
-      
-      // التحويل لصفحة الصفحة الرئيسية المناسبة بعد ثانيتين
-      setTimeout(() => {
-        window.location.href = user.dashboard;
-      }, 2000);
-      
-    } else {
+    const account = ACCOUNTS[username];
+    if (!account) {
       showAlert('danger', 'اسم المستخدم أو كلمة المرور غير صحيحة');
+      return;
     }
-    })();
-  }
 
-  // التحقق من تسجيل الدخول عند تحميل الصفحة
-  document.addEventListener('DOMContentLoaded', function() {
-    // إذا كان المستخدم مسجل دخول بالفعل، اتجه لالصفحة الرئيسية المناسبة
-    const currentUser = localStorage.getItem('current_user');
-    if (currentUser) {
-      try {
-        const userData = JSON.parse(currentUser);
-        const dashboardUrl = userData.role === 'admin' ? 'dashboard.html' : 'limited_dashboard.html';
-        window.location.href = dashboardUrl;
-      } catch (error) {
-        // في حالة وجود خطأ في البيانات، احذف الجلسة وأعد التحميل
-        localStorage.removeItem('current_user');
-        location.reload();
-      }
-    }
-  });
+    signInWithEmailAndPassword(window.firebaseAuth, account.email, password)
+      .then(({ user: fbUser }) => {
+        saveSessionAndGo(account, fbUser);
+      })
+      .catch((err) => {
+        console.error('فشل تسجيل الدخول:', err && err.code);
+        if (err && (err.code === 'auth/too-many-requests')) {
+          showAlert('danger', 'محاولات كثيرة خاطئة — انتظر قليلاً ثم أعد المحاولة');
+        } else {
+          showAlert('danger', 'اسم المستخدم أو كلمة المرور غير صحيحة');
+        }
+      });
+  };
 </script>
 </body>
 </html>
