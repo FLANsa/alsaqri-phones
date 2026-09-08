@@ -112,7 +112,9 @@ function generateNavigation(role, currentPage = '') {
  * Initialize navigation for a page
  * @param {string} currentPage - Current page identifier
  */
+let navigationPage = '';
 function initNavigation(currentPage = '') {
+    navigationPage = currentPage;
     const role = getCurrentRole();
     console.log('🔍 Navigation Debug:');
     console.log('- Current role:', role);
@@ -135,16 +137,19 @@ function initNavigation(currentPage = '') {
 /**
  * Logout function — خروج حقيقي: جلسة Firebase + الكاش + localStorage
  */
-function logout() {
+async function logout() {
     if (confirm('هل أنت متأكد من تسجيل الخروج؟')) {
         // مسح كاش Firestore (IndexedDB) — يمنع تسريب بيانات المستخدم السابق
-        try { window.firebaseDatabase?.clearAllCache?.(); } catch (e) { /* تجاهل */ }
+        try { await window.firebaseDatabase?.clearAllCache?.(); } catch (e) { /* تجاهل */ }
         // خروج Firebase الفعلي
         try {
-            if (window.firebaseSignOut && window.firebaseAuth) {
-                window.firebaseSignOut(window.firebaseAuth).catch(function () {});
-            }
-        } catch (e) { /* تجاهل */ }
+            if (!window.firebaseSignOut || !window.firebaseAuth) throw new Error('Firebase Auth غير متاح');
+            await window.firebaseSignOut(window.firebaseAuth);
+        } catch (e) {
+            console.error('تعذر تسجيل الخروج:', e);
+            alert('تعذر تسجيل الخروج. يرجى المحاولة مرة أخرى.');
+            return;
+        }
         localStorage.removeItem('current_user');
         alert('تم تسجيل الخروج');
         window.location.href = 'login.html';
@@ -154,3 +159,4 @@ function logout() {
 // Make functions available globally
 window.initNavigation = initNavigation;
 window.logout = logout;
+window.addEventListener('session-ready', function () { initNavigation(navigationPage); });

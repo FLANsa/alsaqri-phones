@@ -88,6 +88,7 @@
     }
   </style>
   <meta name="requires-role" content="user">
+  <script type="module" src="js/firebase-config-cdn.js?v=20260908"></script>
   <script src="js/guard.js?v=20260908"></script>
 </head>
 <body>
@@ -183,66 +184,14 @@
   <!-- Firebase Scripts -->
 
   <script>
-    // Check access on page load
-    document.addEventListener('DOMContentLoaded', function() {
-      // Check if user is logged in through the login system
-      const currentUser = localStorage.getItem('current_user');
-      
-      if (!currentUser) {
-        alert('يرجى تسجيل الدخول أولاً');
-        window.location.href = 'login.html';
+    window.addEventListener('session-ready', function(event) {
+      const user = event.detail;
+      if (user.role === 'admin') {
+        window.location.href = 'dashboard.html';
         return;
       }
-      
-      try {
-        const userData = JSON.parse(currentUser);
-        
-        // Check if user has limited access (not admin)
-        if (userData.role === 'admin') {
-          window.location.href = 'dashboard.html';
-          return;
-        }
-        
-        // Show welcome message with user's name
-        document.querySelector('h2').innerHTML = `مرحباً ${userData.name} في نظام إدارة الهواتف`;
-        
-        // Initialize dashboard
-        initializeDashboard();
-        
-      } catch (error) {
-        console.error('Error parsing user data:', error);
-        localStorage.removeItem('current_user');
-        window.location.href = 'login.html';
-      }
+      document.querySelector('h2').textContent = `مرحباً ${user.name} في نظام إدارة الهواتف`;
     });
-
-    async function initializeDashboard() {
-      // لا توجد إحصائيات تُقرأ أو تُعرض للمستخدم المحدود في هذه الصفحة
-      // (كانت السقالة السابقة تُعدّ قارئات بيانات لا تستخدمها الواجهة)
-      return;
-    }
-
-
-    function convertToLatinNumbers(str) {
-      const arabicNumbers = ['٠', '١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩'];
-      const latinNumbers = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'];
-      
-      for (let i = 0; i < arabicNumbers.length; i++) {
-        str = str.replace(new RegExp(arabicNumbers[i], 'g'), latinNumbers[i]);
-      }
-      return str;
-    }
-
-    function showError(message) {
-      const errorDiv = document.createElement('div');
-      errorDiv.className = 'alert alert-danger alert-dismissible fade show';
-      errorDiv.innerHTML = `
-        ${message}
-        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-      `;
-      
-      document.querySelector('.container').insertBefore(errorDiv, document.querySelector('.container').firstChild);
-    }
 
   </script>
 

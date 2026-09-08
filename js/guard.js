@@ -117,13 +117,14 @@ function initPageGuard() {
             }
 
             // دور الواجهة يشتق دائماً من جلسة Firebase الحالية، لا من قيمة محلية قديمة.
-            syncRoleFromSession(fbUser);
+            const session = syncRoleFromSession(fbUser);
 
             // Check if user has access
             if (!hasAccess(requiredRole)) {
                 redirectToDashboard();
                 return;
             }
+            window.dispatchEvent(new CustomEvent('session-ready', { detail: session }));
         });
     }, 80);
 }
