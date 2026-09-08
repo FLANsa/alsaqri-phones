@@ -42,3 +42,10 @@ temp/
 
 # Firebase CLI cache
 .firebase/
+
+# Agent tooling (Codex/Playwright)
+.audit/
+.playwright-cli/
+
+# Local reports (never tracked)
+تقرير_المبيعات_اليومية_6شهور.txt
