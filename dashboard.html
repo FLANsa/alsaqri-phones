@@ -299,12 +299,6 @@
       } catch (e) { /* تجاهل */ }
     }
 
-    function clearCache() {
-      sweepLegacyCacheKeys();
-      window.firebaseDatabase?.clearAllCache?.();
-      console.log('🗑️ Cache cleared');
-    }
-
     let startTime = 0;
 
     // ==================== أدوات مساعدة ====================
