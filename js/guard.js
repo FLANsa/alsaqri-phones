@@ -116,10 +116,8 @@ function initPageGuard() {
                 return;
             }
 
-            // مزامنة دور الواجهة من الجلسة الحقيقية إن كانت ناقصة
-            if (!localStorage.getItem('current_user')) {
-                syncRoleFromSession(fbUser);
-            }
+            // دور الواجهة يشتق دائماً من جلسة Firebase الحالية، لا من قيمة محلية قديمة.
+            syncRoleFromSession(fbUser);
 
             // Check if user has access
             if (!hasAccess(requiredRole)) {
