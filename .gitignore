@@ -39,3 +39,6 @@ tmp/
 temp/
 # ZCode session files
 .zcode/
+
+# Firebase CLI cache
+.firebase/
