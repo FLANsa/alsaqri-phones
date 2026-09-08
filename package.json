@@ -1,7 +1,7 @@
 {
-  "name": "تجربة-النظام-للإتصالات",
+  "name": "alsaqri-telecom-system",
   "version": "1.0.0",
-  "description": "الصقري للاتصالات - A web application for managing phone inventory and sales",
+  "description": "الصقري للاتصالات - إدارة مخزون الهواتف والمبيعات والصيانة",
   "main": "index.html",
   "scripts": {
     "start": "python3 -m http.server 8000",
@@ -17,15 +17,15 @@
     "pos-system",
     "phone-shop",
     "firebase",
-    "demo"
+    "maintenance"
   ],
   "author": "الصقري للاتصالات",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/FLANsa/phone-store-demo.git"
+    "url": "https://github.com/FLANsa/alsaqri-phones.git"
   },
-  "homepage": "https://github.com/FLANsa/phone-store-demo",
+  "homepage": "https://github.com/FLANsa/alsaqri-phones",
   "engines": {
     "python": ">=3.7.0"
   }
