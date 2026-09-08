@@ -246,28 +246,7 @@
     // ملاحظة: نتوقع أن window.storage يوفّر الدوال التالية عندما تكون Firebase متاحة:
     // getPhones(), getAccessories(), getAccessoryCategories(), getSales()
     // إذا ما كانت متوفرة، بيصير التحميل من LocalStorage.
-  
-    // Check user role and update navigation
-    function updateNavigationForUser() {
-      const currentUser = localStorage.getItem('current_user');
-      if (currentUser) {
-        try {
-          const userData = JSON.parse(currentUser);
-          const navbar = document.querySelector('.navbar-nav.me-auto');
-          
-          if (userData.role === 'user') {
-            // Show simplified navigation for limited users
-            navbar.innerHTML = `
-              <li class="nav-item"><a class="nav-link" href="limited_dashboard.html"><i class="fas fa-home"></i> الرئيسية</a></li>
-              <li class="nav-item"><a class="nav-link" href="#" onclick="logout()"><i class="fas fa-sign-out-alt"></i> تسجيل الخروج</a></li>
-            `;
-          }
-          // Admin users keep the full navigation (default)
-        } catch (error) {
-          console.error('Error parsing user data:', error);
-        }
-      }
-    }
+    function fillSellerNameFromSession() {
 
     function fillSellerNameFromSession() {
       const el = document.getElementById('seller_name');
@@ -280,8 +259,6 @@
     }
 
     document.addEventListener('DOMContentLoaded', async () => {
-      // Update navigation based on user role
-      updateNavigationForUser();
       fillSellerNameFromSession();
 
       // ملفات Firebase نوعها module وتُنفَّذ قبل إطلاق DOMContentLoaded — لا حاجة لأي مهلة
@@ -1031,13 +1008,6 @@
     }
   
     // ====== تسجيل الخروج ======
-    function logout() {
-      if (confirm('هل أنت متأكد من تسجيل الخروج؟')) {
-        localStorage.removeItem('current_user');
-        alert('تم تسجيل الخروج بنجاح');
-        window.location.href = 'index.html';
-      }
-    }
   </script>
 
   <!-- Navigation Script -->

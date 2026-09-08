@@ -1354,39 +1354,8 @@
     }, 5000);
   }
 
-  // ---------- تهيئة ----------
-  function logout() {
-    if (confirm('هل أنت متأكد من تسجيل الخروج؟')) {
-      localStorage.removeItem('current_user');
-      alert('تم تسجيل الخروج بنجاح');
-      window.location.href = 'index.html';
-    }
-  }
-
-  // تحديث شريط التنقل حسب دور المستخدم (إظهار الرئيسية/تسجيل الخروج للمستخدم المحدود)
-  function updateNavigationForUser() {
-    const currentUser = localStorage.getItem('current_user');
-    if (!currentUser) return;
-    try {
-      const userData = JSON.parse(currentUser);
-      if (userData && userData.role === 'user') {
-        const navbar = document.querySelector('.navbar-nav.me-auto');
-        if (navbar) {
-          navbar.innerHTML = `
-            <li class=\"nav-item\"><a class=\"nav-link\" href=\"limited_dashboard.html\"><i class=\"fas fa-home\"></i> الرئيسية</a></li>
-            <li class=\"nav-item\"><a class=\"nav-link\" href=\"#\" onclick=\"logout()\"><i class=\"fas fa-sign-out-alt\"></i> تسجيل الخروج</a></li>
-          `;
-        }
-        const backBtn = document.querySelector('a.btn.btn-secondary[href="dashboard.html"]');
-        if (backBtn) backBtn.setAttribute('href', 'limited_dashboard.html');
-      }
-    } catch (e) { /* تجاهل أي خطأ في التحليل */ }
-  }
-
+ // ---------- تهيئة ----------
   document.addEventListener('DOMContentLoaded', async () => {
-    // تحديث التنقل بناءً على دور المستخدم
-    updateNavigationForUser();
-
     // إعداد دعم الأرقام العربية
     setupArabicNumberSupport();
 

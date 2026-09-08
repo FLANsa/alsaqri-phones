@@ -605,27 +605,6 @@
       }, 5000);
     }
 
-    // ===== تحديث قائمة التنقل للمستخدم المحدود =====
-    function updateNavigationForUser() {
-      const currentUser = localStorage.getItem('current_user');
-      if (currentUser) {
-        try {
-          const userData = JSON.parse(currentUser);
-          const navbar = document.querySelector('.navbar-nav.me-auto');
-          
-          if (userData.role === 'user' && navbar) {
-            navbar.innerHTML = `
-              <li class="nav-item"><a class="nav-link" href="limited_dashboard.html"><i class="fas fa-home"></i> الرئيسية</a></li>
-              <li class="nav-item"><a class="nav-link" href="#" onclick="logout()"><i class="fas fa-sign-out-alt"></i> تسجيل الخروج</a></li>
-            `;
-          }
-          // Admin users keep the full navigation (default)
-        } catch (error) {
-          console.error('Error parsing user data:', error);
-        }
-      }
-    }
-
     // ===== التحقق من تسجيل الدخول =====
     function checkLogin() {
       const currentUser = localStorage.getItem('current_user');
@@ -638,19 +617,8 @@
     }
 
     // ===== تسجيل الخروج =====
-    function logout() {
-      if (confirm('هل أنت متأكد من تسجيل الخروج؟')) {
-        localStorage.removeItem('current_user');
-        alert('تم تسجيل الخروج بنجاح');
-        window.location.href = 'index.html';
-      }
-    }
-
     // ===== تهيئة الصفحة =====
     document.addEventListener('DOMContentLoaded', async function() {
-      // تحديث شريط التنقل حسب دور المستخدم
-      updateNavigationForUser();
-      
       // التحقق من تسجيل الدخول أولاً
       if (!checkLogin()) return;
 

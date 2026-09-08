@@ -408,15 +408,6 @@
       }
     }
 
-    function logout() {
-      if (confirm('هل أنت متأكد من تسجيل الخروج؟')) {
-        localStorage.removeItem('current_user');
-        clearCache();
-        alert('تم تسجيل الخروج بنجاح');
-        window.location.href = 'index.html';
-      }
-    }
-
     // ==================== إدارة الفترات الزمنية ====================
 
     function getDateRange() {
