@@ -17,7 +17,6 @@ const firebaseConfig = {
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
 import { getFirestore } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
 import { getAuth, signOut } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
-import { getAnalytics } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-analytics.js';
 
 // تهيئة التطبيق
 const app = initializeApp(firebaseConfig);
@@ -25,7 +24,6 @@ const app = initializeApp(firebaseConfig);
 // تهيئة الخدمات
 const db = getFirestore(app);
 const auth = getAuth(app);
-const analytics = getAnalytics(app);
 
 // تسجيل الدخول يحدث في login.html عبر Firebase Auth (حسابا admin/user).
 // لا يوجد تسجيل مجهول — قواعد Firestore تشترط request.auth != null
@@ -34,7 +32,6 @@ const analytics = getAnalytics(app);
 // تصدير الخدمات للاستخدام في الملفات الأخرى
 window.firebaseDB = db;
 window.firebaseAuth = auth;
-window.firebaseAnalytics = analytics;
 window.firebaseSignOut = signOut;
 
 // كتم سجلات console.log في الإنتاج (console.error/warn تبقى ظاهرة).

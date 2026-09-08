@@ -21,6 +21,7 @@
     <!-- Google Fonts - Cairo -->
     <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;600;700&display=swap" rel="stylesheet">
     <link href="css/app-mobile.css" rel="stylesheet">
+    <script src="js/safe-render.js"></script>
     
     <!-- Firebase Scripts -->
     <script type="module" src="js/firebase-config-cdn.js?v=20260119"></script>
@@ -299,12 +300,12 @@
             techniciansData.forEach(tech => {
                 const row = document.createElement('tr');
                 row.innerHTML = `
-                    <td>${tech.name}</td>
-                    <td>${tech.phone}</td>
-                    <td>${tech.email || '-'}</td>
+                    <td>${escapeHTML(tech.name)}</td>
+                    <td>${escapeHTML(tech.phone)}</td>
+                    <td>${escapeHTML(tech.email || '-')}</td>
                     <td>
                         <span class="commission-badge">
-                            ${(tech.defaultCommissionPercent * 100).toFixed(1)}%
+                            ${((Number(tech.defaultCommissionPercent) || 0) * 100).toFixed(1)}%
                         </span>
                     </td>
                     <td>
@@ -312,7 +313,7 @@
                             ${tech.active ? 'نشط' : 'غير نشط'}
                         </span>
                     </td>
-                    <td>${tech.createdAt ? new Date(tech.createdAt.seconds * 1000).toLocaleDateString('ar-SA') : '-'}</td>
+                    <td>${tech.createdAt ? (() => { const d = tech.createdAt.seconds ? new Date(tech.createdAt.seconds * 1000) : new Date(tech.createdAt); return Number.isNaN(d.getTime()) ? '-' : d.toLocaleDateString('ar-SA'); })() : '-'}</td>
                     <td>
                         <button class="btn btn-sm btn-warning me-1" onclick="editTechnician('${tech.id}')">
                             <i class="fas fa-edit"></i>
@@ -442,7 +443,7 @@
             const alertDiv = document.createElement('div');
             alertDiv.className = `alert alert-${type === 'error' ? 'danger' : type} alert-dismissible fade show`;
             alertDiv.innerHTML = `
-                ${message}
+                ${escapeHTML(message)}
                 <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
             `;
             

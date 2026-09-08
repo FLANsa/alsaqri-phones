@@ -14,6 +14,7 @@
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
   <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
   <link href="css/app-mobile.css" rel="stylesheet">
+  <script src="js/safe-render.js"></script>
 
   <style>
     body { font-family: 'Cairo', sans-serif; background-color: #f8f9fa; padding-top: 70px; }
@@ -630,7 +631,6 @@
         }
         
         if (phone) {
-          console.log('✅ تم العثور على الهاتف المستعمل:', phone);
           
           // ملء النموذج بالبيانات
           document.getElementById('brand').value = phone.manufacturer || phone.brand || '';
@@ -640,7 +640,6 @@
           document.getElementById('serial_number').value = phone.serial_number || '';
           document.getElementById('purchase_price').value = phone.purchase_price || '';
           document.getElementById('selling_price').value = phone.selling_price || phone.price || '';
-          document.getElementById('warranty').value = phone.warranty || '';
           document.getElementById('description').value = phone.description || '';
           document.getElementById('customer_id').value = phone.customer_id || '';
           document.getElementById('customer_name').value = phone.customer_name || '';
@@ -672,7 +671,7 @@
       alertDiv.className = `alert alert-${type} alert-dismissible fade show position-fixed`;
       alertDiv.style.cssText = 'top: 20px; right: 20px; z-index: 9999; min-width: 300px;';
       alertDiv.innerHTML = `
-        ${message}
+        ${escapeHTML(message)}
         <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
       `;
       

@@ -35,6 +35,7 @@ function getCurrentRole() {
  */
 function syncRoleFromSession(fbUser) {
     const email = (fbUser && fbUser.email ? fbUser.email : '').toLowerCase();
+    if (email !== GUARD_ADMIN_EMAIL && email !== GUARD_USER_EMAIL) return null;
     const role = email === GUARD_ADMIN_EMAIL ? 'admin' : 'user';
     const sessionData = {
         username: email.split('@')[0],
@@ -118,6 +119,12 @@ function initPageGuard() {
 
             // دور الواجهة يشتق دائماً من جلسة Firebase الحالية، لا من قيمة محلية قديمة.
             const session = syncRoleFromSession(fbUser);
+            if (!session) {
+                localStorage.removeItem('current_user');
+                try { window.firebaseSignOut(window.firebaseAuth); } catch (_) {}
+                window.location.href = 'login.html';
+                return;
+            }
 
             // Check if user has access
             if (!hasAccess(requiredRole)) {

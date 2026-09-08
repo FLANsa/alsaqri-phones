@@ -55,18 +55,9 @@
           <div class="col-md-6">
             <div class="mb-3">
               <label for="category" class="form-label">الفئة</label>
-              <div class="input-group">
-                <select class="form-select" id="category" name="category" required>
-                  <option value="">اختر الفئة</option>
-                  <!-- ستُملأ لاحقًا من categoriesData -->
-                </select>
-                <button class="btn btn-outline-success" type="button" onclick="addAccessoryCategory()">
-                  <i class="fas fa-plus"></i> إضافة
-                </button>
-                <button class="btn btn-outline-danger" type="button" onclick="deleteAccessoryCategory()">
-                  <i class="fas fa-trash"></i> حذف
-                </button>
-              </div>
+              <select class="form-select" id="category" name="category" required>
+                <option value="">اختر الفئة</option>
+              </select>
             </div>
           </div>
         </div>
@@ -229,28 +220,6 @@
       opt.textContent = cat.arabic_name;
       sel.appendChild(opt);
     });
-  }
-
-  // بدائل محلية لعمليات إضافة/حذف/تحديث الفئات (بدون خادم)
-  function addAccessoryCategory() {
-    const categoryName = prompt('أدخل اسم الفئة الإنجليزية (المفتاح):');
-    if (!categoryName || !categoryName.trim()) return;
-    const arabicName = prompt('أدخل الاسم العربي للفئة:') || categoryName;
-    categoriesData.push({ name: categoryName.trim(), arabic_name: arabicName.trim() });
-    populateCategories();
-    document.getElementById('category').value = categoryName.trim();
-    alert('تمت إضافة الفئة (واجهة فقط).');
-  }
-
-  function deleteAccessoryCategory() {
-    const sel = document.getElementById('category');
-    const selected = sel.value;
-    if (!selected) { alert('يرجى اختيار فئة'); return; }
-    if (!confirm(`هل أنت متأكد من حذف فئة:\n\n${selected}\n\nهذا الإجراء لا يمكن التراجع عنه!`)) return;
-    const idx = categoriesData.findIndex(c => c.name === selected);
-    if (idx >= 0) categoriesData.splice(idx, 1);
-    populateCategories();
-    alert('تم الحذف (واجهة فقط).');
   }
 
   async function saveAccessory() {

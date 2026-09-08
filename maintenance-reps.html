@@ -21,6 +21,7 @@
     <!-- Google Fonts - Cairo -->
     <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;600;700&display=swap" rel="stylesheet">
     <link href="css/app-mobile.css" rel="stylesheet">
+    <script src="js/safe-render.js"></script>
     
     <!-- Firebase Scripts -->
     <script type="module" src="js/firebase-config-cdn.js?v=20260119"></script>
@@ -310,15 +311,15 @@
             repsData.forEach(rep => {
                 const row = document.createElement('tr');
                 row.innerHTML = `
-                    <td>${rep.name}</td>
-                    <td>${rep.phone}</td>
-                    <td>${rep.email || '-'}</td>
+                    <td>${escapeHTML(rep.name)}</td>
+                    <td>${escapeHTML(rep.phone)}</td>
+                    <td>${escapeHTML(rep.email || '-')}</td>
                     <td>
                         <span class="status-badge status-${rep.active ? 'active' : 'inactive'}">
                             ${rep.active ? 'نشط' : 'غير نشط'}
                         </span>
                     </td>
-                    <td>${rep.createdAt ? new Date(rep.createdAt.seconds * 1000).toLocaleDateString('ar-SA') : '-'}</td>
+                    <td>${rep.createdAt ? (() => { const d = rep.createdAt.seconds ? new Date(rep.createdAt.seconds * 1000) : new Date(rep.createdAt); return Number.isNaN(d.getTime()) ? '-' : d.toLocaleDateString('ar-SA'); })() : '-'}</td>
                     <td>
                         <button class="btn btn-sm btn-warning me-1" onclick="editRep('${rep.id}')">
                             <i class="fas fa-edit"></i>
@@ -413,7 +414,7 @@
             const alertDiv = document.createElement('div');
             alertDiv.className = `alert alert-${type === 'error' ? 'danger' : type} alert-dismissible fade show`;
             alertDiv.innerHTML = `
-                ${message}
+                ${escapeHTML(message)}
                 <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
             `;
             

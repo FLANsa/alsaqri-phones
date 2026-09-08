@@ -13,6 +13,7 @@
     <!-- Google Fonts - Cairo -->
     <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&display=swap" rel="stylesheet">
     <link href="css/app-mobile.css" rel="stylesheet">
+    <script src="js/safe-render.js"></script>
     
     <!-- Firebase Scripts -->
     <script type="module" src="js/firebase-config-cdn.js?v=20260119"></script>
@@ -300,7 +301,7 @@
             }
         }
     </style>
-  <meta name="requires-role" content="user">
+  <meta name="requires-role" content="admin">
   <script src="js/guard.js?v=20260908"></script>
 </head>
 <body>
@@ -716,13 +717,13 @@
                 
                 let html = `
                     <div class="section-header">
-                        <h2>${accounts.length > 1 ? (index + 1) + '. ' : ''}${account.name}</h2>
+                        <h2>${accounts.length > 1 ? (index + 1) + '. ' : ''}${escapeHTML(account.name)}</h2>
                         <span class="status ${statusClass}">${statusText}</span>
                     </div>
                 `;
                 
                 if (account.phone) {
-                    html += `<p class="contact-info">${account.phone}</p>`;
+                    html += `<p class="contact-info">${escapeHTML(account.phone)}</p>`;
                 }
                 
                 html += `
@@ -745,10 +746,10 @@
                         <tr>
                             <td>${itemIndex + 1}</td>
                             <td>${item.date}</td>
-                            <td>${item.customerName}</td>
-                            <td>${item.deviceModel}</td>
-                            <td>${item.name}</td>
-                            <td>${item.cost.toFixed(2)} ريال</td>
+                            <td>${escapeHTML(item.customerName)}</td>
+                            <td>${escapeHTML(item.deviceModel)}</td>
+                            <td>${escapeHTML(item.name)}</td>
+                            <td>${(Number(item.cost) || 0).toFixed(2)} ريال</td>
                         </tr>
                     `;
                 });
@@ -770,15 +771,15 @@
                         </div>
                         <div class="summary-item">
                             <div class="label">${totalLabel}</div>
-                            <div class="value">${account.totalAmount.toFixed(2)} ريال</div>
+                            <div class="value">${(Number(account.totalAmount) || 0).toFixed(2)} ريال</div>
                         </div>
                         <div class="summary-item">
                             <div class="label">المدفوع</div>
-                            <div class="value">${account.totalPaid.toFixed(2)} ريال</div>
+                            <div class="value">${(Number(account.totalPaid) || 0).toFixed(2)} ريال</div>
                         </div>
                         <div class="summary-item ${balanceClass}">
                             <div class="label">المتبقي</div>
-                            <div class="value">${account.balance.toFixed(2)} ريال</div>
+                            <div class="value">${(Number(account.balance) || 0).toFixed(2)} ريال</div>
                         </div>
                     </div>
                 `;

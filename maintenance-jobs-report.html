@@ -17,6 +17,7 @@
     <!-- Google Fonts - Cairo -->
     <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;600;700&display=swap" rel="stylesheet">
     <link href="css/app-mobile.css" rel="stylesheet">
+    <script src="js/safe-render.js"></script>
     
     <!-- Firebase Scripts -->
     <script type="module" src="js/firebase-config-cdn.js?v=20260119"></script>
@@ -247,7 +248,7 @@
             }
         }
     </style>
-  <meta name="requires-role" content="user">
+  <meta name="requires-role" content="admin">
   <script src="js/guard.js?v=20260908"></script>
 </head>
 <body>
@@ -495,12 +496,12 @@
             
             if (filters.repId) {
                 const rep = repsData.find(r => r.id === filters.repId);
-                filtersHTML += `<span class="filter-item">المندوب: ${rep ? rep.name : filters.repId}</span>`;
+                filtersHTML += `<span class="filter-item">المندوب: ${escapeHTML(rep ? rep.name : filters.repId)}</span>`;
             }
             
             if (filters.techId) {
                 const tech = techniciansData.find(t => t.id === filters.techId);
-                filtersHTML += `<span class="filter-item">الفني: ${tech ? tech.name : filters.techId}</span>`;
+                filtersHTML += `<span class="filter-item">الفني: ${escapeHTML(tech ? tech.name : filters.techId)}</span>`;
             }
             
             if (filters.dateFrom) {
@@ -533,8 +534,8 @@
                     job.parts.forEach(part => {
                         partsHTML += `
                             <li>
-                                <span class="part-name">${part.partName || '-'}</span>
-                                <br><span class="part-rep">المندوب: ${part.repName || '-'}</span>
+                                <span class="part-name">${escapeHTML(part.partName || '-')}</span>
+                                <br><span class="part-rep">المندوب: ${escapeHTML(part.repName || '-')}</span>
                                 <br><span class="part-cost">${(Number(part.partCost) || 0).toFixed(2)} ريال</span>
                             </li>
                         `;
@@ -545,8 +546,8 @@
                     partsHTML = `
                         <ul class="parts-list">
                             <li>
-                                <span class="part-name">${job.partName}</span>
-                                <br><span class="part-rep">المندوب: ${job.repName || '-'}</span>
+                                <span class="part-name">${escapeHTML(job.partName)}</span>
+                                <br><span class="part-rep">المندوب: ${escapeHTML(job.repName || '-')}</span>
                                 <br><span class="part-cost">${(Number(job.partCost) || 0).toFixed(2)} ريال</span>
                             </li>
                         </ul>
@@ -584,12 +585,12 @@
                     <td>${index + 1}</td>
                     <td>${visitDate}</td>
                     <td>
-                        <strong>${job.customerName || '-'}</strong>
-                        ${job.customerPhone ? `<br><small>${job.customerPhone}</small>` : ''}
+                        <strong>${escapeHTML(job.customerName || '-')}</strong>
+                        ${job.customerPhone ? `<br><small>${escapeHTML(job.customerPhone)}</small>` : ''}
                     </td>
-                    <td>${deviceInfo}</td>
+                    <td>${escapeHTML(deviceInfo)}</td>
                     <td>${partsHTML}</td>
-                    <td>${job.techName || '-'}</td>
+                    <td>${escapeHTML(job.techName || '-')}</td>
                     <td>${totalPartCost.toFixed(2)} ريال</td>
                     <td>${(Number(job.amountCharged) || 0).toFixed(2)} ريال</td>
                     <td>${(Number(job.profit) || 0).toFixed(2)} ريال</td>

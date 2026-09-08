@@ -16,7 +16,8 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- Google Fonts - Cairo -->
     <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;600;700&display=swap" rel="stylesheet">
-    <link href="css/app-mobile.css" rel="stylesheet">
+  <link href="css/app-mobile.css" rel="stylesheet">
+  <script src="js/safe-render.js"></script>
     
     <!-- Firebase Scripts -->
     <script type="module" src="js/firebase-config-cdn.js?v=20260119"></script>
@@ -640,10 +641,10 @@
                     const row = document.createElement('tr');
                     row.innerHTML = `
                         <td>${visitDateStr}</td>
-                        <td>${job.customerName || '-'}</td>
-                        <td>${repsDisplay}</td>
-                        <td>${job.techName || '-'}</td>
-                        <td>${partsDisplay}</td>
+                        <td>${escapeHTML(job.customerName || '-')}</td>
+                        <td>${escapeHTML(repsDisplay)}</td>
+                        <td>${escapeHTML(job.techName || '-')}</td>
+                        <td>${escapeHTML(partsDisplay)}</td>
                         <td>${totalPartCost.toFixed(2)} ريال</td>
                         <td>${amountCharged.toFixed(2)} ريال</td>
                         <td>${profit.toFixed(2)} ريال</td>
@@ -714,8 +715,6 @@
                 return;
             }
 
-            console.log('✅ تم العثور على عمل الصيانة:', job);
-
             try {
                 currentEditId = jobId;
                 
@@ -735,7 +734,12 @@
                 
                 const visitDateField = document.getElementById('visitDate');
                 if (visitDateField) {
-                    visitDateField.value = job.visitDate ? new Date(job.visitDate.seconds * 1000).toISOString().split('T')[0] : '';
+                    const visitDate = job.visitDate
+                        ? (job.visitDate.seconds ? new Date(job.visitDate.seconds * 1000) : new Date(job.visitDate))
+                        : null;
+                    visitDateField.value = visitDate && !Number.isNaN(visitDate.getTime())
+                        ? visitDate.toISOString().split('T')[0]
+                        : '';
                 }
                 
                 const techIdField = document.getElementById('techId');
@@ -852,7 +856,7 @@
                 <div class="row">
                     <div class="col-md-4 mb-2">
                         <label class="form-label">اسم القطعة </label>
-                        <input type="text" class="form-control part-name" value="${partData?.partName || ''}" required>
+                        <input type="text" class="form-control part-name" value="${escapeHTML(partData?.partName || '')}" required>
                     </div>
                     <div class="col-md-3 mb-2">
                         <label class="form-label">تكلفة القطعة (ريال) </label>
@@ -865,7 +869,7 @@
                         <select class="form-select part-rep" required>
                             <option value="">اختر المندوب</option>
                             ${repsData.filter(r => r.active).map(rep => 
-                                `<option value="${rep.id}" ${partData?.repId === rep.id ? 'selected' : ''}>${rep.name}</option>`
+                                `<option value="${escapeHTML(rep.id)}" ${partData?.repId === rep.id ? 'selected' : ''}>${escapeHTML(rep.name)}</option>`
                             ).join('')}
                         </select>
                     </div>
@@ -1081,10 +1085,7 @@
 
                 await window.firebaseDatabase.updateMaintenanceJob(currentEditId, jobData);
 
-                showAlert('success', `تم إتمام العملية بنجاح!
-                    <br>✅ تم تحديث الحالة إلى "مكتملة"
-                    <br>💰 تم تثبيت عمولة الفني وربح المحل
-                    <br>📊 يمكنك مراجعة الحسابات في صفحة "الحسابات"`);
+                showAlert('success', 'تم إتمام العملية وتثبيت عمولة الفني وربح المحل بنجاح.');
 
                 bootstrap.Modal.getInstance(document.getElementById('jobModal')).hide();
                 loadData();
@@ -1138,7 +1139,7 @@
 
             // فتح صفحة الطباعة في نافذة جديدة
             const invoiceUrl = `maintenance-invoice.html?jobId=${encodeURIComponent(jobId)}`;
-            window.open(invoiceUrl, '_blank', 'width=800,height=600,scrollbars=yes,resizable=yes');
+            window.open(invoiceUrl, '_blank', 'noopener,width=800,height=600,scrollbars=yes,resizable=yes');
         }
 
         // طباعة تقرير أعمال الصيانة
@@ -1163,7 +1164,7 @@
             if (filters.dateTo) params.append('dateTo', filters.dateTo);
 
             const reportUrl = `maintenance-jobs-report.html?${params.toString()}`;
-            window.open(reportUrl, '_blank', 'width=1200,height=800,scrollbars=yes,resizable=yes');
+            window.open(reportUrl, '_blank', 'noopener,width=1200,height=800,scrollbars=yes,resizable=yes');
         }
 
         // ===== دعم الأرقام العربية والإنجليزية =====
@@ -1205,7 +1206,7 @@
             const alertDiv = document.createElement('div');
             alertDiv.className = `alert alert-${type === 'error' ? 'danger' : type} alert-dismissible fade show`;
             alertDiv.innerHTML = `
-                ${message}
+                ${escapeHTML(message)}
                 <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
             `;
             

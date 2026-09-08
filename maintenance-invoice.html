@@ -17,6 +17,7 @@
     <!-- Google Fonts - Cairo -->
     <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;600;700&display=swap" rel="stylesheet">
     <link href="css/app-mobile.css" rel="stylesheet">
+    <script src="js/safe-render.js"></script>
     
     <!-- Firebase Scripts -->
     <script type="module" src="js/firebase-config-cdn.js?v=20260119"></script>
@@ -413,7 +414,6 @@
                     return;
                 }
 
-                console.log('✅ Job data loaded:', currentJob);
                 
                 // Display invoice
                 displayInvoice();
@@ -453,9 +453,9 @@
                         partDiv.style.margin = '8px 0';
                         partDiv.innerHTML = `
                             <p style="margin: 4px 0;">
-                                <strong>القطعة ${index + 1}:</strong> ${part.partName || 'غير محدد'}
-                                ${part.repName ? ` (مندوب: ${part.repName})` : ''}
-                                ${part.partCost ? ` - ${part.partCost.toFixed(2)} ريال` : ''}
+                                <strong>القطعة ${index + 1}:</strong> ${escapeHTML(part.partName || 'غير محدد')}
+                                ${part.repName ? ` (مندوب: ${escapeHTML(part.repName)})` : ''}
+                                ${part.partCost ? ` - ${(Number(part.partCost) || 0).toFixed(2)} ريال` : ''}
                             </p>
                         `;
                         partsListEl.appendChild(partDiv);
@@ -466,9 +466,9 @@
                     partDiv.style.margin = '8px 0';
                     partDiv.innerHTML = `
                         <p style="margin: 4px 0;">
-                            <strong>القطعة:</strong> ${currentJob.partName || 'غير محدد'}
-                            ${currentJob.repName ? ` (مندوب: ${currentJob.repName})` : ''}
-                            ${currentJob.partCost ? ` - ${currentJob.partCost.toFixed(2)} ريال` : ''}
+                            <strong>القطعة:</strong> ${escapeHTML(currentJob.partName || 'غير محدد')}
+                            ${currentJob.repName ? ` (مندوب: ${escapeHTML(currentJob.repName)})` : ''}
+                            ${currentJob.partCost ? ` - ${(Number(currentJob.partCost) || 0).toFixed(2)} ريال` : ''}
                         </p>
                     `;
                     partsListEl.appendChild(partDiv);
@@ -482,7 +482,7 @@
             document.getElementById('receipt_device_model').textContent = currentJob.deviceModel || 'غير محدد';
 
             // Summary
-            document.getElementById('receipt_total').textContent = (currentJob.amountCharged || 0).toFixed(2) + ' ريال';
+            document.getElementById('receipt_total').textContent = (Number(currentJob.amountCharged) || 0).toFixed(2) + ' ريال';
 
             // Warranty section - always show
             document.getElementById('receipt_warranty_section').style.display = 'block';
@@ -745,9 +745,9 @@
                             partDiv.style.margin = '8px 0';
                             partDiv.innerHTML = `
                                 <p style="margin: 4px 0;">
-                                    <strong>القطعة ${index + 1}:</strong> ${part.partName || 'غير محدد'}
-                                    ${part.repName ? ` (مندوب: ${part.repName})` : ''}
-                                    ${part.partCost ? ` - ${part.partCost.toFixed(2)} ريال` : ''}
+                                    <strong>القطعة ${index + 1}:</strong> ${escapeHTML(part.partName || 'غير محدد')}
+                                    ${part.repName ? ` (مندوب: ${escapeHTML(part.repName)})` : ''}
+                                    ${part.partCost ? ` - ${(Number(part.partCost) || 0).toFixed(2)} ريال` : ''}
                                 </p>
                             `;
                             partsListEl.appendChild(partDiv);
@@ -758,9 +758,9 @@
                         partDiv.style.margin = '8px 0';
                         partDiv.innerHTML = `
                             <p style="margin: 4px 0;">
-                                <strong>القطعة:</strong> ${currentJob.partName || 'غير محدد'}
-                                ${currentJob.repName ? ` (مندوب: ${currentJob.repName})` : ''}
-                                ${currentJob.partCost ? ` - ${currentJob.partCost.toFixed(2)} ريال` : ''}
+                                <strong>القطعة:</strong> ${escapeHTML(currentJob.partName || 'غير محدد')}
+                                ${currentJob.repName ? ` (مندوب: ${escapeHTML(currentJob.repName)})` : ''}
+                                ${currentJob.partCost ? ` - ${(Number(currentJob.partCost) || 0).toFixed(2)} ريال` : ''}
                             </p>
                         `;
                         partsListEl.appendChild(partDiv);
@@ -774,7 +774,7 @@
                 document.getElementById('receipt_device_model').textContent = currentJob.deviceModel || 'غير محدد';
 
                 // الملخص
-                document.getElementById('receipt_total').textContent = (currentJob.amountCharged || 0).toFixed(2) + ' ريال';
+                document.getElementById('receipt_total').textContent = (Number(currentJob.amountCharged) || 0).toFixed(2) + ' ريال';
 
                 // قسم الضمان - دائماً يظهر
                 document.getElementById('receipt_warranty_section').style.display = 'block';

@@ -116,19 +116,9 @@ let navigationPage = '';
 function initNavigation(currentPage = '') {
     navigationPage = currentPage;
     const role = getCurrentRole();
-    console.log('🔍 Navigation Debug:');
-    console.log('- Current role:', role);
-    console.log('- Current page:', currentPage);
-    console.log('- User data:', localStorage.getItem('current_user'));
-    
     const navbar = document.querySelector('.navbar-nav.me-auto');
-    console.log('- Navbar element found:', !!navbar);
-    
     if (navbar) {
-        const navigationHTML = generateNavigation(role, currentPage);
-        console.log('- Generated HTML:', navigationHTML);
-        navbar.innerHTML = navigationHTML;
-        console.log('✅ Navigation updated successfully');
+        navbar.innerHTML = generateNavigation(role, currentPage);
     } else {
         console.error('❌ Navbar element not found!');
     }

@@ -15,6 +15,7 @@
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
   <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
   <link href="css/app-mobile.css" rel="stylesheet">
+  <script src="js/safe-render.js"></script>
 
   <style>
     body { font-family: 'Cairo', sans-serif; background-color: #f8f9fa; padding-top: 70px; }
@@ -581,7 +582,7 @@
 
       // رقم العملية
       const tdNum = document.createElement('td');
-      tdNum.innerHTML = `<span class="badge bg-primary">${sale.sale_number}</span>`;
+      tdNum.innerHTML = `<span class="badge bg-primary">${escapeHTML(sale.sale_number || '-')}</span>`;
       tr.appendChild(tdNum);
 
       // التاريخ
@@ -617,7 +618,7 @@
       let badge = 'bg-warning';
       if (sale.status === 'مكتمل') badge = 'bg-success';
       else if (sale.status === 'ملغي') badge = 'bg-danger';
-      tdStatus.innerHTML = `<span class="badge ${badge}">${sale.status || '-'}</span>`;
+      tdStatus.innerHTML = `<span class="badge ${badge}">${escapeHTML(sale.status || '-')}</span>`;
       tr.appendChild(tdStatus);
 
       // الإجراءات
@@ -908,12 +909,12 @@
           if (model) displayText += ` (${model})`;
           if (serialNumber) displayText += ` - ${serialNumber}`;
           
-          itemsList.push(displayText);
+          itemsList.push(escapeHTML(displayText));
         } else {
           // للأكسسوارات: عرض اسم المنتج - الكمية × السعر
           const itemQty = item.quantity || 1;
           const itemPrice = item.price || item.unitPrice || item.unit_price || item.selling_price || 0;
-          itemsList.push(`${itemName} - ${itemQty} × ${fmtMoney(itemPrice)} ريال`);
+          itemsList.push(`${escapeHTML(itemName)} - ${itemQty} × ${fmtMoney(itemPrice)} ريال`);
         }
       });
 
@@ -924,14 +925,14 @@
             <tr>
               <td><strong>${sale.sale_number || '-'}</strong></td>
               <td>${formatDateTime(saleDate)}</td>
-              <td>${sale.customer_name || 'عميل نقدي'}</td>
+              <td>${escapeHTML(sale.customer_name || 'عميل نقدي')}</td>
               <td class="items-list">${itemsList.join('<br>') || '-'}</td>
               <td class="text-center">${(sale.items || []).length}</td>
               <td>${fmtMoney(sale.subtotal || 0)} ريال</td>
               <td>${fmtMoney(sale.vat_amount || 0)} ريال</td>
               <td><strong class="text-success">${fmtMoney(sale.total_amount || 0)} ريال</strong></td>
-              <td>${sale.payment_method || '-'}</td>
-              <td class="${statusBadge}">${sale.status || '-'}</td>
+              <td>${escapeHTML(sale.payment_method || '-')}</td>
+              <td class="${statusBadge}">${escapeHTML(sale.status || '-')}</td>
             </tr>`;
     });
 
@@ -967,7 +968,7 @@
     const alertDiv = document.createElement('div');
     alertDiv.className = `alert alert-${type} alert-dismissible fade show`;
     alertDiv.innerHTML = `
-      ${message}
+      ${escapeHTML(message)}
       <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
     `;
     

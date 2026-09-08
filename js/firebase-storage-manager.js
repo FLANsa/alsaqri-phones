@@ -348,8 +348,6 @@ class FirebaseStorageManager {
   }
 
   async addAccessory(accessory) {
-    console.log('📦 Storage Manager: محاولة إضافة أكسسوار:', accessory);
-    
     if (this.isFirebaseAvailable) {
       try {
         console.log('🔥 Storage Manager: Firebase متاح، إرسال إلى Firebase...');
@@ -410,28 +408,6 @@ class FirebaseStorageManager {
     const accessories = await this.getAccessories();
     const filteredAccessories = accessories.filter(a => a.id !== accessoryId);
     return this.setAccessories(filteredAccessories);
-  }
-
-  /**
-   * جلب عدة أكسسوارات بمعرّفاتها دفعة واحدة — تعيد خريطة { المعرف: الأكسسوار }
-   */
-  async getAccessoriesByIds(ids) {
-    if (this.isFirebaseAvailable && typeof this.firebaseDB.getAccessoriesByIds === 'function') {
-      try {
-        return await this.firebaseDB.getAccessoriesByIds(ids);
-      } catch (error) {
-        console.error('Error getting accessories by ids from Firebase:', error);
-        return {};
-      }
-    }
-    // LocalStorage fallback
-    const accessories = await this.getAccessories();
-    const map = {};
-    (accessories || []).forEach(a => {
-      if (a.id != null) map[String(a.id)] = a;
-      if (a.sku != null) map[String(a.sku)] = a;
-    });
-    return map;
   }
 
   /**

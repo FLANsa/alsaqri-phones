@@ -21,6 +21,7 @@
     <!-- Google Fonts - Cairo -->
     <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;600;700&display=swap" rel="stylesheet">
     <link href="css/app-mobile.css" rel="stylesheet">
+    <script src="js/safe-render.js"></script>
     
     <style>
         body { 
@@ -655,28 +656,28 @@
                 row.className = 'account-row';
                 row.innerHTML = `
                     <td>
-                        <strong>${rep.repName || 'غير محدد'}</strong>
-                        <br><small class="text-muted">ID: ${rep.repId}</small>
+                        <strong>${escapeHTML(rep.repName || 'غير محدد')}</strong>
+                        <br><small class="text-muted">ID: ${escapeHTML(rep.repId)}</small>
                     </td>
-                    <td>${rep.phone || 'N/A'}</td>
+                    <td>${escapeHTML(rep.phone || 'N/A')}</td>
                     <td>
                         <span class="badge bg-primary">${rep.jobsCount || 0} عمل</span>
                     </td>
                     <td class="amount-positive">
-                        <strong>${(rep.partCostSum || 0).toFixed(2)} ريال</strong>
+                        <strong>${(Number(rep.partCostSum) || 0).toFixed(2)} ريال</strong>
                         <br><small class="text-muted">تكلفة القطع</small>
                     </td>
                     <td class="amount-negative">
-                        <strong>${(rep.totalPaid || 0).toFixed(2)} ريال</strong>
+                        <strong>${(Number(rep.totalPaid) || 0).toFixed(2)} ريال</strong>
                         <br><small class="text-muted">المدفوع</small>
                     </td>
                     <td class="${rep.balance > 0 ? 'amount-positive' : 'amount-neutral'}">
-                        <strong>${(rep.balance || 0).toFixed(2)} ريال</strong>
+                        <strong>${(Number(rep.balance) || 0).toFixed(2)} ريال</strong>
                         <br><small class="text-muted">المتبقي</small>
                     </td>
                     <td><span class="status-badge status-${rep.status}">${rep.status === 'paid' ? 'مدفوع' : 'معلق'}</span></td>
                     <td>
-                        <button class="btn btn-sm btn-primary me-1" onclick="openPaymentModal('rep', '${rep.repId}', '${rep.repName}')">
+                        <button class="btn btn-sm btn-primary me-1" onclick="openPaymentModal('rep', '${escapeHTML(rep.repId)}')">
                             <i class="fas fa-credit-card"></i>
                         </button>
                         <button class="btn btn-sm btn-success" onclick="printSingleReport('rep', '${rep.repId}')" title="طباعة تقرير">
@@ -705,28 +706,28 @@
                 row.className = 'account-row';
                 row.innerHTML = `
                     <td>
-                        <strong>${tech.techName || 'غير محدد'}</strong>
-                        <br><small class="text-muted">ID: ${tech.techId}</small>
+                        <strong>${escapeHTML(tech.techName || 'غير محدد')}</strong>
+                        <br><small class="text-muted">ID: ${escapeHTML(tech.techId)}</small>
                     </td>
-                    <td>${tech.phone || 'N/A'}</td>
+                    <td>${escapeHTML(tech.phone || 'N/A')}</td>
                     <td>
                         <span class="badge bg-success">${tech.jobsCount || 0} عمل</span>
                     </td>
                     <td class="amount-positive">
-                        <strong>${(tech.techCommissionSum || 0).toFixed(2)} ريال</strong>
+                        <strong>${(Number(tech.techCommissionSum) || 0).toFixed(2)} ريال</strong>
                         <br><small class="text-muted">عمولة الفني</small>
                     </td>
                     <td class="amount-negative">
-                        <strong>${(tech.totalPaid || 0).toFixed(2)} ريال</strong>
+                        <strong>${(Number(tech.totalPaid) || 0).toFixed(2)} ريال</strong>
                         <br><small class="text-muted">المدفوع</small>
                     </td>
                     <td class="${tech.balance > 0 ? 'amount-positive' : 'amount-neutral'}">
-                        <strong>${(tech.balance || 0).toFixed(2)} ريال</strong>
+                        <strong>${(Number(tech.balance) || 0).toFixed(2)} ريال</strong>
                         <br><small class="text-muted">المتبقي</small>
                     </td>
                     <td><span class="status-badge status-${tech.status}">${tech.status === 'paid' ? 'مدفوع' : 'معلق'}</span></td>
                     <td>
-                        <button class="btn btn-sm btn-primary me-1" onclick="openPaymentModal('tech', '${tech.techId}', '${tech.techName}')">
+                        <button class="btn btn-sm btn-primary me-1" onclick="openPaymentModal('tech', '${escapeHTML(tech.techId)}')">
                             <i class="fas fa-credit-card"></i>
                         </button>
                         <button class="btn btn-sm btn-success" onclick="printSingleReport('tech', '${tech.techId}')" title="طباعة تقرير">
@@ -782,13 +783,13 @@
                         </span>
                     </td>
                     <td>
-                        <strong>${payment.entityName || 'غير محدد'}</strong>
-                        <br><small class="text-muted">${methodMap[payment.paymentMethod] || payment.paymentMethod}</small>
+                        <strong>${escapeHTML(payment.entityName || 'غير محدد')}</strong>
+                        <br><small class="text-muted">${escapeHTML(methodMap[payment.paymentMethod] || payment.paymentMethod || '-')}</small>
                     </td>
                     <td class="amount-negative">
-                        <strong>${(payment.amount || 0).toFixed(2)} ريال</strong>
+                        <strong>${(Number(payment.amount) || 0).toFixed(2)} ريال</strong>
                     </td>
-                    <td>${payment.notes || 'لا توجد ملاحظات'}</td>
+                    <td>${escapeHTML(payment.notes || 'لا توجد ملاحظات')}</td>
                     <td>
                         <button class="btn btn-sm btn-danger" onclick="deletePayment('${payment.id}')">
                             <i class="fas fa-trash"></i> حذف
@@ -800,7 +801,15 @@
         }
 
         // Open payment modal
-        function openPaymentModal(entityType, entityId, entityName) {
+        function openPaymentModal(entityType, entityId) {
+            const account = entityType === 'rep'
+                ? repsAccounts.find(item => String(item.repId) === String(entityId))
+                : techsAccounts.find(item => String(item.techId) === String(entityId));
+            const entityName = entityType === 'rep' ? account?.repName : account?.techName;
+            if (!account) {
+                showAlert('error', 'تعذر العثور على الحساب المحدد');
+                return;
+            }
             currentPayment = { entityType, entityId, entityName };
             document.getElementById('paymentEntityId').value = entityId;
             document.getElementById('paymentEntityType').value = entityType;
@@ -880,7 +889,7 @@
             params.append('dateTo', dateTo);
             
             const reportUrl = `maintenance-accounts-report.html?${params.toString()}`;
-            window.open(reportUrl, '_blank', 'width=1200,height=800,scrollbars=yes,resizable=yes');
+            window.open(reportUrl, '_blank', 'noopener,width=1200,height=800,scrollbars=yes,resizable=yes');
         }
 
         // طباعة تقرير فردي لمندوب أو فني
@@ -900,7 +909,7 @@
             params.append('id', id);
             
             const reportUrl = `maintenance-accounts-report.html?${params.toString()}`;
-            window.open(reportUrl, '_blank', 'width=900,height=700,scrollbars=yes,resizable=yes');
+            window.open(reportUrl, '_blank', 'noopener,width=900,height=700,scrollbars=yes,resizable=yes');
         }
 
         // Show alert
@@ -908,7 +917,7 @@
             const alertDiv = document.createElement('div');
             alertDiv.className = `alert alert-${type === 'error' ? 'danger' : type} alert-dismissible fade show`;
             alertDiv.innerHTML = `
-                ${message}
+                ${escapeHTML(message)}
                 <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
             `;
             

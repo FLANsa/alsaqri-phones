@@ -15,6 +15,7 @@
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
   <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
   <link href="css/app-mobile.css" rel="stylesheet">
+  <script src="js/safe-render.js"></script>
 
   <style>
     body { font-family: 'Cairo', sans-serif; background-color: #f8f9fa; padding-top: 70px; }
@@ -434,10 +435,10 @@
               <tbody>
                 ${phonesForCurrentPage.map(p => `
                   <tr>
-                    <td><strong>${p.phone_number || p.device_number || 'غير محدد'}</strong></td>
-                    <td><span class="text-info">${p.serial_number || 'غير محدد'}</span></td>
-                    <td>${p.manufacturer || p.brand || 'غير محدد'}</td>
-                    <td>${p.model || 'غير محدد'}</td>
+                    <td><strong>${escapeHTML(p.phone_number || p.device_number || 'غير محدد')}</strong></td>
+                    <td><span class="text-info">${escapeHTML(p.serial_number || 'غير محدد')}</span></td>
+                    <td>${escapeHTML(p.manufacturer || p.brand || 'غير محدد')}</td>
+                    <td>${escapeHTML(p.model || 'غير محدد')}</td>
                     <td>
                       ${
                         (() => {
@@ -507,10 +508,10 @@
               <tbody>
                 ${accessoriesForCurrentPage.map(a => `
                   <tr>
-                    <td><strong>${a.arabic_name || a.name || 'غير محدد'}</strong></td>
-                    <td><span class="text-info">${a.barcode || 'غير محدد'}</span></td>
-                    <td><span class="text-info">${a.serial_number || 'غير محدد'}</span></td>
-                    <td><span class="badge bg-primary">${a.category || 'غير محدد'}</span></td>
+                    <td><strong>${escapeHTML(a.arabic_name || a.name || 'غير محدد')}</strong></td>
+                    <td><span class="text-info">${escapeHTML(a.barcode || 'غير محدد')}</span></td>
+                    <td><span class="text-info">${escapeHTML(a.serial_number || 'غير محدد')}</span></td>
+                    <td><span class="badge bg-primary">${escapeHTML(a.category || 'غير محدد')}</span></td>
                     <td><span class="badge bg-success">${Number(a.quantity_in_stock ?? a.quantity ?? 0) || 0}</span></td>
                     <td><span class="text-success">${fmtMoney(a.purchase_price || 0)} ريال</span></td>
                     <td><span class="text-primary">${fmtMoney(a.selling_price || 0)} ريال</span></td>
@@ -699,7 +700,7 @@
     alertDiv.className = `alert alert-${type} alert-dismissible fade show position-fixed`;
     alertDiv.style.cssText = 'top: 20px; right: 20px; z-index: 9999; min-width: 300px;';
     alertDiv.innerHTML = `
-      ${message}
+      ${escapeHTML(message)}
       <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
     `;
     
@@ -736,17 +737,11 @@
         // مجموعة sales تُقرأ فقط قبل اكتمال أعلام sold على الهواتف
         const allFlagged = allPhones.length > 0 && allPhones.every(p => typeof p.sold === 'boolean');
         allSales = allFlagged ? [] : await window.storage.getSales(); // ✅ مهم لشارة مباع قبل الترحيل
-        console.log('📱 جميع الهواتف:', allPhones);
-        console.log('📦 جميع الأكسسوارات:', allAccessories);
-        console.log('🧾 جميع المبيعات:', allSales);
       } else {
         console.log('💾 Firebase غير متاح، تحميل من localStorage...');
         allPhones = JSON.parse(localStorage.getItem('phones') || '[]');
         allAccessories = JSON.parse(localStorage.getItem('accessories') || '[]');
         allSales = JSON.parse(localStorage.getItem('sales') || '[]'); // ✅ مهم
-        console.log('📱 الهواتف من localStorage:', allPhones);
-        console.log('📦 الأكسسوارات من localStorage:', allAccessories);
-        console.log('🧾 المبيعات من localStorage:', allSales);
       }
 
       // حفظ النتائج وإعادة تعيين الصفحة الأولى

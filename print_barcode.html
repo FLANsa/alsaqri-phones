@@ -132,7 +132,7 @@
     const doc = new jsPDF({ orientation:'landscape', unit:'mm', format:[STICKER_MM.w, STICKER_MM.h] });
     doc.addImage(imgData, 'PNG', 0, 0, STICKER_MM.w, STICKER_MM.h, undefined, 'FAST');
     const pn = document.getElementById('phone-number').textContent || 'phone';
-    doc.save(`barcode_${pn}.pdf`);
+    doc.save(`barcode_${pn.replace(/[^a-zA-Z0-9_-]/g, '_')}.pdf`);
   }
 
   async function printPdf(){

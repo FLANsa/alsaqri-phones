@@ -21,6 +21,7 @@
     <!-- Google Fonts - Cairo -->
     <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;600;700&display=swap" rel="stylesheet">
     <link href="css/app-mobile.css" rel="stylesheet">
+    <script src="js/safe-render.js"></script>
     
     <!-- Firebase Scripts -->
     <script type="module" src="js/firebase-config-cdn.js?v=20260119"></script>
@@ -313,9 +314,14 @@
                 }
 
                 jobs = jobs || await window.firebaseDatabase.getMaintenanceJobs();
+                const jobDate = value => {
+                    if (!value) return null;
+                    const date = value.seconds ? new Date(value.seconds * 1000) : new Date(value);
+                    return Number.isNaN(date.getTime()) ? null : date;
+                };
                 const pendingJobs = jobs
                     .filter(job => job.status !== 'done' && job.status !== 'canceled')
-                    .sort((a, b) => new Date(b.visitDate.seconds * 1000) - new Date(a.visitDate.seconds * 1000));
+                    .sort((a, b) => (jobDate(b.visitDate) || 0) - (jobDate(a.visitDate) || 0));
 
                 displayPendingJobs(pendingJobs);
             } catch (error) {
@@ -336,12 +342,12 @@
             jobs.forEach(job => {
                 const row = document.createElement('tr');
                 row.innerHTML = `
-                    <td>${job.visitDate ? new Date(job.visitDate.seconds * 1000).toLocaleDateString('ar-SA') : '-'}</td>
-                    <td>${job.customerName}</td>
-                    <td>${job.repName || '-'}</td>
-                    <td>${job.techName || '-'}</td>
-                    <td>${job.partName}</td>
-                    <td>${job.amountCharged.toFixed(2)} ريال</td>
+                    <td>${job.visitDate ? (() => { const d = job.visitDate.seconds ? new Date(job.visitDate.seconds * 1000) : new Date(job.visitDate); return Number.isNaN(d.getTime()) ? '-' : d.toLocaleDateString('ar-SA'); })() : '-'}</td>
+                    <td>${escapeHTML(job.customerName)}</td>
+                    <td>${escapeHTML(job.repName || '-')}</td>
+                    <td>${escapeHTML(job.techName || '-')}</td>
+                    <td>${escapeHTML(job.partName || '-')}</td>
+                    <td>${(Number(job.amountCharged) || 0).toFixed(2)} ريال</td>
                     <td>
                         <span class="badge bg-${getStatusColor(job.status)}">
                             ${getStatusText(job.status)}
