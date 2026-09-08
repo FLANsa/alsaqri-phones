@@ -268,6 +268,13 @@ class FirebaseStorageManager {
     return count;
   }
 
+  async recordSaleAtomically(saleData, cartItems) {
+    if (!this.isFirebaseAvailable || typeof this.firebaseDB.recordSaleAtomically !== 'function') {
+      throw new Error('حفظ البيع الذرّي غير متاح');
+    }
+    return this.firebaseDB.recordSaleAtomically(saleData, cartItems);
+  }
+
   /**
    * الحصول على الرقم التالي الفريد لرقم الباركود (phone_number).
    * مع Firebase: يستخدم عداداً في Firestore. مع localStorage: أقصى رقم موجود + 1.

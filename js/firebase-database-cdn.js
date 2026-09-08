@@ -29,6 +29,7 @@ import {
   documentId,
   serverTimestamp,
   increment,
+  runTransaction,
   writeBatch
 } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
 
@@ -950,6 +951,65 @@ class FirebaseDatabase {
       console.error('❌ Error adding sale:', error);
       throw error;
     }
+  }
+
+  /**
+   * يسجل البيع ويحدث المخزون وحالة الهواتف في معاملة Firestore واحدة.
+   * لا تترك المعاملة بيعاً بلا مخزون أو مخزوناً ناقصاً بلا فاتورة.
+   */
+  async recordSaleAtomically(saleData, cartItems) {
+    const items = Array.isArray(cartItems) ? cartItems : [];
+    if (!items.length) throw new Error('لا توجد منتجات لإتمام البيع');
+
+    const accessoryQuantities = new Map();
+    const phoneIds = new Set();
+    for (const item of items) {
+      const id = String(item && item.id || '').trim();
+      if (!id) throw new Error('منتج البيع بلا معرّف');
+      if (item.type === 'phone') phoneIds.add(id);
+      else accessoryQuantities.set(id, (accessoryQuantities.get(id) || 0) + (Number(item.quantity) || 0));
+    }
+
+    const committed = await runTransaction(this.db, async (transaction) => {
+      const accessoryRefs = [...accessoryQuantities.keys()].map(id => doc(this.db, 'accessories', id));
+      const phoneRefs = [...phoneIds].map(id => doc(this.db, 'phones', id));
+      const snapshots = await Promise.all([...accessoryRefs, ...phoneRefs].map(ref => transaction.get(ref)));
+      const accessoryUpdates = [];
+
+      accessoryRefs.forEach((ref, index) => {
+        const snap = snapshots[index];
+        const quantity = accessoryQuantities.get(ref.id);
+        if (!snap.exists()) throw new Error('الأكسسوار لم يعد موجوداً');
+        const current = Number(snap.data().quantity_in_stock ?? snap.data().quantity ?? 0);
+        if (!Number.isFinite(quantity) || quantity <= 0 || current < quantity) {
+          throw new Error('الكمية المطلوبة غير متاحة');
+        }
+        const next = current - quantity;
+        transaction.update(ref, { quantity_in_stock: next, quantity: next, updatedAt: serverTimestamp() });
+        accessoryUpdates.push({ id: ref.id, quantity: next });
+      });
+
+      phoneRefs.forEach((ref, index) => {
+        const snap = snapshots[accessoryRefs.length + index];
+        if (!snap.exists()) throw new Error('الهاتف لم يعد موجوداً');
+        if (snap.data().sold === true) throw new Error('هذا الهاتف تم بيعه مسبقاً');
+        transaction.update(ref, { sold: true, updatedAt: serverTimestamp() });
+      });
+
+      const saleRef = doc(collection(this.db, 'sales'));
+      transaction.set(saleRef, { ...saleData, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+      return { saleId: saleRef.id, accessoryUpdates, phoneIds: [...phoneIds] };
+    });
+
+    await this._patchAddRow('sales', { id: committed.saleId, ...saleData, createdAt: new Date(), updatedAt: new Date() });
+    for (const update of committed.accessoryUpdates) {
+      await this._patchUpdateRow('accessories', update.id, {
+        quantity_in_stock: update.quantity, quantity: update.quantity, updatedAt: new Date()
+      });
+    }
+    await this._patchRowsWhere('phones', (row) => committed.phoneIds.includes(String(row.id)),
+      () => ({ sold: true, updatedAt: new Date() }));
+    return committed.saleId;
   }
 
   async getSales() {

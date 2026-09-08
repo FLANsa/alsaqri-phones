@@ -957,33 +957,12 @@
       };
   
       try {
-        // تقليل مخزون الأكسسوارات المباعة
-        await updateAccessoryStock();
-
         if (window.storage && window.storage.isFirebaseAvailable) {
-          const saleId = await window.storage.addSale?.(saleData);
+          const saleId = await window.storage.recordSaleAtomically?.(saleData, cart);
           if (!saleId) throw new Error('فشل حفظ البيع في Firebase');
           saleData.id = saleId;
-
-          // وسم الهواتف المباعة sold:true — يتيح للصفحات الاستغناء عن قراءة
-          // مجموعة sales كاملة لمعرفة المباع (انظر migrateSoldFlags)
-          try {
-            const phoneIds = (cart || [])
-              .filter(it => it.type === 'phone')
-              .map(it => { const ph = phones.find(p => p.id === it.id || p.phone_number === it.id); return ph && ph.id; })
-              .filter(Boolean);
-            if (phoneIds.length && typeof window.storage.setPhonesSold === 'function') {
-              await window.storage.setPhonesSold(phoneIds, true);
-            } else {
-              for (const it of (cart || []).filter(it => it.type === 'phone')) {
-                const ph = phones.find(p => p.id === it.id || p.phone_number === it.id);
-                if (ph && ph.id) await window.storage.updatePhone?.(ph.id, { sold: true });
-              }
-            }
-          } catch (e) {
-            console.warn('⚠️ تعذر وسم الهاتف كمباع (لن يؤثر على الفاتورة):', e);
-          }
         } else {
+          await updateAccessoryStock();
           const sales = JSON.parse(localStorage.getItem('sales') || '[]');
           saleData.id = Date.now().toString();
           sales.push(saleData);
