@@ -241,13 +241,12 @@
     let accessoryCategories = [];
     let sales = [];
     let cart = [];
+    let saleOperationId = null;
     let isCompletingSale = false; // منع تكرار حفظ نفس العملية
 
     // ملاحظة: نتوقع أن window.storage يوفّر الدوال التالية عندما تكون Firebase متاحة:
     // getPhones(), getAccessories(), getAccessoryCategories(), getSales()
     // إذا ما كانت متوفرة، بيصير التحميل من LocalStorage.
-    function fillSellerNameFromSession() {
-
     function fillSellerNameFromSession() {
       const el = document.getElementById('seller_name');
       if (!el || el.value.trim()) return;
@@ -467,36 +466,6 @@
       document.getElementById('total_price').textContent = (price * quantity).toFixed(2);
     }
 
-    // ====== دعم الأرقام العربية ======
-    function convertArabicToEnglishNumbers(str) {
-      if (!str) return '';
-      const map = {'٠':'0','١':'1','٢':'2','٣':'3','٤':'4','٥':'5','٦':'6','٧':'7','٨':'8','٩':'9'};
-      return str.toString().replace(/[٠-٩]/g, m => map[m] ?? m);
-    }
-    function convertEnglishToArabicNumbers(str) {
-      if (!str) return '';
-      const map = {'0':'٠','1':'١','2':'٢','3':'٣','4':'٤','5':'٥','6':'٦','7':'٧','8':'٨','9':'٩'};
-      return str.toString().replace(/[0-9]/g, m => map[m] ?? m);
-    }
-    function parseArabicNumber(value) {
-      if (!value || value.trim() === '') return 0;
-      const converted = convertArabicToEnglishNumbers(value.toString());
-      const num = parseFloat(converted);
-      return isNaN(num) ? 0 : num;
-    }
-    function setupArabicNumberSupport() {
-      document.querySelectorAll('.arabic-number-field').forEach(field => {
-        field.addEventListener('input', function() {
-          const pos = this.selectionStart;
-          const cv = convertArabicToEnglishNumbers(this.value);
-          if (cv !== this.value) {
-            this.value = cv;
-            this.setSelectionRange(pos, pos);
-          }
-        });
-      });
-    }
-  
     // ====== إضافة للسلة ======
     function addToCart() {
       const productType = document.getElementById('product_type').value;
@@ -827,66 +796,6 @@
       alert(`تم إضافة ${name} (${category}) للسلة.\nالباركود: ${barcode}\nسعر البيع: ${sellingPrice} ريال\nسعر الشراء: ${purchasePrice} ريال\nالكمية المتاحة: ${quantity}`);
     }
   
-    // ====== تقليل مخزون الأكسسوارات ======
-    async function updateAccessoryStock() {
-      try {
-        console.log('📦 تحديث مخزون الأكسسوارات...');
-
-        // نجمع التحديثات أولاً ثم نكتبها دفعة واحدة (writeBatch) بدل كتابة لكل عنصر
-        const updates = [];
-        for (const item of cart) {
-          if (item.type !== 'phone') {
-            // البحث عن الأكسسوار في قاعدة البيانات
-            const accessory = accessories.find(acc =>
-              (acc.id === item.id) || (acc.sku === item.id)
-            );
-
-            if (accessory) {
-              const currentStock = Number(accessory.quantity_in_stock ?? accessory.quantity ?? 0);
-              const newStock = Math.max(0, currentStock - item.quantity);
-
-              console.log(`📱 تحديث مخزون ${accessory.name}: ${currentStock} → ${newStock}`);
-
-              // تحديث البيانات المحلية
-              accessory.quantity_in_stock = newStock;
-              accessory.quantity = newStock;
-              updates.push({ id: accessory.id, data: { quantity_in_stock: newStock, quantity: newStock } });
-            } else {
-              console.warn(`⚠️ لم يتم العثور على الأكسسوار: ${item.name} (ID: ${item.id})`);
-            }
-          }
-        }
-
-        if (updates.length === 0) return;
-
-        if (window.storage && window.storage.isFirebaseAvailable) {
-          if (typeof window.storage.batchUpdateAccessories === 'function') {
-            await window.storage.batchUpdateAccessories(updates);
-            console.log('✅ تم تحديث المخزون في Firebase (دفعة واحدة)');
-          } else {
-            // مسار قديم إن لم تتوفر الدالة
-            for (const u of updates) await window.storage.updateAccessory?.(u.id, u.data);
-          }
-        } else {
-          // تحديث localStorage
-          const updatedAccessories = accessories.map(acc =>
-            updates.some(u => String(u.id) === String(acc.id))
-              ? { ...acc, quantity_in_stock: acc.quantity_in_stock, quantity: acc.quantity }
-              : acc
-          );
-          localStorage.setItem('accessories', JSON.stringify(updatedAccessories));
-          console.log('✅ تم تحديث المخزون في localStorage');
-        }
-
-        // لا نعيد تحميل المجموعات هنا: الصفحة تنتقل إلى صفحة الفاتورة بعد الحفظ،
-        // وقراءة phones/accessories/categories/sales الكاملة كانت تُهمل قبل الانتقال
-        console.log('✅ تم تحديث مخزون الأكسسوارات بنجاح');
-      } catch (error) {
-        console.error('❌ خطأ في تحديث مخزون الأكسسوارات:', error);
-        throw error;
-      }
-    }
-
     // ====== إتمام عملية البيع (يحفظ في Firebase إن توفرت) ======
     async function completeSale() {
       if (isCompletingSale) {
@@ -911,7 +820,9 @@
       const subtotal = total / (1 + vatRate); // المبلغ بدون ضريبة
       const vatAmount = total - subtotal; // قيمة الضريبة
 
+      saleOperationId ||= crypto.randomUUID();
       const saleData = {
+        operation_id: saleOperationId,
         sale_number: saleNumber,
         customer_name: document.getElementById('customer_name').value.trim() || 'عميل نقدي',
         customer_phone: document.getElementById('customer_phone').value.trim() || '',
@@ -921,7 +832,7 @@
         payment_method: document.getElementById('payment_method').value,
         notes: document.getElementById('notes').value || '',
         warranty: document.getElementById('warranty_input')?.value?.trim() || '',
-        items: cart,
+        items: cart.map(item => ({ ...item })),
         subtotal: subtotal, // المبلغ بدون ضريبة
         vat_amount: vatAmount, // قيمة الضريبة
         vat_rate: vatRate, // نسبة الضريبة
@@ -935,18 +846,14 @@
   
       try {
         if (window.storage && window.storage.isFirebaseAvailable) {
-          const saleId = await window.storage.recordSaleAtomically?.(saleData, cart);
+          const saleId = await window.storage.recordSaleAtomically?.(saleData, saleData.items);
           if (!saleId) throw new Error('فشل حفظ البيع في Firebase');
           saleData.id = saleId;
         } else {
-          await updateAccessoryStock();
-          const sales = JSON.parse(localStorage.getItem('sales') || '[]');
-          saleData.id = Date.now().toString();
-          sales.push(saleData);
-          localStorage.setItem('sales', JSON.stringify(sales));
+          throw new Error('يلزم الاتصال بقاعدة البيانات لإتمام البيع');
         }
 
-        localStorage.setItem('lastSale', JSON.stringify(saleData));
+        try { localStorage.setItem('lastSale', JSON.stringify(saleData)); } catch (_) {}
         alert(`تم إنشاء عملية البيع!\nرقم العملية: ${saleNumber}\nالمجموع الإجمالي: ${total.toFixed(2)} ريال\nسعر الشراء: ${totalPurchaseCost.toFixed(2)} ريال`);
   
         cart = [];

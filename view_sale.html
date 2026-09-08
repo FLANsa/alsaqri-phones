@@ -905,7 +905,8 @@
     const iso = new Date(dateStr + 'T' + timeStr + ':00').toISOString();
     try {
       if (window.storage && typeof window.storage.updateSale === 'function') {
-        await window.storage.updateSale(currentSale.id, { date_created: iso });
+        const saved = await window.storage.updateSale(currentSale.id, { date_created: iso });
+        if (!saved) throw new Error('لم يُحفظ التاريخ');
       } else {
         showAlert('danger', 'لا يمكن تحديث التاريخ: التخزين غير متاح');
         return;
@@ -1225,135 +1226,22 @@
     }, 5000);
   }
 
- // تسجيل الخروج
-  // استرجاع الفاتورة الحالية: رفع مخزون الأكسسوارات وتحديث حالة البيع
+  let isReturningSale = false;
   async function returnCurrentSale() {
+    if (isReturningSale) return;
+    if (!currentSale?.id) { showAlert('warning', 'لا توجد فاتورة محددة'); return; }
+    if (!confirm('هل تريد استرجاع كامل الفاتورة وإرجاع المنتجات إلى المخزون؟')) return;
+    isReturningSale = true;
     try {
-      if (!currentSale || !currentSale.id) {
-        showAlert('warning', 'لا توجد فاتورة محددة');
-        return;
-      }
-      if (currentSale.returned === true) {
-        showAlert('info', 'تم استرجاع هذه الفاتورة مسبقاً');
-        return;
-      }
-      if (!confirm('هل تريد استرجاع كامل الفاتورة وإرجاع المنتجات إلى المخزون؟')) return;
-
-      // استرجاع مخزون الأكسسوارات + لا نلمس الهاتف (يصبح متاحاً تلقائياً لأننا نستبعد المبيعات المسترجعة)
-      // نجلب الأكسسوارات المطلوبة بمعرّفاتها دفعة واحدة بدل استعلام لكل عنصر،
-      // مع fallback للمجموعة فقط إذا لم يُعثر على بعضها (فواتير قديمة تخزّن sku)
-      const accItems = (currentSale.items || []).filter(it => it.type && it.type !== 'phone');
-      const accMap = {};
-      let needFallback = !(window.storage && window.storage.isFirebaseAvailable);
-      if (!needFallback && accItems.length) {
-        const ids = accItems.filter(it => it.id != null).map(it => String(it.id));
-        if (typeof window.storage.getAccessoriesByIds === 'function') {
-          try {
-            const map = await window.storage.getAccessoriesByIds(ids);
-            ids.forEach(id => { if (map[id]) accMap[id] = map[id]; else needFallback = true; });
-          } catch (e) {
-            needFallback = true;
-          }
-        } else if (typeof window.storage.getAccessoryById === 'function') {
-          for (const it of accItems) {
-            if (it.id == null) continue;
-            try {
-              const acc = await window.storage.getAccessoryById(String(it.id));
-              if (acc) accMap[String(it.id)] = acc;
-              else needFallback = true;
-            } catch (e) {
-              needFallback = true;
-            }
-          }
-        } else {
-          needFallback = true;
-        }
-      }
-      if (needFallback) {
-        const accessories = (window.storage && window.storage.isFirebaseAvailable)
-          ? await window.storage.getAccessories()
-          : JSON.parse(localStorage.getItem('accessories') || '[]');
-        accessories.forEach(a => {
-          if (a.id != null) accMap[String(a.id)] = a;
-          if (a.sku != null) accMap[String(a.sku)] = a;
-        });
-      }
-
-      // نجمع تحديثات المخزون ثم نكتبها دفعة واحدة (writeBatch)
-      const stockUpdates = [];
-      for (const item of (currentSale.items || [])) {
-        if (item.type && item.type !== 'phone') {
-          const acc = accMap[String(item.id)];
-          if (acc) {
-            const currentStock = Number(acc.quantity_in_stock ?? acc.quantity ?? 0);
-            const newStock = currentStock + (Number(item.quantity) || 0);
-            acc.quantity_in_stock = newStock;
-            acc.quantity = newStock;
-            if (window.storage && window.storage.isFirebaseAvailable) {
-              stockUpdates.push({ id: acc.id, data: { quantity_in_stock: newStock, quantity: newStock } });
-            } else {
-              const accessories = JSON.parse(localStorage.getItem('accessories') || '[]');
-              const updatedAccessories = accessories.map(a => (a.id === acc.id ? acc : a));
-              localStorage.setItem('accessories', JSON.stringify(updatedAccessories));
-            }
-          }
-        }
-      }
-      if (stockUpdates.length && window.storage && window.storage.isFirebaseAvailable) {
-        if (typeof window.storage.batchUpdateAccessories === 'function') {
-          await window.storage.batchUpdateAccessories(stockUpdates);
-        } else {
-          for (const u of stockUpdates) await window.storage.updateAccessory?.(u.id, u.data);
-        }
-      }
-
-      // إعادة الهواتف إلى متاحة: sold:false (يكمل عمل علم sold —
-      // بدونها تعود الصفحات لقراءة مجموعة sales كاملة لمعرفة المباع)
-      try {
-        const phoneItems = (currentSale.items || []).filter(it => it.type === 'phone' && it.id != null);
-        if (phoneItems.length && window.storage && window.storage.isFirebaseAvailable && typeof window.storage.getPhonesByRefs === 'function') {
-          const phonesMap = await window.storage.getPhonesByRefs(phoneItems.map(it => String(it.id)));
-          const phoneIds = phoneItems
-            .map(it => phonesMap[String(it.id)])
-            .filter(ph => ph && ph.id)
-            .map(ph => ph.id);
-          if (phoneIds.length && typeof window.storage.setPhonesSold === 'function') {
-            await window.storage.setPhonesSold(phoneIds, false);
-          } else {
-            for (const it of phoneItems) {
-              const ph = phonesMap[String(it.id)];
-              if (ph && ph.id) await window.storage.updatePhone?.(ph.id, { sold: false });
-            }
-          }
-        }
-      } catch (e) {
-        console.warn('⚠️ تعذّر تحديث علم sold عند الاسترجاع:', e);
-      }
-
-      // تحديث سجل البيع كـ مسترجعة
-      const updatedSale = {
-        ...currentSale,
-        returned: true,
-        status: 'مسترجعة',
-        returned_at: new Date().toISOString()
-      };
-
-      if (window.storage && window.storage.isFirebaseAvailable) {
-        await window.storage.updateSale?.(currentSale.id, { returned: true, status: 'مسترجعة', returned_at: new Date().toISOString() });
-      } else {
-        const sales = JSON.parse(localStorage.getItem('sales') || '[]');
-        const idx = sales.findIndex(s => s.id === currentSale.id);
-        if (idx !== -1) {
-          sales[idx] = { ...sales[idx], ...updatedSale };
-          localStorage.setItem('sales', JSON.stringify(sales));
-        }
-      }
-
-      currentSale = updatedSale;
-      displaySaleData();
-      showAlert('success', 'تم استرجاع الفاتورة وإرجاع المخزون بنجاح');
-    } catch (e) {
-      showAlert('danger', 'حدث خطأ أثناء الاسترجاع');
+      const changed = await window.storage.returnSaleAtomically(currentSale.id);
+      currentSale = await window.firebaseDatabase.getSale(currentSale.id);
+      await displaySaleData();
+      showAlert(changed ? 'success' : 'info', changed
+        ? 'تم استرجاع الفاتورة وإرجاع المخزون بنجاح' : 'تم استرجاع هذه الفاتورة مسبقاً');
+    } catch (error) {
+      showAlert('danger', error.message || 'حدث خطأ أثناء الاسترجاع');
+    } finally {
+      isReturningSale = false;
     }
   }
 

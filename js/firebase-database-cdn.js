@@ -21,14 +21,11 @@ import {
   deleteDoc,
   getDocs,
   getDoc,
-  setDoc,
   query,
   where,
   orderBy,
-  limit,
   documentId,
   serverTimestamp,
-  increment,
   runTransaction,
   writeBatch
 } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
@@ -144,6 +141,8 @@ class FirebaseDatabase {
     this._reads = { rpcs: 0, docs: 0, full: {} };
     // طابور ترقيع تسلسلي يمنع سباق قراءة/كتابة بين عمليتي كتابة متتاليتين
     this._patchQueue = Promise.resolve();
+    this._pendingReads = new Map();
+    this._cacheRevision = 0;
     // إزالة مخلفات الكاش القديم من localStorage (لم تعد تُقرأ وتستهلك الحصة)
     try {
       Object.keys(localStorage)
@@ -197,6 +196,7 @@ class FirebaseDatabase {
 
   /** مسح كاش مجموعة كاملة — فقط للمسارات النادرة التي تعيد كتابة كل الصفوف */
   _dropCollectionCache(name) {
+    this._cacheRevision++;
     return this._queuePatch(async () => {
       await idbDeletePrefix(DERIVED_PREFIX(name));
       await idbDelete(FULL_KEY(name));
@@ -212,6 +212,8 @@ class FirebaseDatabase {
 
   /** مسح كل الكاش المحلي — يُستدعى عند تسجيل الخروج وزر التحديث */
   async clearAllCache() {
+    this._cacheRevision++;
+    await this._patchQueue;
     await idbClearAll();
     console.log('🗑️ تم مسح كاش Firestore المحلي بالكامل');
   }
@@ -222,6 +224,7 @@ class FirebaseDatabase {
    * mutator يستقبل نسخة الصفوف ويعيد النسخة الجديدة، أو null للإبقاء عليها.
    */
   _applyWrite(name, mutateFull) {
+    this._cacheRevision++;
     return this._queuePatch(async () => {
       // المشتقات تُمسح حتى بلا لقطة كاملة (قد تكون موجودة واللقطة منتهية)
       await idbDeletePrefix(DERIVED_PREFIX(name));
@@ -273,29 +276,34 @@ class FirebaseDatabase {
     });
   }
 
-  // قراءة مجموعة كاملة عبر الكاش — قراءة واحدة كل 5 دقائق مهما تعددت الاستدعاءات
-  async _getCollectionCached(name) {
-    const entry = await this._cacheEntryGet(FULL_KEY(name));
-    if (entry) return entry.data;
-    const snap = await this._getDocs(FULL_KEY(name), collection(this.db, name));
-    const rows = [];
-    snap.forEach((d) => rows.push({ id: d.id, ...d.data() }));
-    // لا نخزّن النتيجة الفارغة: سباق إقلاع الاتصال قد يرجع قائمة فارغة رغم وجود
-    // البيانات، وتخزينها يجمّد الأصفار لمدة 5 دقائق. المجموعة الفارغة أصلاً
-    // قراءتها مجانية (0 مستند محسوب) فإعادة محاولة جلبها لا تكلف شيئاً
-    if (rows.length > 0) await this._cacheSet(FULL_KEY(name), rows);
-    return rows;
+  async _readCached(key, label, buildQuery, mapRow) {
+    await this._patchQueue;
+    const revision = this._cacheRevision;
+    const pendingKey = key + ':' + revision;
+    if (this._pendingReads.has(pendingKey)) return this._pendingReads.get(pendingKey);
+    const pending = (async () => {
+      const entry = await this._cacheEntryGet(key);
+      if (entry) return entry.data;
+      const snap = await this._getDocs(label, buildQuery());
+      const rows = [];
+      snap.forEach(d => rows.push(mapRow(d)));
+      if (revision === this._cacheRevision && (rows.length || snap.metadata?.fromCache === false)) {
+        await this._cacheSet(key, rows);
+      }
+      return rows;
+    })();
+    this._pendingReads.set(pendingKey, pending);
+    try { return await pending; }
+    finally { this._pendingReads.delete(pendingKey); }
   }
 
-  /** قراءة نتيجة استعلام مشتقة عبر الكاش مع مفتاح قياسي، أو جلبها من Firestore */
+  async _getCollectionCached(name) {
+    return this._readCached(FULL_KEY(name), FULL_KEY(name), () => collection(this.db, name),
+      d => ({ ...d.data(), id: d.id }));
+  }
+
   async _derivedQueryCached(cacheKey, label, buildQuery, mapRow) {
-    const entry = await this._cacheEntryGet(cacheKey);
-    if (entry) return entry.data;
-    const snap = await this._getDocs(label, buildQuery());
-    const rows = [];
-    snap.forEach((d) => rows.push(mapRow(d)));
-    if (rows.length > 0) await this._cacheSet(cacheKey, rows);
-    return rows;
+    return this._readCached(cacheKey, label, buildQuery, mapRow);
   }
 
   /** تطبيع قيمة تاريخ فلاتر الاستعلام (Date | ISO | نص) إلى Date أو null */
@@ -331,60 +339,19 @@ class FirebaseDatabase {
   // ===== عداد أرقام الباركود =====
 
   /**
-   * الرقم التالي الفريد (phone_number). عدّاد مركزي بـ increment ذرّي،
-   * وعند نفاد الحصة يتحول لعدّاد محلي في المتصفح.
+   * الرقم التالي الفريد (phone_number) من قراءة وزيادة في معاملة واحدة.
    * @returns {Promise<string>} بصيغة 000001، 000002، ...
    */
   async getNextPhoneNumber() {
-    const LOCAL_KEY = 'localDeviceCounter';
-    const BASE_KEY = 'serverPhoneCounterBase';
-
-    const readLocalNext = () => {
-      const base = parseInt(localStorage.getItem(BASE_KEY) || '0', 10) || 0;
-      const local = parseInt(localStorage.getItem(LOCAL_KEY) || '0', 10) || 0;
-      return Math.max(base, local) + 1;
-    };
-
-    const fallbackLocal = async () => {
-      try {
-        const next = readLocalNext();
-        localStorage.setItem(LOCAL_KEY, String(next));
-        console.log('🔢 رقم الباركود التالي (من القاعدة المحلية):', next);
-        return String(next).padStart(6, '0');
-      } catch (e) {
-        console.warn('⚠️ fallback local counter failed, using timestamp-based value.', e);
-        return Date.now().toString().slice(-6).padStart(6, '0');
-      }
-    };
-
-    if (isQuotaCooling()) {
-      console.warn('⛔ قاطع دائرة Firestore مفعل — استخدام العداد المحلي مباشرة.');
-      return await fallbackLocal();
-    }
-
     const counterRef = doc(this.db, 'counters', 'phones');
-    try {
-      await setDoc(counterRef, { lastPhoneNumber: increment(1) }, { merge: true });
-      const snap = await this._getDoc('counter', counterRef);
-      const result = Number(snap.data() && snap.data().lastPhoneNumber) || 0;
-      if (result > 0) {
-        try {
-          localStorage.setItem(BASE_KEY, String(result));
-          localStorage.setItem(LOCAL_KEY, String(result));
-        } catch (_) {}
-        clearQuotaCooling();
-        return String(result).padStart(6, '0');
-      }
-      throw new Error('invalid counter value after increment');
-    } catch (error) {
-      if (isQuotaError(error)) {
-        console.warn('⚠️ Firestore quota reached — تفعيل قاطع الدائرة 5 دقائق.', error && error.code);
-        markQuotaExhausted();
-        return await fallbackLocal();
-      }
-      console.error('❌ Error in getNextPhoneNumber, falling back to local counter.', error);
-      return await fallbackLocal();
-    }
+    const next = await runTransaction(this.db, async (transaction) => {
+      const snap = await transaction.get(counterRef);
+      const current = Number(snap.data()?.lastPhoneNumber || 0);
+      if (!Number.isSafeInteger(current) || current < 0) throw new Error('عداد الباركود غير صالح');
+      transaction.set(counterRef, { lastPhoneNumber: current + 1 }, { merge: true });
+      return current + 1;
+    });
+    return String(next).padStart(6, '0');
   }
 
   /**
@@ -412,29 +379,6 @@ class FirebaseDatabase {
     }
   }
 
-  /** فحص تكرار رقم الباركود — استعلام موجّه */
-  async hasPhoneWithNumber(phoneNumber) {
-    const normalized = String(phoneNumber || '').trim();
-    if (!normalized) return false;
-    if (isQuotaCooling()) {
-      console.warn('⛔ hasPhoneWithNumber: تجاوز الفحص بسبب قاطع دائرة Firestore.');
-      return false;
-    }
-    try {
-      const snap = await this._getDocs('phones:dupCheck',
-        query(collection(this.db, 'phones'), where('phone_number', '==', normalized))
-      );
-      return !snap.empty;
-    } catch (error) {
-      if (isQuotaError(error)) {
-        markQuotaExhausted();
-        console.warn('⚠️ hasPhoneWithNumber: تعذر الفحص، سنتجاوز فحص التكرار.');
-        return false;
-      }
-      throw error;
-    }
-  }
-
   /**
    * البحث عن جهاز متاح (غير مباع) بنفس الرقم التسلسلي — يمنع تسجيل نفس
    * الجهاز الفيزيائي مرتين وهو متاح، ويقبل إعادة شرائه بعد بيعه (sold=true).
@@ -442,119 +386,73 @@ class FirebaseDatabase {
    * @returns {Promise<object|null>} الهاتف المتاح المطابق أو null
    */
   async findAvailablePhoneBySerial(serial, excludeId = null) {
-    const normalized = String(serial || '').trim();
+    const normalized = this._normalizePhoneKey(serial);
     if (!normalized) return null;
-    if (isQuotaCooling()) {
-      console.warn('⛔ findAvailablePhoneBySerial: تجاوز الفحص بسبب قاطع دائرة Firestore.');
-      return null;
+    const key = await this._getDoc('phones:serialKey', await this._phoneKeyRef('serial_number', normalized));
+    for (const id of key.data()?.phoneIds || []) {
+      const snap = await this._getDoc('phones:bySerial', doc(this.db, 'phones', id));
+      if (!snap.exists()) continue;
+      const data = snap.data();
+      if (excludeId != null && (String(id) === String(excludeId) || String(data.phone_number) === String(excludeId))) continue;
+      if (data.sold !== true && this._normalizePhoneKey(data.serial_number) === normalized) return { ...data, id };
     }
-    try {
-      const snap = await this._getDocs('phones:bySerial',
-        query(collection(this.db, 'phones'), where('serial_number', '==', normalized))
-      );
-      let found = null;
-      snap.forEach((d) => {
-        if (found) return;
-        const data = d.data();
-        if (excludeId != null &&
-            (String(d.id) === String(excludeId) || String(data.phone_number || '') === String(excludeId))) return;
-        if (data.sold === true) return;
-        found = { id: d.id, ...data };
-      });
-      return found;
-    } catch (error) {
-      if (isQuotaError(error)) {
-        markQuotaExhausted();
-        console.warn('⚠️ findAvailablePhoneBySerial: تعذر الفحص، سنسمح بالحفظ.', error && error.code);
-        return null;
-      }
-      throw error;
-    }
+    return null;
   }
 
-  /**
-   * مزامنة العداد مع أقصى رقم موجود فعلاً — يقرأ أعلى 3 مستندات فقط
-   * (الأرقام مسبوكة بصيغة 6 أرقام فالترتيب النصي = الرقمي) بدل المجموعة كاملة
-   */
-  async syncPhoneCounterToMax() {
-    if (isQuotaCooling()) {
-      const localRaw = parseInt(localStorage.getItem('localDeviceCounter') || '0', 10) || 0;
-      const baseRaw = parseInt(localStorage.getItem('serverPhoneCounterBase') || '0', 10) || 0;
-      return Math.max(localRaw, baseRaw);
-    }
-    try {
-      const topSnap = await this._getDocs('phones:top3',
-        query(collection(this.db, 'phones'), orderBy('phone_number', 'desc'), limit(3))
-      );
-      let max = 0;
-      topSnap.forEach((d) => {
-        const n = parseInt(String(d.data()?.phone_number || '0').replace(/\D/g, ''), 10);
-        if (!isNaN(n) && n > max) max = n;
-      });
-      try {
-        if (max > 0) await setDoc(doc(this.db, 'counters', 'phones'), { lastPhoneNumber: max }, { merge: true });
-      } catch (e) {
-        if (isQuotaError(e)) markQuotaExhausted();
-        console.warn('⚠️ syncPhoneCounterToMax: تعذر تحديث العداد، سنكتفي بالمحلي.', e && e.code);
-      }
-      try {
-        const localRaw = parseInt(localStorage.getItem('localDeviceCounter') || '0', 10) || 0;
-        if (max > localRaw) localStorage.setItem('localDeviceCounter', String(max));
-        const baseRaw = parseInt(localStorage.getItem('serverPhoneCounterBase') || '0', 10) || 0;
-        if (max > baseRaw) localStorage.setItem('serverPhoneCounterBase', String(max));
-      } catch (_) {}
-      console.log('🔄 تمت مزامنة عداد الأجهزة مع أقصى رقم:', max);
-      return max;
-    } catch (error) {
-      if (isQuotaError(error)) markQuotaExhausted();
-      console.warn('⚠️ فشل في مزامنة عداد الأجهزة:', error && error.code);
-      return 0;
-    }
+  _normalizePhoneKey(value) {
+    return String(value ?? '').replace(/[٠-٩]/g, c => String(c.charCodeAt(0) - 1632))
+      .replace(/[۰-۹]/g, c => String(c.charCodeAt(0) - 1776)).replace(/\s+/g, '').toUpperCase();
   }
 
-  // ===== الهواتف =====
+  async _phoneKeyRef(field, value) {
+    const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(this._normalizePhoneKey(value)));
+    const hash = Array.from(new Uint8Array(digest), b => b.toString(16).padStart(2, '0')).join('');
+    return doc(this.db, 'phone_keys', field + '_' + hash);
+  }
 
-  async addPhone(phoneData, options = {}) {
-    const { autoRenumberOnConflict = true } = options;
-    try {
-      let phoneNumber = phoneData.phone_number != null ? String(phoneData.phone_number).trim() : '';
-      if (!phoneNumber) throw new Error('رقم الباركود (phone_number) مطلوب');
-
-      let exists = await this.hasPhoneWithNumber(phoneNumber);
-      if (exists) {
-        if (!autoRenumberOnConflict) {
-          throw new Error('رقم الباركود مستخدم مسبقاً. يرجى عدم إعادة استخدام نفس الرقم.');
-        }
-        // العداد غير متزامن: نصحح ونعيد المحاولة (محاولات قليلة تكفي)
-        console.warn('⚠️ رقم الباركود مكرر، جاري مزامنة العداد وإعادة التوليد...', phoneNumber);
-        await this.syncPhoneCounterToMax();
-        const maxAttempts = 3;
-        let attempt = 0;
-        while (exists && attempt < maxAttempts) {
-          phoneNumber = await this.getNextPhoneNumber();
-          exists = await this.hasPhoneWithNumber(phoneNumber);
-          attempt++;
-        }
-        if (exists) throw new Error('تعذّر توليد رقم باركود فريد بعد عدة محاولات. يرجى المحاولة لاحقاً.');
-        console.log('✅ تم توليد رقم باركود جديد بعد المزامنة:', phoneNumber);
+  async _reservePhoneKeys(transaction, phoneId, data) {
+    const ready = await transaction.get(doc(this.db, 'counters', 'phone_keys'));
+    if (ready.data()?.ready !== true) throw new Error('فهرس تفرد الأجهزة غير جاهز');
+    const reservations = [];
+    for (const field of ['phone_number', 'serial_number']) {
+      const key = this._normalizePhoneKey(data[field]);
+      if (!key) throw new Error('الباركود والرقم التسلسلي مطلوبان');
+      const ref = await this._phoneKeyRef(field, key);
+      const lock = await transaction.get(ref);
+      const ids = lock.data()?.phoneIds || [];
+      const existing = await Promise.all(ids.filter(id => id !== phoneId)
+        .map(id => transaction.get(doc(this.db, 'phones', id))));
+      const conflicts = existing.filter(snap => snap.exists() &&
+        this._normalizePhoneKey(snap.data()[field]) === key &&
+        (field === 'phone_number' || snap.data().sold !== true));
+      if (conflicts.length && (field === 'phone_number' || data.sold !== true)) {
+        throw new Error(field === 'phone_number' ? 'رقم الباركود مستخدم مسبقاً' : 'الجهاز مسجل ومتاح بنفس الرقم التسلسلي');
       }
-      phoneData.phone_number = phoneNumber;
-      const docRef = await addDoc(collection(this.db, 'phones'), {
-        ...phoneData,
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp()
-      });
-      // ترقيع الكاش محلياً بدل مسح المجموعة (تواريخ محلية مؤقتة حتى أول جلب)
-      await this._patchAddRow('phones', {
-        id: docRef.id, ...phoneData,
-        createdAt: new Date(), updatedAt: new Date()
-      });
-      console.log('✅ Phone added with ID:', docRef.id);
-      return docRef.id;
-    } catch (error) {
-      console.error('❌ Error adding phone:', error);
-      throw error;
+      reservations.push({ ref, phoneIds: [...new Set([...conflicts.map(snap => snap.id), phoneId])] });
     }
+    return reservations;
+  }
+
+  async _savePhoneAtomically(phoneId, phoneData, creating) {
+    const ref = creating ? doc(collection(this.db, 'phones')) : doc(this.db, 'phones', phoneId);
+    const saved = await runTransaction(this.db, async (transaction) => {
+      const current = await transaction.get(ref);
+      if (!creating && !current.exists()) throw new Error('الهاتف غير موجود');
+      const data = { ...current.data(), ...phoneData };
+      data.phone_number = this._normalizePhoneKey(data.phone_number);
+      data.serial_number = this._normalizePhoneKey(data.serial_number);
+      if (creating) data.sold = false;
+      const reservations = await this._reservePhoneKeys(transaction, ref.id, data);
+      transaction.set(ref, { ...data, ...(creating ? { createdAt: serverTimestamp() } : {}), updatedAt: serverTimestamp() });
+      reservations.forEach(lock => transaction.set(lock.ref, { phoneIds: lock.phoneIds }));
+      return data;
+    });
+    await this._patchAddRow('phones', { ...saved, id: ref.id, updatedAt: new Date() });
+    return ref.id;
+  }
+
+  async addPhone(phoneData) {
+    return this._savePhoneAtomically(null, phoneData, true);
   }
 
   async getPhones() {
@@ -569,17 +467,7 @@ class FirebaseDatabase {
   }
 
   async updatePhone(phoneId, phoneData) {
-    try {
-      await updateDoc(doc(this.db, 'phones', phoneId), {
-        ...phoneData,
-        updatedAt: serverTimestamp()
-      });
-      await this._patchUpdateRow('phones', phoneId, { ...phoneData, updatedAt: new Date() });
-      console.log('✅ Phone updated:', phoneId);
-    } catch (error) {
-      console.error('❌ Error updating phone:', error);
-      throw error;
-    }
+    return this._savePhoneAtomically(phoneId, phoneData, false);
   }
 
   async deletePhone(phoneId) {
@@ -602,7 +490,7 @@ class FirebaseDatabase {
         query(collection(this.db, 'phones'), where('phone_number', '==', normalized))
       );
       let found = null;
-      snap.forEach((d) => { if (!found) found = { id: d.id, ...d.data() }; });
+      snap.forEach((d) => { if (!found) found = { ...d.data(), id: d.id }; });
       return found;
     } catch (error) {
       console.error('❌ Error getting phone by number:', error);
@@ -619,8 +507,7 @@ class FirebaseDatabase {
     const map = {};
     if (unique.length === 0) return map;
     try {
-      const idLike = unique.filter(r => r.length > 10);
-      const numberLike = unique.filter(r => r.length <= 10);
+      const idLike = unique.filter(r => !r.includes('/'));
       const fetchBy = async (field, values) => {
         for (let i = 0; i < values.length; i += 10) {
           const chunk = values.slice(i, i + 10);
@@ -629,38 +516,19 @@ class FirebaseDatabase {
             : where(field, 'in', chunk);
           const snap = await this._getDocs('phones:byRefs', query(collection(this.db, 'phones'), constraint));
           snap.forEach((d) => {
-            const phone = { id: d.id, ...d.data() };
+            const phone = { ...d.data(), id: d.id };
             map[phone.id] = phone;
             if (phone.phone_number != null) map[String(phone.phone_number)] = phone;
           });
         }
       };
       await fetchBy('__docId', idLike);
-      await fetchBy('phone_number', numberLike);
+      await fetchBy('phone_number', unique.filter(ref => !map[ref]));
       return map;
     } catch (error) {
       console.error('❌ Error getting phones by refs:', error);
       throw error;
     }
-  }
-
-  /** وسم عدة هواتف sold دفعة كتابة واحدة (حد 400 عملية للدفعة) */
-  async setPhonesSold(phoneIds, sold) {
-    const ids = [...new Set((phoneIds || []).map(id => id != null ? String(id) : '').filter(Boolean))];
-    if (ids.length === 0) return 0;
-    let batch = writeBatch(this.db), ops = 0;
-    for (const id of ids) {
-      batch.update(doc(this.db, 'phones', id), { sold: !!sold, updatedAt: serverTimestamp() });
-      if (++ops === 400) { await batch.commit(); batch = writeBatch(this.db); ops = 0; }
-    }
-    if (ops > 0) await batch.commit();
-    await this._patchRowsWhere(
-      'phones',
-      (r) => ids.includes(String(r.id)),
-      () => ({ sold: !!sold, updatedAt: new Date() })
-    );
-    console.log('✅ setPhonesSold:', ids.length, '→', !!sold);
-    return ids.length;
   }
 
   /**
@@ -760,7 +628,7 @@ class FirebaseDatabase {
   async getAccessoryById(accessoryId) {
     try {
       const snap = await this._getDoc('accessories:byId', doc(this.db, 'accessories', accessoryId));
-      return snap.exists() ? { id: snap.id, ...snap.data() } : null;
+      return snap.exists() ? { ...snap.data(), id: snap.id } : null;
     } catch (error) {
       console.error('❌ Error getting accessory by id:', error);
       throw error;
@@ -777,7 +645,7 @@ class FirebaseDatabase {
           query(collection(this.db, 'accessories'), where(field, '==', normalized))
         );
         let found = null;
-        snap.forEach((d) => { if (!found) found = { id: d.id, ...d.data() }; });
+        snap.forEach((d) => { if (!found) found = { ...d.data(), id: d.id }; });
         if (found) return found;
       }
       return null;
@@ -798,7 +666,7 @@ class FirebaseDatabase {
           query(collection(this.db, 'accessories'), where(documentId(), 'in', unique.slice(i, i + 10)))
         );
         snap.forEach((d) => {
-          const acc = { id: d.id, ...d.data() };
+          const acc = { ...d.data(), id: d.id };
           map[acc.id] = acc;
           if (acc.sku != null) map[String(acc.sku)] = acc;
         });
@@ -808,28 +676,6 @@ class FirebaseDatabase {
       console.error('❌ Error getting accessories by ids:', error);
       throw error;
     }
-  }
-
-  /** تحديث عدة أكسسوارات دفعة كتابة واحدة: [{id, data}] */
-  async batchUpdateAccessories(updates) {
-    const list = (updates || []).filter(u => u && u.id != null && u.data);
-    if (list.length === 0) return 0;
-    let batch = writeBatch(this.db), ops = 0;
-    for (const u of list) {
-      batch.update(doc(this.db, 'accessories', String(u.id)), {
-        ...u.data,
-        updatedAt: serverTimestamp()
-      });
-      if (++ops === 400) { await batch.commit(); batch = writeBatch(this.db); ops = 0; }
-    }
-    if (ops > 0) await batch.commit();
-    await this._patchRowsWhere(
-      'accessories',
-      (r) => list.some(u => String(u.id) === String(r.id)),
-      (r) => ({ ...list.find(u => String(u.id) === String(r.id)).data, updatedAt: new Date() })
-    );
-    console.log('✅ batchUpdateAccessories:', list.length);
-    return list.length;
   }
 
   // ===== فئات الأكسسوارات =====
@@ -934,25 +780,6 @@ class FirebaseDatabase {
 
   // ===== المبيعات =====
 
-  async addSale(saleData) {
-    try {
-      const docRef = await addDoc(collection(this.db, 'sales'), {
-        ...saleData,
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp()
-      });
-      await this._patchAddRow('sales', {
-        id: docRef.id, ...saleData,
-        createdAt: new Date(), updatedAt: new Date()
-      });
-      console.log('✅ Sale added with ID:', docRef.id);
-      return docRef.id;
-    } catch (error) {
-      console.error('❌ Error adding sale:', error);
-      throw error;
-    }
-  }
-
   /**
    * يسجل البيع ويحدث المخزون وحالة الهواتف في معاملة Firestore واحدة.
    * لا تترك المعاملة بيعاً بلا مخزون أو مخزوناً ناقصاً بلا فاتورة.
@@ -966,11 +793,22 @@ class FirebaseDatabase {
     for (const item of items) {
       const id = String(item && item.id || '').trim();
       if (!id) throw new Error('منتج البيع بلا معرّف');
-      if (item.type === 'phone') phoneIds.add(id);
-      else accessoryQuantities.set(id, (accessoryQuantities.get(id) || 0) + (Number(item.quantity) || 0));
+      const quantity = Number(item.quantity);
+      if (!Number.isSafeInteger(quantity) || quantity <= 0) throw new Error('كمية المنتج غير صالحة');
+      if (item.type === 'phone') {
+        if (quantity !== 1 || phoneIds.has(id)) throw new Error('لا يمكن بيع نفس الهاتف أكثر من مرة');
+        phoneIds.add(id);
+      } else accessoryQuantities.set(id, (accessoryQuantities.get(id) || 0) + quantity);
     }
 
+    const saleRef = saleData.operation_id
+      ? doc(this.db, 'sales', saleData.operation_id) : doc(collection(this.db, 'sales'));
     const committed = await runTransaction(this.db, async (transaction) => {
+      const previous = await transaction.get(saleRef);
+      if (previous.exists()) {
+        if (JSON.stringify(previous.data().items) !== JSON.stringify(items)) throw new Error('المحاولة مرتبطة بفاتورة محفوظة؛ أعد تحميل الصفحة');
+        return { saleId: saleRef.id, reused: true };
+      }
       const accessoryRefs = [...accessoryQuantities.keys()].map(id => doc(this.db, 'accessories', id));
       const phoneRefs = [...phoneIds].map(id => doc(this.db, 'phones', id));
       const snapshots = await Promise.all([...accessoryRefs, ...phoneRefs].map(ref => transaction.get(ref)));
@@ -993,14 +831,14 @@ class FirebaseDatabase {
         const snap = snapshots[accessoryRefs.length + index];
         if (!snap.exists()) throw new Error('الهاتف لم يعد موجوداً');
         if (snap.data().sold === true) throw new Error('هذا الهاتف تم بيعه مسبقاً');
-        transaction.update(ref, { sold: true, updatedAt: serverTimestamp() });
+        transaction.update(ref, { sold: true, last_sale_id: saleRef.id, updatedAt: serverTimestamp() });
       });
 
-      const saleRef = doc(collection(this.db, 'sales'));
       transaction.set(saleRef, { ...saleData, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
       return { saleId: saleRef.id, accessoryUpdates, phoneIds: [...phoneIds] };
     });
 
+    if (committed.reused) return committed.saleId;
     await this._patchAddRow('sales', { id: committed.saleId, ...saleData, createdAt: new Date(), updatedAt: new Date() });
     for (const update of committed.accessoryUpdates) {
       await this._patchUpdateRow('accessories', update.id, {
@@ -1010,6 +848,75 @@ class FirebaseDatabase {
     await this._patchRowsWhere('phones', (row) => committed.phoneIds.includes(String(row.id)),
       () => ({ sold: true, updatedAt: new Date() }));
     return committed.saleId;
+  }
+
+  async returnSaleAtomically(saleId) {
+    const original = await this.getSale(saleId);
+    if (!original) throw new Error('الفاتورة غير موجودة');
+    if (original.returned === true || original.status === 'مسترجعة') return false;
+    const items = original.items || [];
+    const phoneItems = items.filter(item => item.type === 'phone');
+    const accessoryItems = items.filter(item => item.type && item.type !== 'phone');
+    const phones = await this.getPhonesByRefs(phoneItems.map(item => item.id ?? item.phone_id));
+    const accessories = await this.getAccessoriesByIds(accessoryItems.map(item => item.id));
+    for (const item of accessoryItems) {
+      const key = String(item.id || '');
+      if (!accessories[key]) {
+        const snap = await this._getDocs('accessories:bySku', query(collection(this.db, 'accessories'), where('sku', '==', key)));
+        if (snap.size === 1) accessories[key] = { ...snap.docs[0].data(), id: snap.docs[0].id };
+      }
+    }
+    const phoneIds = [...new Set(phoneItems.map(item => {
+      const phone = phones[String(item.id ?? item.phone_id)];
+      if (!phone) throw new Error('تعذر العثور على هاتف الفاتورة');
+      return phone.id;
+    }))];
+    const quantities = new Map();
+    for (const item of accessoryItems) {
+      const accessory = accessories[String(item.id)];
+      const quantity = Number(item.quantity);
+      if (!accessory || !Number.isSafeInteger(quantity) || quantity <= 0) throw new Error('بيانات أكسسوار الفاتورة غير صالحة');
+      quantities.set(accessory.id, (quantities.get(accessory.id) || 0) + quantity);
+    }
+    const saleRef = doc(this.db, 'sales', saleId);
+    const result = await runTransaction(this.db, async (transaction) => {
+      const sale = await transaction.get(saleRef);
+      if (!sale.exists()) throw new Error('الفاتورة غير موجودة');
+      if (sale.data().returned === true || sale.data().status === 'مسترجعة') return null;
+      if (JSON.stringify(sale.data().items || []) !== JSON.stringify(items)) throw new Error('تغيرت الفاتورة؛ أعد تحميل الصفحة');
+      const accessoryRefs = [...quantities.keys()].map(id => doc(this.db, 'accessories', id));
+      const phoneRefs = phoneIds.map(id => doc(this.db, 'phones', id));
+      const snaps = await Promise.all([...accessoryRefs, ...phoneRefs].map(ref => transaction.get(ref)));
+      if (snaps.some(snap => !snap.exists())) throw new Error('أحد منتجات الفاتورة لم يعد موجوداً');
+      const reservations = [];
+      for (const snap of snaps.slice(accessoryRefs.length)) {
+        if (snap.data().last_sale_id && snap.data().last_sale_id !== saleId) throw new Error('الهاتف مرتبط بفاتورة بيع أحدث');
+        reservations.push(...await this._reservePhoneKeys(transaction, snap.id, { ...snap.data(), sold: false }));
+      }
+      const owners = new Map();
+      for (const lock of reservations) {
+        const previous = owners.get(lock.ref.id);
+        if (previous && previous !== lock.phoneIds[lock.phoneIds.length - 1]) throw new Error('الفاتورة تحتوي أجهزة متعارضة في الرقم التسلسلي');
+        owners.set(lock.ref.id, lock.phoneIds[lock.phoneIds.length - 1]);
+      }
+      const updates = accessoryRefs.map((ref, index) => {
+        const current = Number(snaps[index].data().quantity_in_stock ?? snaps[index].data().quantity ?? 0);
+        if (!Number.isFinite(current) || current < 0) throw new Error('مخزون الأكسسوار غير صالح');
+        return { id: ref.id, quantity: current + quantities.get(ref.id) };
+      });
+      updates.forEach((update, index) => transaction.update(accessoryRefs[index], {
+        quantity: update.quantity, quantity_in_stock: update.quantity, updatedAt: serverTimestamp()
+      }));
+      phoneRefs.forEach(ref => transaction.update(ref, { sold: false, updatedAt: serverTimestamp() }));
+      reservations.forEach(lock => transaction.set(lock.ref, { phoneIds: lock.phoneIds }));
+      transaction.update(saleRef, { returned: true, status: 'مسترجعة', returned_at: serverTimestamp(), updatedAt: serverTimestamp() });
+      return updates;
+    });
+    if (result === null) return false;
+    await this._patchUpdateRow('sales', saleId, { returned: true, status: 'مسترجعة', returned_at: new Date() });
+    for (const update of result) await this._patchUpdateRow('accessories', update.id, { quantity: update.quantity, quantity_in_stock: update.quantity });
+    await this._patchRowsWhere('phones', row => phoneIds.includes(row.id), () => ({ sold: false }));
+    return true;
   }
 
   async getSales() {
@@ -1030,7 +937,7 @@ class FirebaseDatabase {
   async getSale(saleId) {
     try {
       const saleDoc = await this._getDoc('sales:byId', doc(this.db, 'sales', saleId));
-      return saleDoc.exists() ? { id: saleDoc.id, ...saleDoc.data() } : null;
+      return saleDoc.exists() ? { ...saleDoc.data(), id: saleDoc.id } : null;
     } catch (error) {
       console.error('❌ Error getting sale:', error);
       throw error;
@@ -1068,7 +975,7 @@ class FirebaseDatabase {
           : query(collection(this.db, 'sales'),
               where('createdAt', '>=', from),
               orderBy('createdAt', 'desc')),
-        (d) => ({ id: d.id, ...d.data() })
+        (d) => ({ ...d.data(), id: d.id })
       );
       console.log('💰 Sales in range loaded:', rows.length);
       return rows;
@@ -1215,7 +1122,7 @@ class FirebaseDatabase {
             if (dt) constraints.push(where('visitDate', '<=', dt));
             return query(collection(this.db, 'maintenanceJobs'), ...constraints);
           },
-          (d) => ({ id: d.id, ...d.data() })
+          (d) => ({ ...d.data(), id: d.id })
         );
       } else if (filters.status) {
         const key = DERIVED_PREFIX('maintenanceJobs') + `q_s_${filters.status}`;
@@ -1224,7 +1131,7 @@ class FirebaseDatabase {
           'maintenanceJobs:status',
           () => query(collection(this.db, 'maintenanceJobs'),
                       where('status', '==', filters.status)),
-          (d) => ({ id: d.id, ...d.data() })
+          (d) => ({ ...d.data(), id: d.id })
         );
       } else {
         jobs = await this._getCollectionCached('maintenanceJobs');
@@ -1266,7 +1173,7 @@ class FirebaseDatabase {
   async getMaintenanceJob(jobId) {
     try {
       const snap = await this._getDoc('maintenanceJobs:byId', doc(this.db, 'maintenanceJobs', jobId));
-      if (snap.exists()) return { id: snap.id, ...snap.data() };
+      if (snap.exists()) return { ...snap.data(), id: snap.id };
       throw new Error('Job not found');
     } catch (error) {
       console.error('❌ Error getting maintenance job:', error);
@@ -1381,7 +1288,7 @@ class FirebaseDatabase {
             if (dt) constraints.push(where('paymentDate', '<=', dt));
             return query(collection(this.db, 'payments'), ...constraints);
           },
-          (d) => ({ id: d.id, ...d.data() })
+          (d) => ({ ...d.data(), id: d.id })
         );
       } else {
         payments = await this._getCollectionCached('payments');

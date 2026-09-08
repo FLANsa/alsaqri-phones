@@ -62,25 +62,15 @@ class FirebaseStorageManager {
    * Initialize localStorage fallback
    */
   initializeLocalStorage() {
-    // Initialize default data if not exists
-    if (!this.getPhoneTypes()) {
-      this.setPhoneTypes(DEFAULT_PHONE_TYPES);
-    }
-
-    if (!this.getAccessoryCategories()) {
-      this.setAccessoryCategories(DEFAULT_ACCESSORY_CATEGORIES);
-    }
-
-    if (!this.getPhones()) {
-      this.setPhones([]);
-    }
-
-    if (!this.getAccessories()) {
-      this.setAccessories([]);
-    }
-
-    if (!this.getSales()) {
-      this.setSales([]);
+    const defaults = {
+      [CONFIG.STORAGE_KEYS.PHONE_TYPES]: DEFAULT_PHONE_TYPES,
+      [CONFIG.STORAGE_KEYS.ACCESSORY_CATEGORIES]: DEFAULT_ACCESSORY_CATEGORIES,
+      [CONFIG.STORAGE_KEYS.PHONES]: [],
+      [CONFIG.STORAGE_KEYS.ACCESSORIES]: [],
+      [CONFIG.STORAGE_KEYS.SALES]: []
+    };
+    for (const [key, value] of Object.entries(defaults)) {
+      if (this.getItem(key) == null) this.setItem(key, value);
     }
   }
 
@@ -183,7 +173,7 @@ class FirebaseStorageManager {
     phone.id = this.generateId();
     phone.date_added = new Date().toISOString();
     arr.push(phone);
-    return this.setPhones(arr) ? phone.id : false;
+    return await this.setPhones(arr) ? phone.id : false;
   }
 
   /** البحث عن جهاز متاح (غير مباع) بنفس الرقم التسلسلي — لمنع التسجيل المكرر */
@@ -193,7 +183,7 @@ class FirebaseStorageManager {
         return await this.firebaseDB.findAvailablePhoneBySerial(serial, excludeId);
       } catch (error) {
         console.error('Error checking serial duplicate:', error);
-        return null; // فشل الفحص لا يمنع الحفظ
+        throw error;
       }
     }
     // LocalStorage fallback
@@ -245,27 +235,9 @@ class FirebaseStorageManager {
     return this.setPhones(filteredPhones);
   }
 
-  /**
-   * وسم عدة هواتف sold دفعة كتابة واحدة (يستخدم writeBatch داخلياً مع Firebase)
-   */
-  async setPhonesSold(phoneIds, sold) {
-    if (this.isFirebaseAvailable && typeof this.firebaseDB.setPhonesSold === 'function') {
-      try {
-        return await this.firebaseDB.setPhonesSold(phoneIds, sold);
-      } catch (error) {
-        console.error('Error setting phones sold in Firebase:', error);
-        return 0;
-      }
-    }
-    // LocalStorage fallback
-    const phones = await this.getPhones();
-    const idSet = new Set((phoneIds || []).map(String));
-    let count = 0;
-    phones.forEach(p => {
-      if (idSet.has(String(p.id))) { p.sold = !!sold; count++; }
-    });
-    await this.setPhones(phones);
-    return count;
+  async returnSaleAtomically(saleId) {
+    if (!this.isFirebaseAvailable) throw new Error('يلزم الاتصال بقاعدة البيانات لاسترجاع الفاتورة');
+    return this.firebaseDB.returnSaleAtomically(saleId);
   }
 
   async recordSaleAtomically(saleData, cartItems) {
@@ -441,34 +413,6 @@ class FirebaseStorageManager {
   }
 
   /**
-   * تحديث عدة أكسسوارات دفعة كتابة واحدة (writeBatch مع Firebase)
-   * @param {Array<{id: string, data: object}>} updates
-   */
-  async batchUpdateAccessories(updates) {
-    if (this.isFirebaseAvailable && typeof this.firebaseDB.batchUpdateAccessories === 'function') {
-      try {
-        return await this.firebaseDB.batchUpdateAccessories(updates);
-      } catch (error) {
-        console.error('Error batch updating accessories in Firebase:', error);
-        return 0;
-      }
-    }
-    // LocalStorage fallback
-    const accessories = await this.getAccessories();
-    let count = 0;
-    (updates || []).forEach(u => {
-      if (!u || u.id == null) return;
-      const index = accessories.findIndex(a => a.id === u.id);
-      if (index !== -1) {
-        accessories[index] = { ...accessories[index], ...u.data };
-        count++;
-      }
-    });
-    await this.setAccessories(accessories);
-    return count;
-  }
-
-  /**
    * جلب عدة أكسسوارات بمعرّفاتها دفعة واحدة — تعيد خريطة { المعرف: الأكسسوار }
    */
   async getAccessoriesByIds(ids) {
@@ -528,26 +472,6 @@ class FirebaseStorageManager {
       return true;
     }
     return this.setItem(CONFIG.STORAGE_KEYS.SALES, sales);
-  }
-
-  async addSale(sale) {
-    if (this.isFirebaseAvailable) {
-      try {
-        sale.date_created = new Date();
-        const saleId = await this.firebaseDB.addSale(sale);
-        return saleId;
-      } catch (error) {
-        console.error('Error adding sale to Firebase:', error);
-        return false;
-      }
-    }
-    
-    // LocalStorage fallback
-    const sales = await this.getSales();
-    sale.id = this.generateId();
-    sale.date_created = new Date().toISOString();
-    sales.push(sale);
-    return this.setSales(sales);
   }
 
   async updateSale(saleId, updatedSale) {
@@ -621,7 +545,7 @@ class FirebaseStorageManager {
     }
     
     // LocalStorage fallback
-    const phoneTypes = this.getPhoneTypes() || {};
+    const phoneTypes = await this.getPhoneTypes() || {};
     if (!phoneTypes[brand]) {
       phoneTypes[brand] = [];
     }
@@ -644,7 +568,7 @@ class FirebaseStorageManager {
     }
     
     // LocalStorage fallback
-    const phoneTypes = this.getPhoneTypes() || {};
+    const phoneTypes = await this.getPhoneTypes() || {};
     if (phoneTypes[brand]) {
       phoneTypes[brand] = phoneTypes[brand].filter(m => m !== model);
       if (phoneTypes[brand].length === 0) {
@@ -690,7 +614,7 @@ class FirebaseStorageManager {
     }
     
     // LocalStorage fallback
-    const categories = this.getAccessoryCategories() || [];
+    const categories = await this.getAccessoryCategories() || [];
     const exists = categories.find(c => c.name === category.name || c.arabic_name === category.arabic_name);
     if (!exists) {
       categories.push(category);
@@ -711,7 +635,7 @@ class FirebaseStorageManager {
     }
     
     // LocalStorage fallback
-    const categories = this.getAccessoryCategories() || [];
+    const categories = await this.getAccessoryCategories() || [];
     const filteredCategories = categories.filter(c => c.arabic_name !== categoryName);
     return this.setAccessoryCategories(filteredCategories);
   }
