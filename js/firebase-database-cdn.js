@@ -1028,24 +1028,17 @@ class FirebaseDatabase {
     }
   }
 
-  /** مبيعات نطاق زمني متوافق مع createdAt وأسماء التاريخ التاريخية. */
+  /** مبيعات نطاق زمني عبر sortAt الموحد. السجلات القديمة رُحلت إلى هذا الحقل. */
   async getSalesInRange(from, to) {
     try {
       const df = this._normFilterDate(from);
       const dt = this._normFilterDate(to);
       if (!df) throw new Error('تاريخ بداية المبيعات غير صالح');
-
-      // لا يمكن لاستعلام createdAt وحده إرجاع السجلات التاريخية التي تستخدم
-      // date_created/date_added/created_at. نقرأ اللقطة الموحدة المخزنة مؤقتاً
-      // ثم نطبّق نطاقاً متوافقاً مع جميع صيغ البيانات القديمة.
-      const allSales = await this.getSales();
-      const saleDate = (sale) => this._asDate(sale.date_created) ||
-        this._asDate(sale.date_added) || this._asDate(sale.created_at) ||
-        this._asDate(sale.createdAt);
-      const rows = allSales.filter((sale) => {
-        const d = saleDate(sale);
-        return d && d >= df && (!dt || d <= dt);
-      });
+      const clauses = [where('sortAt', '>=', df)];
+      if (dt) clauses.push(where('sortAt', '<=', dt));
+      clauses.push(orderBy('sortAt', 'desc'));
+      const snap = await this._getDocs('sales:range', query(collection(this.db, 'sales'), ...clauses));
+      const rows = snap.docs.map(row => ({ ...row.data(), id: row.id }));
       console.log('💰 Sales in range loaded:', rows.length);
       return rows;
     } catch (error) {
