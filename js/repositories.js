@@ -18,6 +18,7 @@
     },
     salesRepository: {
       ...repo('getSalesPage', 'getSale'),
+      search: (value, options) => window.firebaseDatabase?.searchSalesPage(value, options) || unavailable(),
       getByDateRange: (from, to) => window.firebaseDatabase?.getSalesInRange(from, to) || unavailable()
     },
     maintenanceRepository: repo('getMaintenanceJobsPage', 'getMaintenanceJob'),

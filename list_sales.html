@@ -145,7 +145,7 @@
         <!-- Sale number search -->
         <div class="col-md-3">
           <label for="filter_sale_number" class="form-label">رقم الفاتورة</label>
-          <input type="text" class="form-control arabic-number-field" id="filter_sale_number" placeholder="اكتب رقم الفاتورة (SALE-...)" oninput="applyCurrentFilter()">
+          <input type="text" class="form-control arabic-number-field" id="filter_sale_number" placeholder="اكتب رقم الفاتورة (SALE-...)" oninput="queueSearch()">
         </div>
 
         <div class="col-md-3">
@@ -178,7 +178,7 @@
   <!-- جدول المبيعات -->
   <div id="sales_block" class="card d-none">
     <div class="card-header">
-      <h5 class="mb-0">إجمالي عمليات البيع: <span id="total_sales_count">0</span></h5>
+      <h5 class="mb-0">المعروض في الصفحة: <span id="total_sales_count">0</span></h5>
     </div>
     <div class="card-body">
       <div class="table-responsive">
@@ -209,7 +209,7 @@
     <div class="col-md-3">
       <div class="card bg-primary text-white">
         <div class="card-body text-center">
-          <h5 class="card-title">إجمالي عمليات البيع</h5>
+          <h5 class="card-title">عدد عمليات الصفحة</h5>
           <h3 id="sum_total_sales_count">0</h3>
         </div>
       </div>
@@ -217,7 +217,7 @@
     <div class="col-md-6">
       <div class="card bg-success text-white">
         <div class="card-body text-center">
-          <h5 class="card-title">إجمالي المبيعات</h5>
+          <h5 class="card-title">إجمالي مبالغ الصفحة</h5>
           <h3><span id="sum_total_sales_amount">0.00</span> ريال</h3>
         </div>
       </div>
@@ -242,9 +242,9 @@
 
 <!-- Firebase Configuration -->
 <script type="module" src="js/firebase-config-cdn.js?v=20260119"></script>
-<script type="module" src="js/firebase-database-cdn.js?v=20260119"></script>
+<script type="module" src="js/firebase-database-cdn.js?v=20260910"></script>
 <script type="module" src="js/firebase-storage-manager.js?v=20260119"></script>
-<script type="module" src="js/repositories.js?v=20260910"></script>
+<script type="module" src="js/repositories.js?v=20260910-2"></script>
 
 <!-- Firebase Integration: Load sales from database -->
 <script>
@@ -255,6 +255,10 @@
   const pageSize = 20;
   let salesNextCursor = null;
   let salesHasMore = false;
+  let serverPage = 1;
+  let cursorHistory = [null];
+  let activeRequest = 0;
+  let searchTimer = null;
 
   // ---------- دعم الأرقام العربية ----------
   function convertArabicToEnglishNumbers(str) {
@@ -384,19 +388,59 @@
 
   // ---------- تحميل البيانات من Firebase ----------
   async function loadSalesFromFirebase() {
+    cursorHistory = [null];
+    serverPage = 1;
+    return loadServerPage(1);
+  }
+
+  function getServerFilter() {
+    const type = document.getElementById('filter_type').value;
+    let dateFrom = null;
+    let dateTo = null;
+    let summaryText = '';
+    if (type === 'day') {
+      const value = document.getElementById('filter_date').value;
+      if (value) { dateFrom = `${value}T00:00:00`; dateTo = `${value}T23:59:59.999`; summaryText = `مبيعات يوم ${value}`; }
+    } else if (type === 'month') {
+      const year = Number(document.getElementById('filter_month_year').value);
+      const month = Number(document.getElementById('filter_month_month').value);
+      if (year && month) {
+        const start = new Date(year, month - 1, 1); const end = new Date(year, month, 0, 23, 59, 59, 999);
+        dateFrom = start; dateTo = end; summaryText = `مبيعات شهر ${month}/${year}`;
+      }
+    } else if (type === 'year') {
+      const year = Number(document.getElementById('filter_year').value);
+      if (year) { dateFrom = new Date(year, 0, 1); dateTo = new Date(year, 11, 31, 23, 59, 59, 999); summaryText = `مبيعات سنة ${year}`; }
+    } else if (type === 'date_range') {
+      const from = document.getElementById('filter_date_from').value;
+      const to = document.getElementById('filter_date_to').value;
+      if (from) dateFrom = `${from}T00:00:00`;
+      if (to) dateTo = `${to}T23:59:59.999`;
+      if (from || to) summaryText = `مبيعات ${from ? `من ${from}` : ''} ${to ? `إلى ${to}` : ''}`.trim();
+    }
+    return { dateFrom, dateTo, summaryText, type };
+  }
+
+  async function loadServerPage(pageNumber) {
+    const requestId = ++activeRequest;
     try {
-      console.log('🔄 تحميل قائمة المبيعات من Firebase...');
-      
-      if (window.dataRepositories?.salesRepository) {
-        const page = await window.dataRepositories.salesRepository.getPage({ pageSize });
-        salesAll = Array.isArray(page.items) ? page.items : [];
-        salesNextCursor = page.nextCursor || null;
-        salesHasMore = page.hasMore === true;
-        console.log('✅ تم تحميل أول صفحة من المبيعات:', salesAll.length);
-      } else throw new Error('تعذر تهيئة قاعدة البيانات');
-      
-      applyCurrentFilter();
-      
+      if (!window.dataRepositories?.salesRepository) throw new Error('تعذر تهيئة قاعدة البيانات');
+      const saleNo = convertArabicToEnglishNumbers(document.getElementById('filter_sale_number').value).trim();
+      const filter = getServerFilter();
+      const options = { cursor: cursorHistory[pageNumber - 1] || null, pageSize, dateFrom: filter.dateFrom, dateTo: filter.dateTo };
+      const page = saleNo
+        ? await window.dataRepositories.salesRepository.search(saleNo, options)
+        : await window.dataRepositories.salesRepository.getPage(options);
+      if (requestId !== activeRequest) return;
+      salesAll = Array.isArray(page.items) ? page.items : [];
+      currentFilteredSales = salesAll;
+      salesNextCursor = page.nextCursor || null;
+      salesHasMore = page.hasMore === true;
+      serverPage = pageNumber;
+      if (salesNextCursor) cursorHistory[serverPage] = salesNextCursor;
+      currentPage = 1;
+      const description = saleNo ? `نتائج رقم الفاتورة: ${saleNo}` : filter.summaryText;
+      renderSales(salesAll, saleNo || filter.type !== 'all' ? 'filtered' : 'all', description, 'لا توجد مبيعات مطابقة');
     } catch (error) {
       console.error('❌ خطأ في تحميل المبيعات:', error);
       salesAll = [];
@@ -406,86 +450,14 @@
 
   // ---------- تطبيق التصفية الحالية ----------
   function applyCurrentFilter() {
-    const type = document.getElementById('filter_type').value;
-    let filtered = [...salesAll];
-    let summaryText = '';
-    let emptyHint = 'لم يتم إنشاء أي مبيعات بعد';
+    cursorHistory = [null];
+    serverPage = 1;
+    return loadServerPage(1);
+  }
 
-    if (type==='day') {
-      const val = document.getElementById('filter_date').value;
-      if (val) {
-        const [y,m,d] = val.split('-').map(Number);
-        filtered = salesAll.filter(s => {
-          const dt = getSaleDateValue(s);
-          return dt && sameDay(dt, y, m, d);
-        });
-        summaryText = `مبيعات يوم ${convertToLatinNumbers(val)}`;
-      }
-    } else if (type==='month') {
-      const year = parseInt(document.getElementById('filter_month_year').value);
-      const month = parseInt(document.getElementById('filter_month_month').value);
-      if (year && month) {
-        filtered = salesAll.filter(s => {
-          const dt = getSaleDateValue(s);
-          return dt && sameMonth(dt, year, month);
-        });
-        summaryText = `مبيعات شهر ${convertToLatinNumbers(month)}/${convertToLatinNumbers(year)}`;
-      }
-    } else if (type==='year') {
-      const year = parseInt(document.getElementById('filter_year').value);
-      if (year) {
-        filtered = salesAll.filter(s => {
-          const dt = getSaleDateValue(s);
-          return dt && sameYear(dt, year);
-        });
-        summaryText = `مبيعات سنة ${convertToLatinNumbers(year)}`;
-      }
-    } else if (type==='date_range') {
-      const dateFrom = document.getElementById('filter_date_from').value;
-      const dateTo = document.getElementById('filter_date_to').value;
-      if (dateFrom && dateTo) {
-        const fromDate = new Date(dateFrom);
-        fromDate.setHours(0, 0, 0, 0);
-        const toDate = new Date(dateTo);
-        toDate.setHours(23, 59, 59, 999);
-        
-        filtered = salesAll.filter(s => {
-          const dt = getSaleDateValue(s);
-          if (!dt) return false;
-          return dt >= fromDate && dt <= toDate;
-        });
-        summaryText = `مبيعات من ${convertToLatinNumbers(dateFrom)} إلى ${convertToLatinNumbers(dateTo)}`;
-      } else if (dateFrom) {
-        const fromDate = new Date(dateFrom);
-        fromDate.setHours(0, 0, 0, 0);
-        filtered = salesAll.filter(s => {
-          const dt = getSaleDateValue(s);
-          if (!dt) return false;
-          return dt >= fromDate;
-        });
-        summaryText = `مبيعات من ${convertToLatinNumbers(dateFrom)}`;
-      } else if (dateTo) {
-        const toDate = new Date(dateTo);
-        toDate.setHours(23, 59, 59, 999);
-        filtered = salesAll.filter(s => {
-          const dt = getSaleDateValue(s);
-          if (!dt) return false;
-          return dt <= toDate;
-        });
-        summaryText = `مبيعات حتى ${convertToLatinNumbers(dateTo)}`;
-      }
-    }
-
-    // Filter by sale number if provided
-    const saleNo = (document.getElementById('filter_sale_number')?.value || '').trim();
-    if (saleNo) {
-      const q = saleNo.toLowerCase();
-      filtered = filtered.filter(s => (s.sale_number || '').toLowerCase().includes(q));
-      summaryText = summaryText ? `${summaryText} — رقم الفاتورة يحتوي: ${saleNo}` : `رقم الفاتورة يحتوي: ${saleNo}`;
-    }
-
-    currentFilteredSales = filtered;
-    renderSales(filtered, type, summaryText, emptyHint);
+  function queueSearch() {
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(applyCurrentFilter, 350);
   }
 
   // ---------- تعبئة سنوات القوائم ----------
@@ -517,8 +489,8 @@
   }
 
   // ---------- تطبيق/إعادة التصفية ----------
-  function applyFilter() {
-    applyCurrentFilter();
+  async function applyFilter() {
+    await applyCurrentFilter();
   }
 
   function resetFilter() {
@@ -661,54 +633,18 @@
   function renderPagination(totalPages) {
     const container = document.getElementById('sales_pagination');
     if (!container) return;
-    if (totalPages <= 1 && !salesHasMore) { container.innerHTML = ''; return; }
-    if (totalPages <= 1 && salesHasMore) {
-      container.innerHTML = '<nav><ul class="pagination"><li class="page-item"><a class="page-link" href="#" onclick="gotoPage(2); return false;">تحميل الصفحة التالية</a></li></ul></nav>';
-      return;
-    }
-
+    if (serverPage === 1 && !salesHasMore) { container.innerHTML = ''; return; }
     let html = '<nav><ul class="pagination">';
-    const disabledPrev = (currentPage === 1) ? ' disabled' : '';
-    html += `<li class="page-item${disabledPrev}"><a class="page-link" href="#" onclick="gotoPage(${currentPage-1}); return false;">السابق</a></li>`;
-
-    const maxButtons = 5;
-    let start = Math.max(1, currentPage - Math.floor(maxButtons/2));
-    let end = Math.min(totalPages, start + maxButtons - 1);
-    if (end - start + 1 < maxButtons) start = Math.max(1, end - maxButtons + 1);
-
-    for (let p = start; p <= end; p++) {
-      const active = (p === currentPage) ? ' active' : '';
-      html += `<li class="page-item${active}"><a class="page-link" href="#" onclick="gotoPage(${p}); return false;">${p}</a></li>`;
-    }
-
-    const disabledNext = (currentPage === totalPages) ? ' disabled' : '';
-    html += `<li class="page-item${disabledNext}"><a class="page-link" href="#" onclick="gotoPage(${currentPage+1}); return false;">التالي</a></li>`;
+    html += `<li class="page-item${serverPage === 1 ? ' disabled' : ''}"><a class="page-link" href="#" onclick="gotoPage(${serverPage - 1}); return false;">السابق</a></li>`;
+    html += `<li class="page-item active"><span class="page-link">${serverPage}</span></li>`;
+    html += `<li class="page-item${salesHasMore ? '' : ' disabled'}"><a class="page-link" href="#" onclick="gotoPage(${serverPage + 1}); return false;">التالي</a></li>`;
     html += '</ul></nav>';
     container.innerHTML = html;
   }
 
   async function gotoPage(p) {
-    if (p < 1) return;
-    if (p > 1 && salesNextCursor && window.dataRepositories?.salesRepository) {
-      try {
-        const page = await window.dataRepositories.salesRepository.getPage({ cursor: salesNextCursor, pageSize });
-        salesAll = Array.isArray(page.items) ? page.items : [];
-        currentFilteredSales = salesAll;
-        salesNextCursor = page.nextCursor || null;
-        salesHasMore = page.hasMore === true;
-        currentPage = 1;
-        renderSales(currentFilteredSales, 'all', '', 'لم يتم إنشاء أي مبيعات بعد');
-        window.scrollTo({ top: 0, behavior: 'smooth' });
-        return;
-      } catch (error) {
-        console.error('تعذر تحميل الصفحة التالية من المبيعات', error);
-        showAlert('danger', 'تعذر تحميل الصفحة التالية');
-        return;
-      }
-    }
-    currentPage = p;
-    // أعد الرسم بالاعتماد على الفلتر الحالي المخزن
-    renderSales(currentFilteredSales, 'all', '', 'لم يتم إنشاء أي مبيعات بعد');
+    if (p < 1 || (p > serverPage && !salesHasMore)) return;
+    await loadServerPage(p);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 

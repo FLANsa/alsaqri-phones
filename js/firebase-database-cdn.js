@@ -25,6 +25,8 @@ import {
   where,
   orderBy,
   limit,
+  startAt,
+  endAt,
   startAfter,
   documentId,
   serverTimestamp,
@@ -185,7 +187,30 @@ class FirebaseDatabase {
 
   getPhonesPage(options) { return this._getPage('phones', options); }
   getAccessoriesPage(options) { return this._getPage('accessories', options); }
-  getSalesPage(options) { return this._getPage('sales', options); }
+  getSalesPage({ cursor = null, pageSize = 20, dateFrom = null, dateTo = null } = {}) {
+    const filters = [];
+    const from = this._normFilterDate(dateFrom);
+    const to = this._normFilterDate(dateTo);
+    if (from) filters.push(where('sortAt', '>=', from));
+    if (to) filters.push(where('sortAt', '<=', to));
+    return this._getPage('sales', { cursor, pageSize, filters });
+  }
+
+  async searchSalesPage(value, { cursor = null, pageSize = 20 } = {}) {
+    const term = String(value || '').trim().toUpperCase();
+    if (!term) return { items: [], nextCursor: null, hasMore: false };
+    const safeSize = Math.min(Math.max(Number(pageSize) || 20, 1), 50);
+    const clauses = [orderBy('sale_number'), startAt(term), endAt(term + '\uf8ff')];
+    if (cursor) clauses.push(startAfter(cursor));
+    clauses.push(limit(safeSize + 1));
+    const snap = await this._getDocs('sales:search', query(collection(this.db, 'sales'), ...clauses));
+    const hasMore = snap.docs.length > safeSize;
+    return {
+      items: snap.docs.slice(0, safeSize).map(row => ({ ...row.data(), id: row.id })),
+      nextCursor: hasMore ? snap.docs[safeSize - 1] : null,
+      hasMore
+    };
+  }
   getMaintenanceJobsPage(options) { return this._getPage('maintenanceJobs', options); }
 
   /** getDocs مع تتبّع القراءة */
