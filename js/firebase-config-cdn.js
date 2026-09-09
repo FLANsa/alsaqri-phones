@@ -15,14 +15,16 @@ const firebaseConfig = {
 
 // تهيئة Firebase باستخدام CDN
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
-import { getFirestore } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
+import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
 import { getAuth, signOut } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
 
 // تهيئة التطبيق
 const app = initializeApp(firebaseConfig);
 
 // تهيئة الخدمات
-const db = getFirestore(app);
+const db = initializeFirestore(app, {
+  localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() })
+});
 const auth = getAuth(app);
 
 // تسجيل الدخول يحدث في login.html عبر Firebase Auth (حسابا admin/user).

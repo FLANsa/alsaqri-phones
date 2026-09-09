@@ -24,6 +24,8 @@ import {
   query,
   where,
   orderBy,
+  limit,
+  startAfter,
   documentId,
   serverTimestamp,
   runTransaction,
@@ -161,6 +163,30 @@ class FirebaseDatabase {
       this._reads.full[name] = (this._reads.full[name] || 0) + docs;
     }
   }
+
+  /** تاريخ موحد للكتابات الجديدة، مع بقاء الحقول التاريخية للقراءة. */
+  _canonicalSortAt(data = {}) {
+    return this._asDate(data.sortAt) || this._asDate(data.date_created) ||
+      this._asDate(data.date_added) || this._asDate(data.createdAt) || new Date();
+  }
+
+  /** صفحة Firestore فعلية: لا تُنزل إلا pageSize + 1 مستندات. */
+  async _getPage(collectionName, { cursor = null, pageSize = 20, filters = [] } = {}) {
+    const safeSize = Math.min(Math.max(Number(pageSize) || 20, 1), 50);
+    const clauses = [...filters, orderBy('sortAt', 'desc')];
+    if (cursor) clauses.push(startAfter(cursor));
+    clauses.push(limit(safeSize + 1));
+    const snap = await this._getDocs(`${collectionName}:page`, query(collection(this.db, collectionName), ...clauses));
+    const docs = snap.docs;
+    const hasMore = docs.length > safeSize;
+    const rows = docs.slice(0, safeSize).map(d => ({ ...d.data(), id: d.id }));
+    return { items: rows, nextCursor: hasMore ? docs[safeSize - 1] : null, hasMore };
+  }
+
+  getPhonesPage(options) { return this._getPage('phones', options); }
+  getAccessoriesPage(options) { return this._getPage('accessories', options); }
+  getSalesPage(options) { return this._getPage('sales', options); }
+  getMaintenanceJobsPage(options) { return this._getPage('maintenanceJobs', options); }
 
   /** getDocs مع تتبّع القراءة */
   async _getDocs(label, q) {
@@ -419,6 +445,17 @@ class FirebaseDatabase {
       .replace(/[۰-۹]/g, c => String(c.charCodeAt(0) - 1776)).replace(/\s+/g, '').toUpperCase();
   }
 
+  _searchTokens(...values) {
+    const normalize = value => String(value ?? '').toLowerCase().trim()
+      .replace(/[أإآ]/g, 'ا').replace(/ى/g, 'ي').replace(/ة/g, 'ه')
+      .replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
+    const tokens = new Set();
+    values.forEach(value => normalize(value).split(/\s+/).filter(Boolean).forEach(word => {
+      for (let i = 1; i <= Math.min(word.length, 12); i++) tokens.add(word.slice(0, i));
+    }));
+    return [...tokens].slice(0, 100);
+  }
+
   async _phoneKeyRef(field, value) {
     const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(this._normalizePhoneKey(value)));
     const hash = Array.from(new Uint8Array(digest), b => b.toString(16).padStart(2, '0')).join('');
@@ -456,6 +493,10 @@ class FirebaseDatabase {
       const data = { ...current.data(), ...phoneData };
       data.phone_number = this._normalizePhoneKey(data.phone_number);
       data.serial_number = this._normalizePhoneKey(data.serial_number);
+      data.normalizedBarcode = data.phone_number.toLowerCase();
+      data.normalizedSerial = data.serial_number.toLowerCase();
+      data.searchTokens = this._searchTokens(data.manufacturer || data.brand, data.model, data.phone_number, data.serial_number);
+      data.sortAt = this._canonicalSortAt(data);
       if (creating) data.sold = false;
       const reservations = await this._reservePhoneKeys(transaction, ref.id, data);
       transaction.set(ref, { ...data, ...(creating ? { createdAt: serverTimestamp() } : {}), updatedAt: serverTimestamp() });
@@ -588,6 +629,9 @@ class FirebaseDatabase {
     try {
       const docRef = await addDoc(collection(this.db, 'accessories'), {
         ...accessoryData,
+        normalizedBarcode: this._normalizePhoneKey(accessoryData.barcode || accessoryData.barcode_id || accessoryData.sku).toLowerCase(),
+        searchTokens: this._searchTokens(accessoryData.name, accessoryData.arabic_name, accessoryData.category, accessoryData.barcode, accessoryData.sku),
+        sortAt: this._canonicalSortAt(accessoryData),
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp()
       });
@@ -851,12 +895,12 @@ class FirebaseDatabase {
         transaction.update(ref, { sold: true, last_sale_id: saleRef.id, updatedAt: serverTimestamp() });
       });
 
-      transaction.set(saleRef, { ...saleData, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+      transaction.set(saleRef, { ...saleData, sortAt: this._canonicalSortAt(saleData), createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
       return { saleId: saleRef.id, accessoryUpdates, phoneIds: [...phoneIds] };
     });
 
     if (committed.reused) return committed.saleId;
-    await this._patchAddRow('sales', { id: committed.saleId, ...saleData, createdAt: new Date(), updatedAt: new Date() });
+    await this._patchAddRow('sales', { id: committed.saleId, ...saleData, sortAt: this._canonicalSortAt(saleData), createdAt: new Date(), updatedAt: new Date() });
     for (const update of committed.accessoryUpdates) {
       await this._patchUpdateRow('accessories', update.id, {
         quantity_in_stock: update.quantity, quantity: update.quantity, updatedAt: new Date()
@@ -953,6 +997,11 @@ class FirebaseDatabase {
     }
   }
 
+  async getSummary(collectionName, id) {
+    const snap = await this._getDoc(`${collectionName}:byId`, doc(this.db, collectionName, String(id)));
+    return snap.exists() ? { ...snap.data(), id: snap.id } : null;
+  }
+
   /** قراءة مستند بيع واحد بدل المجموعة كاملة */
   async getSale(saleId) {
     try {
@@ -966,6 +1015,7 @@ class FirebaseDatabase {
 
   async updateSale(saleId, saleData) {
     try {
+      if (saleData.date_created !== undefined) saleData.sortAt = this._canonicalSortAt(saleData);
       await updateDoc(doc(this.db, 'sales', saleId), {
         ...saleData,
         updatedAt: serverTimestamp()
@@ -1219,7 +1269,7 @@ class FirebaseDatabase {
         jobData.techPercent !== undefined ? jobData.techPercent : 0
       );
       const docRef = await addDoc(collection(this.db, 'maintenanceJobs'), {
-        ...jobData,
+        ...jobData, sortAt: this._canonicalSortAt(jobData),
         profit,
         techCommission,
         shopProfit,

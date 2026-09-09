@@ -55,10 +55,9 @@ service cloud.firestore {
         nonNegativeNumber(data, 'techCommission');
     }
 
-    // الحسابان يقرآن بيانات النظام، لكن الإدارة المالية والحذف العام للمدير فقط.
+    // القراءة للحسابين المعتمدين. تملك الوظائف الإدارية Admin SDK وتتجاوز القواعد.
     match /{document=**} {
       allow read: if isAuthorizedAccount();
-      allow write: if isAdmin();
     }
 
     // الموظف ينفذ العمليات التشغيلية اللازمة للإضافة والبيع والاسترجاع، دون حذف.
@@ -69,7 +68,8 @@ service cloud.firestore {
           'manufacturer', 'brand', 'model', 'phone_color', 'color', 'storage_capacity',
           'storage', 'ram', 'condition', 'phone_type', 'battery_level', 'selling_price',
           'description', 'notes', 'supplier', 'warranty', 'quantity', 'quantity_in_stock',
-          'sold', 'last_sale_id', 'updatedAt', 'date_updated'
+          'sold', 'last_sale_id', 'normalizedBarcode', 'normalizedSerial', 'searchTokens',
+          'sortAt', 'updatedAt', 'date_updated'
         ]);
     }
     match /accessories/{id} {
@@ -78,14 +78,14 @@ service cloud.firestore {
         request.resource.data.diff(resource.data).affectedKeys().hasOnly([
           'name', 'arabic_name', 'category', 'description', 'selling_price',
           'selling_price_with_vat', 'quantity', 'quantity_in_stock', 'supplier',
-          'notes', 'updatedAt', 'date_updated'
+          'notes', 'normalizedBarcode', 'searchTokens', 'sortAt', 'updatedAt', 'date_updated'
         ]);
     }
     match /sales/{id} {
       allow create: if isAuthorizedAccount() && validSale(request.resource.data);
       allow update: if isAuthorizedAccount() &&
         request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-          'date_created', 'returned', 'returned_at', 'status', 'updatedAt'
+          'date_created', 'sortAt', 'returned', 'returned_at', 'status', 'updatedAt'
         ]);
     }
     match /counters/{id} {
@@ -106,5 +106,9 @@ service cloud.firestore {
     match /maintenanceJobs/{id} {
       allow create, update: if isAuthorizedAccount() && validMaintenanceJob(request.resource.data);
     }
+    match /reps/{id} { allow create, update, delete: if isAdmin(); }
+    match /technicians/{id} { allow create, update, delete: if isAdmin(); }
+    match /payments/{id} { allow create, update, delete: if isAdmin(); }
+    // daily_summaries, monthly_summaries, summary_events ومسار الترحيل بلا كتابة من العميل.
   }
 }
