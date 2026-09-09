@@ -193,18 +193,6 @@
       }
     }catch(e){ console.warn('Firebase lookup failed:', e); }
 
-    // 3) LocalStorage fallback
-    try{
-      const arr = JSON.parse(localStorage.getItem('accessories')||'[]');
-      if(Array.isArray(arr)){
-        const found = arr.find(a => 
-          String(a.barcode)===String(barcode) || 
-          String(a.barcode_id)===String(barcode)
-        );
-        if(found) return found;
-      }
-    }catch{}
-
     return null;
   }
 

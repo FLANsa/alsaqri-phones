@@ -388,11 +388,7 @@
         const sales = await window.storage.getSales();
         salesAll = Array.isArray(sales) ? sales : [];
         console.log('✅ تم تحميل المبيعات من Firebase:', salesAll.length);
-      } else {
-        console.log('💾 تحميل المبيعات من localStorage...');
-        salesAll = JSON.parse(localStorage.getItem('sales') || '[]');
-        console.log('✅ تم تحميل المبيعات من localStorage:', salesAll.length);
-      }
+      } else throw new Error('تعذر تهيئة قاعدة البيانات');
       
       applyCurrentFilter();
       
@@ -704,8 +700,6 @@
     try {
       if (window.storage && window.storage.isFirebaseAvailable) {
         phones = await window.storage.getPhones();
-      } else {
-        phones = JSON.parse(localStorage.getItem('phones') || '[]');
       }
     } catch (error) {
       console.error('خطأ في جلب بيانات الهواتف:', error);

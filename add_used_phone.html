@@ -609,12 +609,6 @@
           phone = (map && map[String(phoneNumber)]) || null;
         }
         
-        // البحث في localStorage كبديل
-        if (!phone) {
-          const phones = JSON.parse(localStorage.getItem('phones') || '[]');
-          phone = phones.find(p => p.phone_number === phoneNumber || p.id === phoneNumber);
-        }
-        
         if (phone) {
           
           // ملء النموذج بالبيانات

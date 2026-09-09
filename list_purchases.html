@@ -538,9 +538,8 @@
   async function ensureSalesLoaded() {
     if (salesForSoldCheck && salesForSoldCheck.length > 0) return salesForSoldCheck;
     if (!invoiceSalesPromise) {
-      invoiceSalesPromise = (window.storage && window.storage.isFirebaseAvailable)
-        ? window.storage.getSales()
-        : Promise.resolve(JSON.parse(localStorage.getItem('sales') || '[]'));
+      if (!window.storage || !window.storage.isFirebaseAvailable) throw new Error('تعذر تهيئة قاعدة البيانات');
+      invoiceSalesPromise = window.storage.getSales();
     }
     try {
       salesForSoldCheck = await invoiceSalesPromise || [];
@@ -612,11 +611,7 @@
       if (window.storage && window.storage.isFirebaseAvailable) {
         phones = await window.storage.getPhones();
         console.log('✅ تم تحميل الأجهزة من Firebase:', phones.length);
-      } else {
-        console.log('💾 تحميل الأجهزة من localStorage...');
-        phones = JSON.parse(localStorage.getItem('phones') || '[]');
-        console.log('✅ تم تحميل الأجهزة من localStorage:', phones.length);
-      }
+      } else throw new Error('تعذر تهيئة قاعدة البيانات');
 
       // نقرأ المبيعات إذا لم تكن كل الأجهزة تحمل علم sold (للكشف عن المباع قديمًا)
       // أو إذا وُجد جهاز مباع — لعرض سعر البيع الفعلي من الفاتورة وزر فتحها
@@ -628,9 +623,7 @@
         try {
           if (window.storage && window.storage.isFirebaseAvailable) {
             salesForSoldCheck = await window.storage.getSales();
-          } else {
-            salesForSoldCheck = JSON.parse(localStorage.getItem('sales') || '[]');
-          }
+          } else throw new Error('تعذر تهيئة قاعدة البيانات');
         } catch (salesError) {
           console.error('❌ تعذر تحميل المبيعات (ستُعرض أسعار البيع فارغة):', salesError);
           salesForSoldCheck = [];

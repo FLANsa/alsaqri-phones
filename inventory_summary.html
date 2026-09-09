@@ -278,7 +278,7 @@
     if (phone && typeof phone.sold === 'boolean') return phone.sold;
     try {
       const phoneId = phone && (phone.id || phone.phone_number);
-      const rawSales = salesData.length > 0 ? salesData : JSON.parse(localStorage.getItem('sales') || '[]');
+      const rawSales = salesData;
       const sales = (rawSales || []).filter(s => s && s.returned !== true && s.status !== 'مسترجعة');
       return sales.some(sale =>
         Array.isArray(sale.items) &&
@@ -311,12 +311,7 @@
         const allFlagged = phones.length > 0 && phones.every(ph => typeof ph.sold === 'boolean');
         if (!allFlagged) sales = await window.storage.getSales();
         console.log('✅ تم تحميل البيانات من Firebase:', { phones: phones.length, accessories: accessories.length, sales: sales.length, soldFlagsReady: allFlagged });
-      } else {
-        console.log('💾 Firebase غير متاح، تحميل من localStorage...');
-        phones = JSON.parse(localStorage.getItem('phones') || '[]');
-        accessories = JSON.parse(localStorage.getItem('accessories') || '[]');
-        sales = JSON.parse(localStorage.getItem('sales') || '[]');
-      }
+      } else throw new Error('تعذر تهيئة قاعدة البيانات');
 
       // تصفية الهواتف المباعة - إبقاء الهواتف المتاحة فقط
       const availablePhones = phones.filter(phone => {
