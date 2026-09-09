@@ -707,34 +707,6 @@
     return true;
   }
 
-  // تسجيل الخروج
-  // ===== تحميل جميع البيانات عند فتح الصفحة =====
-  async function loadAllData() {
-    try {
-      if (window.storage && window.storage.isFirebaseAvailable) {
-        console.log('🔥 تحميل جميع البيانات من Firebase...');
-        [allPhones, allAccessories] = await Promise.all([
-          window.storage.getPhones(),
-          window.storage.getAccessories()
-        ]);
-        // مجموعة sales تُقرأ فقط قبل اكتمال أعلام sold على الهواتف
-        const allFlagged = allPhones.length > 0 && allPhones.every(p => typeof p.sold === 'boolean');
-        allSales = allFlagged ? [] : await window.storage.getSales(); // ✅ مهم لشارة مباع قبل الترحيل
-      } else throw new Error('تعذر تهيئة قاعدة البيانات. تحقق من الاتصال ثم أعد تحميل الصفحة.');
-
-      // حفظ النتائج وإعادة تعيين الصفحة الأولى
-      currentSearchResults = { phones: allPhones, accessories: allAccessories };
-      currentPage = 1;
-      
-      // عرض جميع البيانات (الـ isPhoneSold بتقرأ من allSales)
-      renderResults(allPhones, allAccessories);
-      
-    } catch (error) {
-      console.error('❌ خطأ في تحميل البيانات:', error);
-      showAlert('danger', 'حدث خطأ في تحميل البيانات');
-    }
-  }
-
   // تهيئة الصفحة
   document.addEventListener('DOMContentLoaded', async function() {
     // إعداد دعم الأرقام العربية
