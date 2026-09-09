@@ -1045,16 +1045,20 @@ class FirebaseDatabase {
 
   async addTechnician(techData) {
     try {
+      const defaultCommissionPercent = Number(techData.defaultCommissionPercent ?? 0.5);
+      if (!Number.isFinite(defaultCommissionPercent) || defaultCommissionPercent < 0 || defaultCommissionPercent > 1) {
+        throw new Error('نسبة عمولة الفني غير صالحة');
+      }
       const docRef = await addDoc(collection(this.db, 'technicians'), {
         ...techData,
         active: true,
-        defaultCommissionPercent: techData.defaultCommissionPercent || 0.5,
+        defaultCommissionPercent,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp()
       });
       await this._patchAddRow('technicians', {
         id: docRef.id, ...techData, active: true,
-        defaultCommissionPercent: techData.defaultCommissionPercent || 0.5,
+        defaultCommissionPercent,
         createdAt: new Date(), updatedAt: new Date()
       });
       console.log('✅ Technician added with ID:', docRef.id);
@@ -1373,6 +1377,7 @@ class FirebaseDatabase {
         const { profit, techCommission, shopProfit } = this.computeDerived(totalPartCost, amountCharged, techPercent);
 
         if (job.parts && Array.isArray(job.parts) && job.parts.length > 0) {
+          const costsByRep = new Map();
           job.parts.forEach(part => {
             if (!part.repId) return;
             if (!repTotals[part.repId]) {
@@ -1383,17 +1388,21 @@ class FirebaseDatabase {
                 techCommissionSum: 0, shopProfitSum: 0, revenueSum: 0
               };
             }
-            repTotals[part.repId].partCostSum += (Number(part.partCost) || 0);
+            const partCost = Number(part.partCost) || 0;
+            repTotals[part.repId].partCostSum += partCost;
+            costsByRep.set(part.repId, (costsByRep.get(part.repId) || 0) + partCost);
           });
 
-          const firstRepId = job.parts[0]?.repId;
-          if (firstRepId && repTotals[firstRepId]) {
-            repTotals[firstRepId].jobsCount++;
-            repTotals[firstRepId].profitSum += profit;
-            repTotals[firstRepId].techCommissionSum += techCommission;
-            repTotals[firstRepId].shopProfitSum += shopProfit;
-            repTotals[firstRepId].revenueSum += amountCharged;
-          }
+          const repIds = [...costsByRep.keys()];
+          const representedCost = [...costsByRep.values()].reduce((sum, cost) => sum + cost, 0);
+          repIds.forEach(repId => {
+            const share = representedCost > 0 ? costsByRep.get(repId) / representedCost : 1 / repIds.length;
+            repTotals[repId].jobsCount++;
+            repTotals[repId].profitSum += profit * share;
+            repTotals[repId].techCommissionSum += techCommission * share;
+            repTotals[repId].shopProfitSum += shopProfit * share;
+            repTotals[repId].revenueSum += amountCharged * share;
+          });
         } else if (job.repId) {
           if (!repTotals[job.repId]) {
             repTotals[job.repId] = {

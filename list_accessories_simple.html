@@ -333,9 +333,9 @@
                 <button type="button" class="btn btn-sm btn-outline-primary" onclick="editAccessory('${accessory.id || index}')" title="تعديل">
                   <i class="fas fa-edit"></i>
                 </button>
-                <button type="button" class="btn btn-sm btn-outline-danger" onclick="deleteAccessory('${accessory.id || index}')" title="حذف">
+                ${getCurrentRole() === 'admin' ? `<button type="button" class="btn btn-sm btn-outline-danger" onclick="deleteAccessory('${accessory.id || index}')" title="حذف">
                   <i class="fas fa-trash"></i>
-                </button>
+                </button>` : ''}
               </div>
             </td>
           `;

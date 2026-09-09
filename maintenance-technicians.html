@@ -361,7 +361,7 @@
             document.getElementById('editTechName').value = tech.name;
             document.getElementById('editTechPhone').value = tech.phone;
             document.getElementById('editTechEmail').value = tech.email || '';
-            document.getElementById('editTechCommission').value = (tech.defaultCommissionPercent * 100).toFixed(1);
+            document.getElementById('editTechCommission').value = ((Number(tech.defaultCommissionPercent) || 0) * 100).toFixed(1);
             document.getElementById('editTechActive').value = tech.active ? 'true' : 'false';
             document.getElementById('editTechNotes').value = tech.notes || '';
 

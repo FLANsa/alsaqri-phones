@@ -162,7 +162,9 @@
       }
     } catch (error) {
       console.error('❌ خطأ في تحميل الفئات:', error);
-      populateCategories(); // استخدام البيانات المحلية كبديل
+      const select = document.getElementById('category');
+      select.innerHTML = '<option value="">تعذر تحميل الفئات من قاعدة البيانات</option>';
+      alert('تعذر تحميل فئات الأكسسوارات. تحقق من الاتصال قبل الحفظ.');
     }
   }
 

@@ -468,7 +468,9 @@
         let repsAccounts = [];
         let techsAccounts = [];
         let payments = [];
+        let completedJobs = [];
         let currentPayment = null;
+        const actionArg = value => escapeHTML(JSON.stringify(String(value ?? '')));
 
         // Initialize page
         document.addEventListener('DOMContentLoaded', function() {
@@ -521,6 +523,7 @@
                     dateFrom: fromDate,
                     dateTo: toDate
                 });
+                completedJobs = doneJobs;
                 console.log('✅ Done jobs loaded:', doneJobs.length);
 
                 repsAccounts = await window.firebaseDatabase.getRepSettlements(fromDate, toDate, doneJobs);
@@ -599,15 +602,21 @@
             const totalTechBalance = totalTechAmount - totalTechPaid;
             
             // حساب المبالغ الأساسية فقط
-            const totalPartCosts = totalRepAmount; // تكلفة القطع من المندوبين
-            const totalTechCommissions = totalTechAmount; // عمولة الفنيين
+            const totalPartCosts = completedJobs.reduce((sum, job) => {
+                if (Array.isArray(job.parts) && job.parts.length) {
+                    return sum + job.parts.reduce((partSum, part) => partSum + (Number(part.partCost) || 0), 0);
+                }
+                return sum + (Number(job.totalPartCost ?? job.partCost) || 0);
+            }, 0);
+            const totalTechCommissions = completedJobs.reduce(
+                (sum, job) => sum + (Number(job.techCommission) || 0), 0);
             const totalProfit = [...repsAccounts, ...techsAccounts].reduce((sum, item) => sum + (item.profitSum || 0), 0);
             const totalPayments = totalRepPaid + totalTechPaid;
             
             // حساب أرباح المحل: إجمالي المبالغ المحصلة - تكلفة القطع - عمولة الفنيين
             // إجمالي المبالغ المحصلة = مجموع amountCharged من جميع أعمال الصيانة المكتملة
-            // نستخدم repsAccounts فقط لتجنب الحساب المزدوج (نفس البيانات في techsAccounts)
-            const totalRevenue = repsAccounts.reduce((sum, rep) => sum + (rep.revenueSum || 0), 0);
+            const totalRevenue = completedJobs.reduce(
+                (sum, job) => sum + (Number(job.amountCharged) || 0), 0);
             const totalShopProfit = totalRevenue - totalPartCosts - totalTechCommissions; // أرباح المحل
 
             console.log('📊 Summary calculations:');
@@ -677,10 +686,10 @@
                     </td>
                     <td><span class="status-badge status-${rep.status}">${rep.status === 'paid' ? 'مدفوع' : 'معلق'}</span></td>
                     <td>
-                        <button class="btn btn-sm btn-primary me-1" onclick="openPaymentModal('rep', '${escapeHTML(rep.repId)}')">
+                        <button class="btn btn-sm btn-primary me-1" onclick="openPaymentModal('rep', ${actionArg(rep.repId)})">
                             <i class="fas fa-credit-card"></i>
                         </button>
-                        <button class="btn btn-sm btn-success" onclick="printSingleReport('rep', '${rep.repId}')" title="طباعة تقرير">
+                        <button class="btn btn-sm btn-success" onclick="printSingleReport('rep', ${actionArg(rep.repId)})" title="طباعة تقرير">
                             <i class="fas fa-print"></i>
                         </button>
                     </td>
@@ -727,10 +736,10 @@
                     </td>
                     <td><span class="status-badge status-${tech.status}">${tech.status === 'paid' ? 'مدفوع' : 'معلق'}</span></td>
                     <td>
-                        <button class="btn btn-sm btn-primary me-1" onclick="openPaymentModal('tech', '${escapeHTML(tech.techId)}')">
+                        <button class="btn btn-sm btn-primary me-1" onclick="openPaymentModal('tech', ${actionArg(tech.techId)})">
                             <i class="fas fa-credit-card"></i>
                         </button>
-                        <button class="btn btn-sm btn-success" onclick="printSingleReport('tech', '${tech.techId}')" title="طباعة تقرير">
+                        <button class="btn btn-sm btn-success" onclick="printSingleReport('tech', ${actionArg(tech.techId)})" title="طباعة تقرير">
                             <i class="fas fa-print"></i>
                         </button>
                     </td>
@@ -760,8 +769,9 @@
                 } else if (payment.paymentDate) {
                     paymentDate = new Date(payment.paymentDate);
                 } else {
-                    paymentDate = new Date();
+                    paymentDate = null;
                 }
+                const validPaymentDate = paymentDate && !isNaN(paymentDate.getTime());
                 
                 const methodMap = {
                     'cash': 'نقداً',
@@ -774,8 +784,8 @@
                 
                 row.innerHTML = `
                     <td>
-                        <strong>${paymentDate.toLocaleDateString('ar-SA')}</strong>
-                        <br><small class="text-muted">${paymentDate.toLocaleTimeString('ar-SA')}</small>
+                        <strong>${validPaymentDate ? paymentDate.toLocaleDateString('ar-SA') : '-'}</strong>
+                        <br><small class="text-muted">${validPaymentDate ? paymentDate.toLocaleTimeString('ar-SA') : '-'}</small>
                     </td>
                     <td>
                         <span class="badge ${payment.entityType === 'rep' ? 'bg-primary' : 'bg-success'}">
@@ -791,7 +801,7 @@
                     </td>
                     <td>${escapeHTML(payment.notes || 'لا توجد ملاحظات')}</td>
                     <td>
-                        <button class="btn btn-sm btn-danger" onclick="deletePayment('${payment.id}')">
+                        <button class="btn btn-sm btn-danger" onclick="deletePayment(${actionArg(payment.id)})">
                             <i class="fas fa-trash"></i> حذف
                         </button>
                     </td>

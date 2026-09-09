@@ -633,16 +633,16 @@
 
     await displaySaleItems();
 
-    const totalAmount = currentSale.total_amount || 0;
+    const totalAmount = Number(currentSale.total_amount) || 0;
     
     // حساب الضريبة - السعر يشمل الضريبة (15%)
-    const vatRate = currentSale.vat_rate || 0.15;
+    const vatRate = Number(currentSale.vat_rate ?? 0.15);
     let subtotal, vatAmount;
     
     // إذا كانت البيانات محفوظة مسبقاً
     if (currentSale.subtotal !== undefined && currentSale.vat_amount !== undefined) {
-      subtotal = currentSale.subtotal;
-      vatAmount = currentSale.vat_amount;
+      subtotal = Number(currentSale.subtotal) || 0;
+      vatAmount = Number(currentSale.vat_amount) || 0;
     } else {
       // حساب الضريبة من المبلغ الإجمالي (السعر يشمل الضريبة)
       subtotal = totalAmount / (1 + vatRate);
@@ -722,7 +722,7 @@
         }
         
         // Add battery percentage and memory for phones
-        let productName = item.name || item.product_name;
+        let productName = item.name || item.product_name || 'غير محدد';
         if (item.type === 'phone') {
           // Add memory information
           const memory = item.phone_memory || item.memory || '';
@@ -766,14 +766,14 @@
       'case': '<span class="badge bg-info">غلاف</span>',
       'screen_protector': '<span class="badge bg-secondary">حماية شاشة</span>'
     };
-    return badges[type] || `<span class="badge bg-dark">${type}</span>`;
+    return badges[type] || `<span class="badge bg-dark">${escapeHTML(type || 'غير محدد')}</span>`;
   }
 
   function getStatusBadge(status) {
     if (status === 'مكتمل') return '<span class="badge bg-success">مكتمل</span>';
     if (status === 'مسترجعة') return '<span class="badge bg-secondary">مسترجعة</span>';
     if (status === 'ملغي') return '<span class="badge bg-danger">ملغي</span>';
-    return '<span class="badge bg-warning">' + status + '</span>';
+    return '<span class="badge bg-warning">' + escapeHTML(status || 'غير محدد') + '</span>';
   }
 
   // ---------- أدوات مساعدة للوقت/التاريخ ----------
@@ -1096,7 +1096,7 @@
 
       for (const item of currentSale.items) {
         const row = document.createElement('tr');
-        const unitPrice = item.unitPrice || item.unit_price || 0;
+        const unitPrice = Number(item.unitPrice ?? item.unit_price) || 0;
         const unitPriceWithoutVAT = unitPrice / 1.15;
         
         // البحث عن الرقم التسلسلي من قاعدة البيانات إذا لم يكن موجوداً
@@ -1109,7 +1109,7 @@
         }
         
         // Add battery percentage and memory for phones
-        let productName = item.name || item.product_name;
+        let productName = item.name || item.product_name || 'غير محدد';
         if (item.type === 'phone') {
           // Add memory information
           const memory = item.phone_memory || item.memory || '';
@@ -1128,7 +1128,7 @@
           : escapeHTML(productName);
         
         row.innerHTML = `
-          <td>${item.quantity || 1}</td>
+          <td>${Number(item.quantity ?? 1) || 0}</td>
           <td>${productWithSerial}</td>
           <td>${unitPrice.toFixed(2)}</td>
         `;
@@ -1137,15 +1137,15 @@
     }
 
     // المجاميع
-    const totalAmount = currentSale.total_amount || 0;
+    const totalAmount = Number(currentSale.total_amount) || 0;
     
     // حساب الضريبة - السعر يشمل الضريبة (15%)
-    const vatRate = currentSale.vat_rate || 0.15;
+    const vatRate = Number(currentSale.vat_rate ?? 0.15);
     let receiptSubtotal, receiptVatAmount;
     
     if (currentSale.subtotal !== undefined && currentSale.vat_amount !== undefined) {
-      receiptSubtotal = currentSale.subtotal;
-      receiptVatAmount = currentSale.vat_amount;
+      receiptSubtotal = Number(currentSale.subtotal) || 0;
+      receiptVatAmount = Number(currentSale.vat_amount) || 0;
     } else {
       receiptSubtotal = totalAmount / (1 + vatRate);
       receiptVatAmount = totalAmount - receiptSubtotal;

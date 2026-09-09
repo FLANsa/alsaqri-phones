@@ -793,7 +793,7 @@
             if (!date) return '-';
             try {
                 const d = date.seconds ? new Date(date.seconds * 1000) : new Date(date);
-                return d.toLocaleDateString('ar-SA');
+                return isNaN(d.getTime()) ? '-' : d.toLocaleDateString('ar-SA');
             } catch (e) {
                 return '-';
             }

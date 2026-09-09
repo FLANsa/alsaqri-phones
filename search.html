@@ -461,11 +461,11 @@
                           <i class="fas fa-barcode"></i>
                         </button>
                         <!-- ✅ زر حذف الجهاز -->
-                        <button type="button" class="btn btn-sm btn-outline-danger"
+                        ${getCurrentRole() === 'admin' ? `<button type="button" class="btn btn-sm btn-outline-danger"
                                 onclick="deletePhone(${actionArg(p.id || p.phone_number)})"
                                 title="حذف الجهاز">
                           <i class="fas fa-trash"></i>
-                        </button>
+                        </button>` : ''}
                       </div>
                     </td>
                   </tr>
@@ -518,9 +518,9 @@
                         ${a.barcode ? `<button type="button" class="btn btn-sm btn-outline-success" onclick="goPrintAccessoryBarcode(${actionArg(a.barcode)})" title="طباعة الباركود">
                           <i class="fas fa-barcode"></i>
                         </button>` : ''}
-                        <button type="button" class="btn btn-sm btn-outline-danger" onclick="deleteAccessory(${actionArg(a.id)})" title="حذف">
+                        ${getCurrentRole() === 'admin' ? `<button type="button" class="btn btn-sm btn-outline-danger" onclick="deleteAccessory(${actionArg(a.id)})" title="حذف">
                           <i class="fas fa-trash"></i>
-                        </button>
+                        </button>` : ''}
                       </div>
                     </td>
                   </tr>

@@ -244,6 +244,7 @@
     let cart = [];
     let saleOperationId = null;
     let isCompletingSale = false; // منع تكرار حفظ نفس العملية
+    const actionArg = value => escapeHTML(JSON.stringify(String(value ?? '')));
 
     // ملاحظة: نتوقع أن window.storage يوفّر الدوال التالية عندما تكون Firebase متاحة:
     // getPhones(), getAccessories(), getAccessoryCategories(), getSales()
@@ -298,7 +299,8 @@
         console.log('📥 Firebase:', { phones: phones.length, accessories: accessories.length, categories: accessoryCategories.length, sales: sales.length, soldFlagsReady: allFlagged });
       } catch (err) {
         console.error('❌ خطأ تحميل Firebase:', err);
-        await loadDataFromLocalStorage();
+        phones = []; accessories = []; accessoryCategories = []; sales = [];
+        alert('تعذر تحميل بيانات المخزون من قاعدة البيانات. تحقق من الاتصال ثم أعد المحاولة.');
       }
     }
   
@@ -680,8 +682,8 @@
           <div class="alert alert-success">
             <h6><i class="fas fa-mobile-alt"></i> تم العثور على الهاتف:</h6>
             <p><strong>${escapeHTML(manufacturer)} ${escapeHTML(model)}</strong></p>
-            <p>الباركود: ${barcode} | السعر: ${price} ريال | سعر الشراء: ${purchase} ريال</p>
-            <button class="btn btn-sm btn-primary" onclick="selectPhoneByBarcode('${foundPhone.id || foundPhone.phone_number}')">
+            <p>الباركود: ${escapeHTML(barcode)} | السعر: ${price} ريال | سعر الشراء: ${purchase} ريال</p>
+            <button class="btn btn-sm btn-primary" onclick="selectPhoneByBarcode(${actionArg(foundPhone.id || foundPhone.phone_number)})">
               <i class="fas fa-plus"></i> إضافة للسلة
             </button>
           </div>
@@ -699,9 +701,9 @@
           <div class="alert alert-info">
             <h6><i class="fas fa-box"></i> تم العثور على الإكسسوار:</h6>
             <p><strong>${escapeHTML(name)}</strong> (${escapeHTML(category)})</p>
-            <p>الباركود: ${barcode} | السعر: ${price} ريال | سعر الشراء: ${purchase} ريال</p>
+            <p>الباركود: ${escapeHTML(barcode)} | السعر: ${price} ريال | سعر الشراء: ${purchase} ريال</p>
             <p>الكمية المتاحة: ${quantity}</p>
-            <button class="btn btn-sm btn-primary" onclick="selectAccessoryByBarcode('${foundAccessory.id}')">
+            <button class="btn btn-sm btn-primary" onclick="selectAccessoryByBarcode(${actionArg(foundAccessory.id)})">
               <i class="fas fa-plus"></i> إضافة للسلة
             </button>
           </div>

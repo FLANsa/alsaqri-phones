@@ -10,8 +10,44 @@ service cloud.firestore {
         ];
     }
 
+    function isAdmin() {
+      return request.auth != null && request.auth.token.email == 'admin@alsaqri.store';
+    }
+
+    // الحسابان يقرآن بيانات النظام، لكن الإدارة المالية والحذف العام للمدير فقط.
     match /{document=**} {
-      allow read, write: if isAuthorizedAccount();
+      allow read: if isAuthorizedAccount();
+      allow write: if isAdmin();
+    }
+
+    // الموظف ينفذ العمليات التشغيلية اللازمة للإضافة والبيع والاسترجاع، دون حذف.
+    match /phones/{id} {
+      allow create, update: if isAuthorizedAccount();
+    }
+    match /accessories/{id} {
+      allow create, update: if isAuthorizedAccount();
+    }
+    match /sales/{id} {
+      allow create: if isAuthorizedAccount();
+      allow update: if isAuthorizedAccount() &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'date_created', 'returned', 'returned_at', 'status', 'updatedAt'
+        ]);
+    }
+    match /counters/{id} {
+      allow create, update: if isAuthorizedAccount();
+    }
+    match /phone_keys/{id} {
+      allow create, update: if isAuthorizedAccount();
+    }
+    match /phone_types/{id} {
+      allow create, update, delete: if isAuthorizedAccount();
+    }
+    match /accessory_categories/{id} {
+      allow create, update, delete: if isAuthorizedAccount();
+    }
+    match /maintenanceJobs/{id} {
+      allow create, update: if isAuthorizedAccount();
     }
   }
 }
