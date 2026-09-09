@@ -471,6 +471,8 @@
           notes: document.getElementById('notes').value.trim(),
           date_added: new Date().toISOString()
         };
+        accessoryData.purchase_price_with_vat = accessoryData.purchase_price;
+        accessoryData.selling_price_with_vat = accessoryData.selling_price;
 
         // التحقق من البيانات المطلوبة
         if (!accessoryData.name) {
@@ -529,25 +531,7 @@
             showAlert('danger', 'فشل في حفظ الأكسسوار في قاعدة البيانات');
             return false;
           }
-        } else {
-          console.log('💾 Firebase غير متاح، حفظ في localStorage...');
-          // حفظ في LocalStorage كبديل
-          const accessories = JSON.parse(localStorage.getItem('accessories') || '[]');
-          accessoryData.id = Date.now().toString();
-          accessories.push(accessoryData);
-          localStorage.setItem('accessories', JSON.stringify(accessories));
-          try {
-            localStorage.setItem('lastAddedAccessory', JSON.stringify(accessoryData));
-          } catch (_) {}
-          console.log('✅ تم حفظ الأكسسوار في localStorage');
-          console.log('🏷️ الباركود:', accessoryData.barcode);
-          showAlert('success', 'تم إضافة الأكسسوار بنجاح! (محلي)');
-          
-          // إظهار زر طباعة الباركود
-          document.getElementById('printBarcodeBtn').style.display = 'inline-block';
-          
-          return true;
-        }
+        } else throw new Error('يلزم الاتصال بقاعدة البيانات لإضافة الأكسسوار');
       } catch (error) {
         console.error('❌ خطأ في حفظ الأكسسوار:', error);
         showAlert('danger', 'حدث خطأ في حفظ الأكسسوار. حاول مرة أخرى.');

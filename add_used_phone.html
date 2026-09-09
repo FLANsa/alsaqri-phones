@@ -525,16 +525,7 @@
           if(window.storage && window.storage.isFirebaseAvailable){
             // تحديث في Firebase
             savedOK = await window.storage.updatePhone(window.editingPhoneId, phoneData);
-          } else {
-            // تحديث في localStorage
-            const arr = JSON.parse(localStorage.getItem('phones')||'[]');
-            const index = arr.findIndex(p => p.id === window.editingPhoneId || p.phone_number === window.editingPhoneId);
-            if (index !== -1) {
-              arr[index] = { ...arr[index], ...phoneData };
-              localStorage.setItem('phones', JSON.stringify(arr));
-              savedOK = true;
-            }
-          }
+          } else throw new Error('يلزم الاتصال بقاعدة البيانات لتعديل الهاتف');
           
           if(savedOK){
             showAlert('success', 'تم تحديث الهاتف المستعمل بنجاح!');
@@ -555,13 +546,7 @@
               alert(msg);
               return false;
             }
-          }else{
-            const arr = JSON.parse(localStorage.getItem('phones')||'[]'); 
-            phoneData.id=Date.now().toString(); 
-            arr.push(phoneData);
-            localStorage.setItem('phones', JSON.stringify(arr));
-            savedOK = true;
-          }
+          } else throw new Error('يلزم الاتصال بقاعدة البيانات لإضافة الهاتف');
 
           if(savedOK){
             const shouldPrint = confirm('✅ تم إضافة الهاتف المستعمل!\n\nهل تريد طباعة الباركود؟');
@@ -574,7 +559,7 @@
       }catch(err){
         console.error(err);
         if (err && (err.code === 'resource-exhausted' || err.code === 'quota-exceeded')) {
-          alert('⚠️ تم الوصول للحد المسموح به من عمليات Firestore في الخطة الحالية.\n\nتم حفظ بيانات الجهاز محلياً فقط، ويمكنك الاستمرار في طباعة الباركود واستخدام النظام، لكن لن يتم رفع الجهاز إلى السحابة الآن.');
+          alert('⚠️ تم الوصول للحد المسموح به من عمليات Firestore. لم يتم حفظ الجهاز؛ حاول لاحقاً.');
         } else {
           alert('❌ حدث خطأ في حفظ الهاتف. حاول مرة أخرى أو تحقق من الاتصال بالإنترنت.');
         }

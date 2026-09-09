@@ -267,8 +267,8 @@
         console.log('✅ Firebase متاح في صفحة المبيعات');
         await loadDataFromFirebase();
       } else {
-        console.log('💾 استخدام localStorage كبديل');
-        await loadDataFromLocalStorage();
+        phones = []; accessories = []; accessoryCategories = []; sales = [];
+        alert('تعذر تهيئة قاعدة البيانات. تحقق من الاتصال ثم أعد تحميل الصفحة.');
       }
       updateProductTypeDropdown();
       setupArabicNumberSupport();
@@ -301,19 +301,6 @@
         console.error('❌ خطأ تحميل Firebase:', err);
         phones = []; accessories = []; accessoryCategories = []; sales = [];
         alert('تعذر تحميل بيانات المخزون من قاعدة البيانات. تحقق من الاتصال ثم أعد المحاولة.');
-      }
-    }
-  
-    async function loadDataFromLocalStorage() {
-      try {
-        phones = JSON.parse(localStorage.getItem('phones') || '[]');
-        accessories = JSON.parse(localStorage.getItem('accessories') || '[]');
-        accessoryCategories = JSON.parse(localStorage.getItem('accessory_categories') || '[]');
-        sales = JSON.parse(localStorage.getItem('sales') || '[]');
-        console.log('📦 localStorage:', { phones: phones.length, accessories: accessories.length, categories: accessoryCategories.length, sales: sales.length });
-      } catch (err) {
-        console.error('❌ خطأ تحميل localStorage:', err);
-        phones = []; accessories = []; accessoryCategories = []; sales = [];
       }
     }
   

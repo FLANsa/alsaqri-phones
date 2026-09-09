@@ -206,8 +206,8 @@
     document.getElementById('name').value = currentAccessory.arabic_name || currentAccessory.name || "";
     document.getElementById('category').value = currentAccessory.category || "";
     document.getElementById('description').value = currentAccessory.description || "";
-    document.getElementById('purchase_price').value = currentAccessory.purchase_price ?? "";
-    document.getElementById('selling_price').value = currentAccessory.selling_price ?? "";
+    document.getElementById('purchase_price').value = currentAccessory.purchase_price_with_vat ?? currentAccessory.purchase_price ?? "";
+    document.getElementById('selling_price').value = currentAccessory.selling_price_with_vat ?? currentAccessory.selling_price ?? "";
     document.getElementById('quantity').value = currentAccessory.quantity_in_stock ?? currentAccessory.quantity ?? 0;
     document.getElementById('supplier').value = currentAccessory.supplier || "";
     document.getElementById('notes').value = currentAccessory.notes || "";
@@ -272,6 +272,8 @@
           return;
         }
         payload.quantity_in_stock = payload.quantity;
+        payload.purchase_price_with_vat = payload.purchase_price;
+        payload.selling_price_with_vat = payload.selling_price;
         const ok = await window.storage.updateAccessory(currentAccessoryId, payload);
         if (ok) {
           console.log('✅ تم تحديث الأكسسوار في Firebase:', currentAccessoryId);

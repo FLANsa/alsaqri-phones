@@ -119,7 +119,7 @@ class FirebaseStorageManager {
         throw error;
       }
     }
-    return this.getItem(CONFIG.STORAGE_KEYS.PHONES, []);
+    throw new Error('تعذر تهيئة قاعدة البيانات لقراءة الهواتف');
   }
 
   async setPhones(phones) {
@@ -127,7 +127,7 @@ class FirebaseStorageManager {
       console.log('Firebase mode: phones are managed individually');
       return true;
     }
-    return this.setItem(CONFIG.STORAGE_KEYS.PHONES, phones);
+    throw new Error('يلزم الاتصال بقاعدة البيانات لتعديل الهواتف');
   }
 
   async addPhone(phone) {
@@ -142,38 +142,7 @@ class FirebaseStorageManager {
       }
     }
     
-    // LocalStorage fallback
-    const phones = await this.getPhones();
-    const arr = Array.isArray(phones) ? phones : [];
-    // إذا حصل تكرار، نعيد توليد رقم جديد من أقصى رقم موجود + 1
-    let isDup = arr.some(p => String(p.phone_number || '') === String(phone.phone_number || ''));
-    if (isDup) {
-      console.warn('⚠️ (local) رقم الباركود مكرر، جاري إعادة التوليد من أقصى رقم موجود...', phone.phone_number);
-      const numbers = arr
-        .map(p => parseInt(String(p.phone_number || '0').replace(/\D/g, ''), 10))
-        .filter(n => !isNaN(n) && n > 0);
-      let next = numbers.length ? Math.max(...numbers) + 1 : 1;
-      // مزامنة العداد المحلي أيضاً حتى لا يتكرر الخطأ
-      try {
-        const localRaw = parseInt(localStorage.getItem('localDeviceCounter') || '0', 10) || 0;
-        if (next - 1 > localRaw) localStorage.setItem('localDeviceCounter', String(next - 1));
-      } catch (_) {}
-      let attempts = 0;
-      while (arr.some(p => String(p.phone_number || '') === String(next).padStart(6, '0')) && attempts < 10) {
-        next++;
-        attempts++;
-      }
-      phone.phone_number = String(next).padStart(6, '0');
-      isDup = arr.some(p => String(p.phone_number || '') === String(phone.phone_number || ''));
-      if (isDup) {
-        throw new Error('تعذّر توليد رقم باركود فريد بعد عدة محاولات.');
-      }
-      console.log('✅ (local) تم توليد رقم باركود جديد:', phone.phone_number);
-    }
-    phone.id = this.generateId();
-    phone.date_added = new Date().toISOString();
-    arr.push(phone);
-    return await this.setPhones(arr) ? phone.id : false;
+    throw new Error('يلزم الاتصال بقاعدة البيانات لإضافة هاتف');
   }
 
   /** البحث عن جهاز متاح (غير مباع) بنفس الرقم التسلسلي — لمنع التسجيل المكرر */
@@ -208,14 +177,7 @@ class FirebaseStorageManager {
       }
     }
 
-    // LocalStorage fallback
-    const phones = await this.getPhones();
-    const index = phones.findIndex(p => p.id === phoneId);
-    if (index !== -1) {
-      phones[index] = { ...phones[index], ...updatedPhone };
-      return this.setPhones(phones);
-    }
-    return false;
+    throw new Error('يلزم الاتصال بقاعدة البيانات لتعديل هاتف');
   }
 
   async deletePhone(phoneId) {
@@ -229,10 +191,7 @@ class FirebaseStorageManager {
       }
     }
 
-    // LocalStorage fallback
-    const phones = await this.getPhones();
-    const filteredPhones = phones.filter(p => p.id !== phoneId);
-    return this.setPhones(filteredPhones);
+    throw new Error('يلزم الاتصال بقاعدة البيانات لحذف هاتف');
   }
 
   async returnSaleAtomically(saleId) {
@@ -336,7 +295,7 @@ class FirebaseStorageManager {
         throw error;
       }
     }
-    return this.getItem(CONFIG.STORAGE_KEYS.ACCESSORIES, []);
+    throw new Error('تعذر تهيئة قاعدة البيانات لقراءة الأكسسوارات');
   }
 
   async setAccessories(accessories) {
@@ -344,7 +303,7 @@ class FirebaseStorageManager {
       console.log('Firebase mode: accessories are managed individually');
       return true;
     }
-    return this.setItem(CONFIG.STORAGE_KEYS.ACCESSORIES, accessories);
+    throw new Error('يلزم الاتصال بقاعدة البيانات لتعديل الأكسسوارات');
   }
 
   async addAccessory(accessory) {
@@ -361,15 +320,7 @@ class FirebaseStorageManager {
       }
     }
     
-    console.log('💾 Storage Manager: Firebase غير متاح، حفظ في localStorage...');
-    // LocalStorage fallback
-    const accessories = await this.getAccessories();
-    accessory.id = this.generateId();
-    accessory.date_added = new Date().toISOString();
-    accessories.push(accessory);
-    const result = this.setAccessories(accessories);
-    console.log('✅ Storage Manager: تم حفظ الأكسسوار في localStorage');
-    return result;
+    throw new Error('يلزم الاتصال بقاعدة البيانات لإضافة أكسسوار');
   }
 
   async updateAccessory(accessoryId, updatedAccessory) {
@@ -383,14 +334,7 @@ class FirebaseStorageManager {
       }
     }
 
-    // LocalStorage fallback
-    const accessories = await this.getAccessories();
-    const index = accessories.findIndex(a => a.id === accessoryId);
-    if (index !== -1) {
-      accessories[index] = { ...accessories[index], ...updatedAccessory };
-      return this.setAccessories(accessories);
-    }
-    return false;
+    throw new Error('يلزم الاتصال بقاعدة البيانات لتعديل أكسسوار');
   }
 
   async deleteAccessory(accessoryId) {
@@ -404,10 +348,7 @@ class FirebaseStorageManager {
       }
     }
 
-    // LocalStorage fallback
-    const accessories = await this.getAccessories();
-    const filteredAccessories = accessories.filter(a => a.id !== accessoryId);
-    return this.setAccessories(filteredAccessories);
+    throw new Error('يلزم الاتصال بقاعدة البيانات لحذف أكسسوار');
   }
 
   /**
@@ -422,7 +363,7 @@ class FirebaseStorageManager {
         throw error;
       }
     }
-    return this.getItem(CONFIG.STORAGE_KEYS.SALES, []);
+    throw new Error('تعذر تهيئة قاعدة البيانات لقراءة المبيعات');
   }
 
   async getSalesInRange(from, to) {
@@ -455,7 +396,7 @@ class FirebaseStorageManager {
       console.log('Firebase mode: sales are managed individually');
       return true;
     }
-    return this.setItem(CONFIG.STORAGE_KEYS.SALES, sales);
+    throw new Error('يلزم الاتصال بقاعدة البيانات لتعديل المبيعات');
   }
 
   async updateSale(saleId, updatedSale) {
@@ -469,14 +410,7 @@ class FirebaseStorageManager {
       }
     }
 
-    // LocalStorage fallback
-    const sales = await this.getSales();
-    const index = sales.findIndex(s => s.id === saleId);
-    if (index !== -1) {
-      sales[index] = { ...sales[index], ...updatedSale };
-      return this.setSales(sales);
-    }
-    return false;
+    throw new Error('يلزم الاتصال بقاعدة البيانات لتعديل فاتورة');
   }
 
   /**
@@ -514,7 +448,7 @@ class FirebaseStorageManager {
       console.log('Firebase mode: phone types are managed individually');
       return true;
     }
-    return this.setItem(CONFIG.STORAGE_KEYS.PHONE_TYPES, phoneTypes);
+    throw new Error('يلزم الاتصال بقاعدة البيانات لتعديل أنواع الهواتف');
   }
 
   async addPhoneType(brand, model) {
@@ -528,16 +462,7 @@ class FirebaseStorageManager {
       }
     }
     
-    // LocalStorage fallback
-    const phoneTypes = await this.getPhoneTypes() || {};
-    if (!phoneTypes[brand]) {
-      phoneTypes[brand] = [];
-    }
-    if (!phoneTypes[brand].includes(model)) {
-      phoneTypes[brand].push(model);
-      return this.setPhoneTypes(phoneTypes);
-    }
-    return false;
+    throw new Error('يلزم الاتصال بقاعدة البيانات لإضافة نوع هاتف');
   }
 
   async deletePhoneType(brand, model) {
@@ -551,16 +476,7 @@ class FirebaseStorageManager {
       }
     }
     
-    // LocalStorage fallback
-    const phoneTypes = await this.getPhoneTypes() || {};
-    if (phoneTypes[brand]) {
-      phoneTypes[brand] = phoneTypes[brand].filter(m => m !== model);
-      if (phoneTypes[brand].length === 0) {
-        delete phoneTypes[brand];
-      }
-      return this.setPhoneTypes(phoneTypes);
-    }
-    return false;
+    throw new Error('يلزم الاتصال بقاعدة البيانات لحذف نوع هاتف');
   }
 
   /**
@@ -583,7 +499,7 @@ class FirebaseStorageManager {
       console.log('Firebase mode: accessory categories are managed individually');
       return true;
     }
-    return this.setItem(CONFIG.STORAGE_KEYS.ACCESSORY_CATEGORIES, categories);
+    throw new Error('يلزم الاتصال بقاعدة البيانات لتعديل فئات الأكسسوارات');
   }
 
   async addAccessoryCategory(category) {
@@ -597,14 +513,7 @@ class FirebaseStorageManager {
       }
     }
     
-    // LocalStorage fallback
-    const categories = await this.getAccessoryCategories() || [];
-    const exists = categories.find(c => c.name === category.name || c.arabic_name === category.arabic_name);
-    if (!exists) {
-      categories.push(category);
-      return this.setAccessoryCategories(categories);
-    }
-    return false;
+    throw new Error('يلزم الاتصال بقاعدة البيانات لإضافة فئة أكسسوار');
   }
 
   async deleteAccessoryCategory(categoryName) {
@@ -618,10 +527,7 @@ class FirebaseStorageManager {
       }
     }
     
-    // LocalStorage fallback
-    const categories = await this.getAccessoryCategories() || [];
-    const filteredCategories = categories.filter(c => c.arabic_name !== categoryName);
-    return this.setAccessoryCategories(filteredCategories);
+    throw new Error('يلزم الاتصال بقاعدة البيانات لحذف فئة أكسسوار');
   }
 
   /**

@@ -279,12 +279,6 @@
           }
         }
         
-        // البحث في localStorage كبديل
-        if (!phone) {
-          const phones = JSON.parse(localStorage.getItem('phones') || '[]');
-          phone = phones.find(p => p.phone_number === phoneNumber || p.id === phoneNumber);
-        }
-        
         if (phone) {
           currentPhone = phone;
           
@@ -445,16 +439,7 @@
         if (window.storage && window.storage.isFirebaseAvailable) {
           // تحديث في Firebase
           savedOK = await window.storage.updatePhone(currentPhone.id || currentPhone.phone_number, updatedPhoneData);
-        } else {
-          // تحديث في localStorage
-          const arr = JSON.parse(localStorage.getItem('phones') || '[]');
-          const index = arr.findIndex(p => p.id === currentPhone.id || p.phone_number === currentPhone.phone_number);
-          if (index !== -1) {
-            arr[index] = { ...arr[index], ...updatedPhoneData };
-            localStorage.setItem('phones', JSON.stringify(arr));
-            savedOK = true;
-          }
-        }
+        } else throw new Error('يلزم الاتصال بقاعدة البيانات لتعديل الهاتف');
         
         if (savedOK) {
           showAlert('success', 'تم تحديث بيانات الهاتف بنجاح!');

@@ -261,6 +261,8 @@
   // البيانات تُجلب مرة واحدة لكل زيارة صفحة ثم تُفلتر في الذاكرة —
   // كل بحث إضافي لا يكلف أي قراءة جديدة من Firestore
   let inventoryDataLoaded = false;
+  let inventoryLoadedAt = 0;
+  const INVENTORY_REFRESH_MS = 30 * 1000;
 
   async function handleSearch(e){
     e.preventDefault();
@@ -277,7 +279,7 @@
 
     try {
       // تحميل البيانات من Firebase أو localStorage (أول بحث فقط)
-      if (!inventoryDataLoaded) {
+      if (!inventoryDataLoaded || Date.now() - inventoryLoadedAt > INVENTORY_REFRESH_MS) {
         if (window.storage && window.storage.isFirebaseAvailable) {
           console.log('🔥 تحميل البيانات من Firebase للبحث...');
           [allPhones, allAccessories] = await Promise.all([
@@ -288,14 +290,9 @@
           const allFlagged = allPhones.length > 0 && allPhones.every(p => typeof p.sold === 'boolean');
           allSales = allFlagged ? [] : await window.storage.getSales();
           console.log('📥 مجموعات محملة:', { هواتف: allPhones.length, أكسسوارات: allAccessories.length, مبيعات: allSales.length, 'أعلام sold جاهزة': allFlagged });
-        } else {
-          console.log('💾 Firebase غير متاح، تحميل من localStorage...');
-          allPhones = JSON.parse(localStorage.getItem('phones') || '[]');
-          allAccessories = JSON.parse(localStorage.getItem('accessories') || '[]');
-          allSales = JSON.parse(localStorage.getItem('sales') || '[]');
-          console.log('📥 مجموعات محملة (محلي):', { هواتف: allPhones.length, أكسسوارات: allAccessories.length, مبيعات: allSales.length });
-        }
+        } else throw new Error('تعذر تهيئة قاعدة البيانات. تحقق من الاتصال ثم أعد تحميل الصفحة.');
         inventoryDataLoaded = true;
+        inventoryLoadedAt = Date.now();
       }
 
       // لم نعد نحتاج Set لأننا سنستخدم isPhoneSold مباشرة
@@ -671,6 +668,8 @@
       if (window.storage && window.storage.isFirebaseAvailable) {
         const success = await window.storage.deleteAccessory(accessoryId);
         if (success) {
+          allAccessories = allAccessories.filter(a => String(a.id) !== String(accessoryId));
+          inventoryDataLoaded = false;
           showAlert('success', 'تم حذف الأكسسوار بنجاح');
           // إعادة البحث لعرض النتائج المحدثة
           document.getElementById('searchForm').dispatchEvent(new Event('submit'));
@@ -729,12 +728,7 @@
         // مجموعة sales تُقرأ فقط قبل اكتمال أعلام sold على الهواتف
         const allFlagged = allPhones.length > 0 && allPhones.every(p => typeof p.sold === 'boolean');
         allSales = allFlagged ? [] : await window.storage.getSales(); // ✅ مهم لشارة مباع قبل الترحيل
-      } else {
-        console.log('💾 Firebase غير متاح، تحميل من localStorage...');
-        allPhones = JSON.parse(localStorage.getItem('phones') || '[]');
-        allAccessories = JSON.parse(localStorage.getItem('accessories') || '[]');
-        allSales = JSON.parse(localStorage.getItem('sales') || '[]'); // ✅ مهم
-      }
+      } else throw new Error('تعذر تهيئة قاعدة البيانات. تحقق من الاتصال ثم أعد تحميل الصفحة.');
 
       // حفظ النتائج وإعادة تعيين الصفحة الأولى
       currentSearchResults = { phones: allPhones, accessories: allAccessories };
@@ -857,17 +851,12 @@
         console.log('🔥 حذف من Firebase...');
         await window.storage.deletePhone(phoneId);
         console.log('✅ تم الحذف من Firebase بنجاح');
-      } else {
-        // حذف من localStorage
-        console.log('💾 حذف من localStorage...');
-        const phones = JSON.parse(localStorage.getItem('phones') || '[]');
-        const updatedPhones = phones.filter(p => p.id !== phoneId && p.phone_number !== phoneId);
-        localStorage.setItem('phones', JSON.stringify(updatedPhones));
-        console.log('✅ تم الحذف من localStorage بنجاح');
-      }
+      } else throw new Error('يلزم الاتصال بقاعدة البيانات لحذف الجهاز');
 
       // إعادة تحميل البيانات وعرض النتائج
       await loadAllData();
+      inventoryDataLoaded = true;
+      inventoryLoadedAt = Date.now();
       
       showAlert('success', 'تم حذف الجهاز بنجاح');
       console.log('✅ تم حذف الجهاز بنجاح');
@@ -877,6 +866,11 @@
       showAlert('danger', 'حدث خطأ في حذف الجهاز. حاول مرة أخرى.');
     }
   }
+
+  window.addEventListener('online', () => { inventoryDataLoaded = false; });
+  window.addEventListener('focus', () => {
+    if (Date.now() - inventoryLoadedAt > INVENTORY_REFRESH_MS) inventoryDataLoaded = false;
+  });
 </script>
 
 <!-- Navigation Script -->

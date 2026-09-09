@@ -623,22 +623,25 @@
           if (sale.items && Array.isArray(sale.items)) {
             sale.items.forEach(item => {
               const sellingPrice = Number(item.unitPrice ?? item.unit_price ?? 0) || 0;
-              const quantity = Number(item.quantity ?? 1) || 1;
+              const rawQuantity = Number(item.quantity ?? 1);
+              const quantity = Number.isFinite(rawQuantity) && rawQuantity >= 0 ? rawQuantity : 0;
               const totalSellingPrice = sellingPrice * quantity;
 
-              let purchasePrice = 0;
-              if (item.type === 'phone') {
+              let purchasePrice = Number(item.purchasePrice ?? item.purchase_price);
+              if (!Number.isFinite(purchasePrice) && item.type === 'phone') {
                 const phone = phones.find(p => 
                   p.id === item.id || p.phone_id === item.id || p.phone_number === item.id
                 );
-                purchasePrice = Number(phone?.purchase_price_with_vat ?? phone?.purchase_price ?? 0) || 0;
-              } else {
+                purchasePrice = Number(phone?.purchase_price_with_vat ?? phone?.purchase_price);
+              } else if (!Number.isFinite(purchasePrice) && item.type === 'accessory') {
                 const accessory = accessories.find(a => a.id === item.id || a.sku === item.id);
-                purchasePrice = Number(accessory?.purchase_price_with_vat ?? accessory?.purchase_price ?? 0) || 0;
+                purchasePrice = Number(accessory?.purchase_price_with_vat ?? accessory?.purchase_price);
               }
+              if (!Number.isFinite(purchasePrice)) purchasePrice = 0;
 
               const totalPurchasePrice = purchasePrice * quantity;
-              totalActualProfit += (totalSellingPrice - totalPurchasePrice);
+              const savedProfit = Number(item.totalProfit ?? item.total_profit);
+              totalActualProfit += Number.isFinite(savedProfit) ? savedProfit : (totalSellingPrice - totalPurchasePrice);
               totalPurchaseCost += totalPurchasePrice;
             });
           }

@@ -163,6 +163,7 @@
     
     // مصفوفة الأكسسوارات المحمّلة (تستخدمها الجدول والتعديل والحذف)
     let accessories = [];
+    const actionArg = value => escapeHTML(JSON.stringify(String(value ?? '')));
 
     // خريطة الفئات
     const categoryMap = {
@@ -330,10 +331,10 @@
             <td>${formatDate(accessory.date_added || accessory.createdAt)}</td>
             <td>
               <div class="btn-group" role="group">
-                <button type="button" class="btn btn-sm btn-outline-primary" onclick="editAccessory('${accessory.id || index}')" title="تعديل">
+                <button type="button" class="btn btn-sm btn-outline-primary" onclick="editAccessory(${actionArg(accessory.id || index)})" title="تعديل">
                   <i class="fas fa-edit"></i>
                 </button>
-                ${getCurrentRole() === 'admin' ? `<button type="button" class="btn btn-sm btn-outline-danger" onclick="deleteAccessory('${accessory.id || index}')" title="حذف">
+                ${getCurrentRole() === 'admin' ? `<button type="button" class="btn btn-sm btn-outline-danger" onclick="deleteAccessory(${actionArg(accessory.id || index)})" title="حذف">
                   <i class="fas fa-trash"></i>
                 </button>` : ''}
               </div>
@@ -402,10 +403,10 @@
         const newQuantity = prompt('الكمية:', accessory.quantity_in_stock ?? accessory.quantity ?? 0);
         if (newQuantity === null) return;
         
-        const newPurchasePrice = prompt('سعر الشراء (بدون ضريبة):', accessory.purchase_price);
+        const newPurchasePrice = prompt('سعر الشراء (شامل الضريبة):', accessory.purchase_price_with_vat ?? accessory.purchase_price);
         if (newPurchasePrice === null) return;
         
-        const newSellingPrice = prompt('سعر البيع (بدون ضريبة):', accessory.selling_price);
+        const newSellingPrice = prompt('سعر البيع (شامل الضريبة):', accessory.selling_price_with_vat ?? accessory.selling_price);
         if (newSellingPrice === null) return;
 
         // التحقق من صحة البيانات
@@ -442,8 +443,8 @@
           quantity: convertedQuantity,
           purchase_price: convertedPurchasePrice,
           selling_price: convertedSellingPrice,
-          purchase_price_with_vat: convertedPurchasePrice * (1 + VAT_RATE),
-          selling_price_with_vat: convertedSellingPrice * (1 + VAT_RATE),
+          purchase_price_with_vat: convertedPurchasePrice,
+          selling_price_with_vat: convertedSellingPrice,
           date_updated: new Date().toISOString()
         };
 
