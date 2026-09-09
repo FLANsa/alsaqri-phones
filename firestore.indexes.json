@@ -1,8 +1,5 @@
 {
   "indexes": [
-    {"collectionGroup":"sales","queryScope":"COLLECTION","fields":[{"fieldPath":"sortAt","order":"DESCENDING"}]},
-    {"collectionGroup":"phones","queryScope":"COLLECTION","fields":[{"fieldPath":"sortAt","order":"DESCENDING"}]},
-    {"collectionGroup":"accessories","queryScope":"COLLECTION","fields":[{"fieldPath":"sortAt","order":"DESCENDING"}]},
     {"collectionGroup":"maintenanceJobs","queryScope":"COLLECTION","fields":[{"fieldPath":"status","order":"ASCENDING"},{"fieldPath":"sortAt","order":"DESCENDING"}]}
   ],
   "fieldOverrides": []
