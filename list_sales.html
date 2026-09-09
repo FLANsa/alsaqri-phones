@@ -244,6 +244,7 @@
 <script type="module" src="js/firebase-config-cdn.js?v=20260119"></script>
 <script type="module" src="js/firebase-database-cdn.js?v=20260119"></script>
 <script type="module" src="js/firebase-storage-manager.js?v=20260119"></script>
+<script type="module" src="js/repositories.js?v=20260910"></script>
 
 <!-- Firebase Integration: Load sales from database -->
 <script>
@@ -252,6 +253,8 @@
   let currentFilteredSales = [];
   let currentPage = 1;
   const pageSize = 20;
+  let salesNextCursor = null;
+  let salesHasMore = false;
 
   // ---------- دعم الأرقام العربية ----------
   function convertArabicToEnglishNumbers(str) {
@@ -384,10 +387,12 @@
     try {
       console.log('🔄 تحميل قائمة المبيعات من Firebase...');
       
-      if (window.storage && window.storage.isFirebaseAvailable) {
-        const sales = await window.storage.getSales();
-        salesAll = Array.isArray(sales) ? sales : [];
-        console.log('✅ تم تحميل المبيعات من Firebase:', salesAll.length);
+      if (window.dataRepositories?.salesRepository) {
+        const page = await window.dataRepositories.salesRepository.getPage({ pageSize });
+        salesAll = Array.isArray(page.items) ? page.items : [];
+        salesNextCursor = page.nextCursor || null;
+        salesHasMore = page.hasMore === true;
+        console.log('✅ تم تحميل أول صفحة من المبيعات:', salesAll.length);
       } else throw new Error('تعذر تهيئة قاعدة البيانات');
       
       applyCurrentFilter();
@@ -656,7 +661,11 @@
   function renderPagination(totalPages) {
     const container = document.getElementById('sales_pagination');
     if (!container) return;
-    if (totalPages <= 1) { container.innerHTML = ''; return; }
+    if (totalPages <= 1 && !salesHasMore) { container.innerHTML = ''; return; }
+    if (totalPages <= 1 && salesHasMore) {
+      container.innerHTML = '<nav><ul class="pagination"><li class="page-item"><a class="page-link" href="#" onclick="gotoPage(2); return false;">تحميل الصفحة التالية</a></li></ul></nav>';
+      return;
+    }
 
     let html = '<nav><ul class="pagination">';
     const disabledPrev = (currentPage === 1) ? ' disabled' : '';
@@ -678,8 +687,25 @@
     container.innerHTML = html;
   }
 
-  function gotoPage(p) {
+  async function gotoPage(p) {
     if (p < 1) return;
+    if (p > 1 && salesNextCursor && window.dataRepositories?.salesRepository) {
+      try {
+        const page = await window.dataRepositories.salesRepository.getPage({ cursor: salesNextCursor, pageSize });
+        salesAll = Array.isArray(page.items) ? page.items : [];
+        currentFilteredSales = salesAll;
+        salesNextCursor = page.nextCursor || null;
+        salesHasMore = page.hasMore === true;
+        currentPage = 1;
+        renderSales(currentFilteredSales, 'all', '', 'لم يتم إنشاء أي مبيعات بعد');
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+        return;
+      } catch (error) {
+        console.error('تعذر تحميل الصفحة التالية من المبيعات', error);
+        showAlert('danger', 'تعذر تحميل الصفحة التالية');
+        return;
+      }
+    }
     currentPage = p;
     // أعد الرسم بالاعتماد على الفلتر الحالي المخزن
     renderSales(currentFilteredSales, 'all', '', 'لم يتم إنشاء أي مبيعات بعد');
