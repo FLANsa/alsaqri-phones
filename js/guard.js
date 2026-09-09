@@ -109,10 +109,14 @@ function initPageGuard() {
 
     waitForFirebaseAuth(function (auth) {
         // onAuthStateChanged: متاح كدالة instance في modular SDK
-        auth.onAuthStateChanged(function (fbUser) {
+        auth.onAuthStateChanged(async function (fbUser) {
             if (!fbUser) {
                 // لا جلسة Firebase = خروج/متصفح جديد — نمسح بقايا localStorage القديمة
                 localStorage.removeItem('current_user');
+                // لا نترك لقطة بيانات التطبيق في IndexedDB بعد انتهاء الجلسة تلقائياً.
+                if (window.firebaseDatabase && typeof window.firebaseDatabase.clearAllCache === 'function') {
+                    try { await window.firebaseDatabase.clearAllCache(); } catch (_) {}
+                }
                 window.location.href = 'login.html';
                 return;
             }

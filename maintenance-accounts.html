@@ -562,7 +562,7 @@
             // Calculate reps balances
             repsAccounts.forEach(rep => {
                 const repPayments = payments.filter(p => p.entityType === 'rep' && p.entityId === rep.repId);
-                rep.totalPaid = repPayments.reduce((sum, p) => sum + p.amount, 0);
+                rep.totalPaid = repPayments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
                 rep.balance = rep.partCostSum - rep.totalPaid;
                 // Only mark as paid if there was actually money owed and it's fully paid
                 rep.status = (rep.partCostSum > 0 && rep.balance <= 0) ? 'paid' : 'pending';
@@ -571,7 +571,7 @@
             // Calculate techs balances
             techsAccounts.forEach(tech => {
                 const techPayments = payments.filter(p => p.entityType === 'tech' && p.entityId === tech.techId);
-                tech.totalPaid = techPayments.reduce((sum, p) => sum + p.amount, 0);
+                tech.totalPaid = techPayments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
                 tech.balance = tech.techCommissionSum - tech.totalPaid;
                 // Only mark as paid if there was actually money owed and it's fully paid
                 tech.status = (tech.techCommissionSum > 0 && tech.balance <= 0) ? 'paid' : 'pending';

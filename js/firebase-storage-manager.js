@@ -116,7 +116,7 @@ class FirebaseStorageManager {
         return await this.firebaseDB.getPhones();
       } catch (error) {
         console.error('Error getting phones from Firebase:', error);
-        return this.getItem(CONFIG.STORAGE_KEYS.PHONES, []);
+        throw error;
       }
     }
     return this.getItem(CONFIG.STORAGE_KEYS.PHONES, []);
@@ -271,7 +271,7 @@ class FirebaseStorageManager {
         return await this.firebaseDB.getPhoneByNumberQuery(phoneNumber);
       } catch (error) {
         console.error('Error getting phone by number from Firebase:', error);
-        return null;
+        throw error;
       }
     }
     const phones = await this.getPhones();
@@ -285,7 +285,7 @@ class FirebaseStorageManager {
         return await this.firebaseDB.getPhonesByRefs(refs);
       } catch (error) {
         console.error('Error getting phones by refs from Firebase:', error);
-        return {};
+        throw error;
       }
     }
     const phones = await this.getPhones();
@@ -303,7 +303,7 @@ class FirebaseStorageManager {
         return await this.firebaseDB.getAccessoryById(accessoryId);
       } catch (error) {
         console.error('Error getting accessory by id from Firebase:', error);
-        return null;
+        throw error;
       }
     }
     const accessories = await this.getAccessories();
@@ -316,7 +316,7 @@ class FirebaseStorageManager {
         return await this.firebaseDB.getAccessoryByBarcode(barcode);
       } catch (error) {
         console.error('Error getting accessory by barcode from Firebase:', error);
-        return null;
+        throw error;
       }
     }
     const accessories = await this.getAccessories();
@@ -333,7 +333,7 @@ class FirebaseStorageManager {
         return await this.firebaseDB.getAccessories();
       } catch (error) {
         console.error('Error getting accessories from Firebase:', error);
-        return this.getItem(CONFIG.STORAGE_KEYS.ACCESSORIES, []);
+        throw error;
       }
     }
     return this.getItem(CONFIG.STORAGE_KEYS.ACCESSORIES, []);
@@ -419,7 +419,7 @@ class FirebaseStorageManager {
         return await this.firebaseDB.getSales();
       } catch (error) {
         console.error('Error getting sales from Firebase:', error);
-        return this.getItem(CONFIG.STORAGE_KEYS.SALES, []);
+        throw error;
       }
     }
     return this.getItem(CONFIG.STORAGE_KEYS.SALES, []);
@@ -431,14 +431,22 @@ class FirebaseStorageManager {
         return await this.firebaseDB.getSalesInRange(from, to);
       } catch (error) {
         console.error('Error getting sales in range from Firebase:', error);
-        return [];
+        throw error;
       }
     }
     // LocalStorage fallback: فلترة محلية
     const sales = this.getItem(CONFIG.STORAGE_KEYS.SALES, []) || [];
+    const fromDate = from instanceof Date ? from : (from ? new Date(from) : null);
+    const toDate = to instanceof Date ? to : (to ? new Date(to) : null);
     return sales.filter(s => {
-      const d = s.date_created ? new Date(s.date_created) : null;
-      return d && (!from || d >= from) && (!to || d <= to);
+      const rawDate = s.createdAt ?? s.date_created ?? s.date_added ?? s.created_at;
+      let d = null;
+      if (rawDate && typeof rawDate.toDate === 'function') d = rawDate.toDate();
+      else if (rawDate && typeof rawDate === 'object' && ('seconds' in rawDate || '_seconds' in rawDate)) {
+        d = new Date(Number(rawDate.seconds ?? rawDate._seconds) * 1000);
+      } else if (rawDate != null) d = new Date(rawDate);
+      return d && !isNaN(d.getTime()) &&
+        (!fromDate || d >= fromDate) && (!toDate || d <= toDate);
     });
   }
 
@@ -494,7 +502,7 @@ class FirebaseStorageManager {
         return phoneTypesObj;
       } catch (error) {
         console.error('❌ Storage Manager: خطأ في تحميل أنواع الهواتف من Firebase:', error);
-        return this.getItem(CONFIG.STORAGE_KEYS.PHONE_TYPES);
+        throw error;
       }
     }
     console.log('💾 Storage Manager: Firebase غير متاح، تحميل من localStorage...');
@@ -564,7 +572,7 @@ class FirebaseStorageManager {
         return await this.firebaseDB.getAccessoryCategories();
       } catch (error) {
         console.error('Error getting accessory categories from Firebase:', error);
-        return this.getItem(CONFIG.STORAGE_KEYS.ACCESSORY_CATEGORIES);
+        throw error;
       }
     }
     return this.getItem(CONFIG.STORAGE_KEYS.ACCESSORY_CATEGORIES);

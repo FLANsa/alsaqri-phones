@@ -562,11 +562,13 @@
                 let visitDate = '-';
                 if (job.visitDate) {
                     try {
+                        let parsedVisitDate;
                         if (job.visitDate.seconds) {
-                            visitDate = new Date(job.visitDate.seconds * 1000).toLocaleDateString('ar-SA');
+                            parsedVisitDate = new Date(job.visitDate.seconds * 1000);
                         } else {
-                            visitDate = new Date(job.visitDate).toLocaleDateString('ar-SA');
+                            parsedVisitDate = new Date(job.visitDate);
                         }
+                        if (!isNaN(parsedVisitDate.getTime())) visitDate = parsedVisitDate.toLocaleDateString('ar-SA');
                     } catch (e) {
                         visitDate = '-';
                     }
@@ -577,7 +579,8 @@
                     `${getDeviceTypeText(job.deviceType) || ''} ${job.deviceModel}`.trim() : '-';
                 
                 // Status
-                const statusClass = `status-${job.status || 'pending'}`;
+                const safeStatus = ['pending', 'done', 'canceled'].includes(job.status) ? job.status : 'pending';
+                const statusClass = `status-${safeStatus}`;
                 const statusText = getStatusText(job.status);
                 
                 const row = document.createElement('tr');
@@ -596,7 +599,7 @@
                     <td>${(Number(job.profit) || 0).toFixed(2)} ريال</td>
                     <td>${(Number(job.techCommission) || 0).toFixed(2)} ريال</td>
                     <td>${(Number(job.shopProfit) || 0).toFixed(2)} ريال</td>
-                    <td><span class="status-badge ${statusClass}">${statusText}</span></td>
+                    <td><span class="status-badge ${statusClass}">${escapeHTML(statusText)}</span></td>
                 `;
                 tbody.appendChild(row);
             });

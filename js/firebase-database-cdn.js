@@ -51,7 +51,9 @@ function isQuotaError(error) {
 // ---------- الكاش المحلي (IndexedDB) ----------
 // كان الكاش في localStorage ومات صامتةً عند امتلاء حصته (~5MB): كل صفحة
 // تصبح قراءة كاملة للمجموعات. IndexedDB سعته أكبر بمراتب ولا يعاني ذلك.
-const CACHE_TTL_MS = 5 * 60 * 1000;
+// مدة قصيرة تقلل عرض بيانات قديمة بعد تعديلها من جهاز آخر، مع إبقاء تجميع
+// القراءات المتزامنة وكاش التنقل السريع بين صفحات التطبيق.
+const CACHE_TTL_MS = 30 * 1000;
 const IDB_NAME = 'alsaqri_fs_cache';
 const IDB_STORE = 'kv';
 // لقطة المجموعة الكاملة تحت 'full:<name>'، ونتائج الاستعلامات المشتقة
@@ -958,25 +960,24 @@ class FirebaseDatabase {
     }
   }
 
-  /** مبيعات نطاق زمني فقط (createdAt بين تاريخين) — لإحصاءات الفترة.
-   *  الاستعلام موجّه على الخادم (فهرس أحادي) ونتيجته مخزنة كاستعلام مشتق. */
+  /** مبيعات نطاق زمني متوافق مع createdAt وأسماء التاريخ التاريخية. */
   async getSalesInRange(from, to) {
     try {
-      const fMs = this._normFilterDate(from)?.getTime() || '';
-      const tMs = this._normFilterDate(to)?.getTime() || '';
-      const cacheKey = DERIVED_PREFIX('sales') + `range_${fMs}_${tMs}`;
-      const rows = await this._derivedQueryCached(
-        cacheKey,
-        'sales:range',
-        () => to
-          ? query(collection(this.db, 'sales'),
-              where('createdAt', '>=', from), where('createdAt', '<=', to),
-              orderBy('createdAt', 'desc'))
-          : query(collection(this.db, 'sales'),
-              where('createdAt', '>=', from),
-              orderBy('createdAt', 'desc')),
-        (d) => ({ ...d.data(), id: d.id })
-      );
+      const df = this._normFilterDate(from);
+      const dt = this._normFilterDate(to);
+      if (!df) throw new Error('تاريخ بداية المبيعات غير صالح');
+
+      // لا يمكن لاستعلام createdAt وحده إرجاع السجلات التاريخية التي تستخدم
+      // date_created/date_added/created_at. نقرأ اللقطة الموحدة المخزنة مؤقتاً
+      // ثم نطبّق نطاقاً متوافقاً مع جميع صيغ البيانات القديمة.
+      const allSales = await this.getSales();
+      const saleDate = (sale) => this._asDate(sale.createdAt) ||
+        this._asDate(sale.date_created) || this._asDate(sale.date_added) ||
+        this._asDate(sale.created_at);
+      const rows = allSales.filter((sale) => {
+        const d = saleDate(sale);
+        return d && d >= df && (!dt || d <= dt);
+      });
       console.log('💰 Sales in range loaded:', rows.length);
       return rows;
     } catch (error) {

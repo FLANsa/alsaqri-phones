@@ -702,7 +702,7 @@
       sortedSales.forEach(sale => {
         const saleDate = getSaleDateValue(sale) || new Date();
         const customerName = sale.customer_name || 'عميل نقدي';
-        const totalAmount = sale.total_amount || 0;
+        const totalAmount = Number(sale.total_amount) || 0;
         const itemCount = sale.items ? sale.items.length : 0;
         const status = sale.status || 'مكتمل';
         
@@ -713,7 +713,7 @@
         salesHTML += `
           <div class="row align-items-center py-2 border-bottom">
             <div class="col-md-2">
-              <span class="badge bg-primary">${sale.sale_number || sale.id || 'غير محدد'}</span>
+              <span class="badge bg-primary">${escapeHTML(sale.sale_number || sale.id || 'غير محدد')}</span>
             </div>
             <div class="col-md-2">
               <small class="text-muted">${formatDate(saleDate)}</small>
@@ -728,7 +728,7 @@
               <strong class="text-success">${convertToLatinNumbers(totalAmount.toFixed(2))} ريال</strong>
             </div>
             <div class="col-md-1">
-              <span class="badge ${statusBadge}">${status}</span>
+              <span class="badge ${statusBadge}">${escapeHTML(status)}</span>
             </div>
           </div>
         `;

@@ -193,6 +193,9 @@
 
   // ===== الأدوات =====
   const fmtMoney = n => (Number(n)||0).toFixed(2);
+  // وسيطة JavaScript آمنة داخل خاصية HTML؛ JSON يحمي الاقتباسات وescapeHTML
+  // يمنع خروج القيمة من الخاصية نفسها.
+  const actionArg = value => escapeHTML(JSON.stringify(String(value ?? '')));
 
   // ===== تحويل الأرقام العربية إلى إنجليزية =====
   function convertArabicToEnglishNumbers(str) {
@@ -381,38 +384,30 @@
     // حساب عدد الصفحات
     totalPages = Math.ceil(total / ITEMS_PER_PAGE);
     
-    // تحديد العناصر للصفحة الحالية
+    // ادمج النوعين أولاً ثم طبّق الترقيم على القائمة الواحدة؛ تطبيق نفس
+    // startIndex على كل نوع منفصلاً كان يتجاوز حجم الصفحة ويفقد نتائج.
     const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
     const endIndex = startIndex + ITEMS_PER_PAGE;
-    
-    // تقسيم النتائج للصفحة الحالية
-    const currentPhones = phones.slice(startIndex, endIndex);
-    const currentAccessories = accessories.slice(startIndex, endIndex);
+
+    const sortedPhones = (phones || []).slice().sort((a, b) => {
+      const aId = a.id || a.phone_number || a.device_number || a.serial_number;
+      const bId = b.id || b.phone_number || b.device_number || b.serial_number;
+      const aSold = aId && isPhoneSold(String(aId));
+      const bSold = bId && isPhoneSold(String(bId));
+      if (aSold !== bSold) return aSold ? 1 : -1;
+      return String(a.phone_number || '').localeCompare(String(b.phone_number || ''));
+    });
+    const pageItems = [
+      ...sortedPhones.map(item => ({ type: 'phone', item })),
+      ...(accessories || []).map(item => ({ type: 'accessory', item }))
+    ].slice(startIndex, endIndex);
+    const phonesForCurrentPage = pageItems.filter(x => x.type === 'phone').map(x => x.item);
+    const accessoriesForCurrentPage = pageItems.filter(x => x.type === 'accessory').map(x => x.item);
 
     let html = '';
 
     // Phones - Sort by status: available first, then sold
-    if (phones && phones.length){
-      // ترتيب الجوالات: المتاحة أولاً، ثم المباعة
-      const sortedPhones = phones.sort((a, b) => {
-        const aId = a.id || a.phone_number || a.device_number || a.serial_number;
-        const bId = b.id || b.phone_number || b.device_number || b.serial_number;
-        
-        const aSold = aId && isPhoneSold(String(aId));
-        const bSold = bId && isPhoneSold(String(bId));
-        
-        // المتاحة تأتي أولاً (false يأتي قبل true)
-        if (aSold !== bSold) {
-          return aSold ? 1 : -1;
-        }
-        
-        // إذا كانت نفس الحالة، ترتيب حسب رقم الجهاز
-        return (a.phone_number || '').localeCompare(b.phone_number || '');
-      });
-      
-      // استخدام الجوالات المفلترة للصفحة الحالية
-      const phonesForCurrentPage = sortedPhones.slice(startIndex, endIndex);
-      
+    if (phonesForCurrentPage.length){
       html += `
         <div class="mb-4">
           <h6 class="text-primary mb-3">
@@ -453,21 +448,21 @@
                     <td><span class="text-primary">${fmtMoney(p.selling_price || p.price || 0)} ريال</span></td>
                     <td>
                       <div class="btn-group" role="group">
-                        <button type="button" class="btn btn-sm btn-outline-info" onclick="viewPhoneDetails('${p.phone_number || p.id}')" title="عرض التفاصيل">
+                        <button type="button" class="btn btn-sm btn-outline-info" onclick="viewPhoneDetails(${actionArg(p.phone_number || p.id)})" title="عرض التفاصيل">
                           <i class="fas fa-eye"></i>
                         </button>
-                        <button type="button" class="btn btn-sm btn-outline-primary" onclick="editPhone('${p.phone_number || p.id}')" title="تعديل">
+                        <button type="button" class="btn btn-sm btn-outline-primary" onclick="editPhone(${actionArg(p.phone_number || p.id)})" title="تعديل">
                           <i class="fas fa-edit"></i>
                         </button>
                         <!-- ✅ زر طباعة الباركود -->
                         <button type="button" class="btn btn-sm btn-outline-dark"
-                                onclick="goPrintBarcode('${p.phone_number || p.device_number || p.serial_number || p.id}')"
+                                onclick="goPrintBarcode(${actionArg(p.phone_number || p.device_number || p.serial_number || p.id)})"
                                 title="طباعة الباركود">
                           <i class="fas fa-barcode"></i>
                         </button>
                         <!-- ✅ زر حذف الجهاز -->
                         <button type="button" class="btn btn-sm btn-outline-danger"
-                                onclick="deletePhone('${p.id || p.phone_number}')"
+                                onclick="deletePhone(${actionArg(p.id || p.phone_number)})"
                                 title="حذف الجهاز">
                           <i class="fas fa-trash"></i>
                         </button>
@@ -482,10 +477,7 @@
     }
 
     // Accessories
-    if (accessories && accessories.length){
-      // استخدام الأكسسوارات المفلترة للصفحة الحالية
-      const accessoriesForCurrentPage = accessories.slice(startIndex, endIndex);
-      
+    if (accessoriesForCurrentPage.length){
       html += `
         <div class="mb-4">
           <h6 class="text-success mb-3">
@@ -517,16 +509,16 @@
                     <td><span class="text-primary">${fmtMoney(a.selling_price || 0)} ريال</span></td>
                     <td>
                       <div class="btn-group" role="group">
-                        <button type="button" class="btn btn-sm btn-outline-info" onclick="viewAccessoryDetails('${a.id}')" title="عرض التفاصيل">
+                        <button type="button" class="btn btn-sm btn-outline-info" onclick="viewAccessoryDetails(${actionArg(a.id)})" title="عرض التفاصيل">
                           <i class="fas fa-eye"></i>
                         </button>
-                        <button type="button" class="btn btn-sm btn-outline-primary" onclick="editAccessory('${a.id}')" title="تعديل">
+                        <button type="button" class="btn btn-sm btn-outline-primary" onclick="editAccessory(${actionArg(a.id)})" title="تعديل">
                           <i class="fas fa-edit"></i>
                         </button>
-                        ${a.barcode ? `<button type="button" class="btn btn-sm btn-outline-success" onclick="goPrintAccessoryBarcode('${a.barcode}')" title="طباعة الباركود">
+                        ${a.barcode ? `<button type="button" class="btn btn-sm btn-outline-success" onclick="goPrintAccessoryBarcode(${actionArg(a.barcode)})" title="طباعة الباركود">
                           <i class="fas fa-barcode"></i>
                         </button>` : ''}
-                        <button type="button" class="btn btn-sm btn-outline-danger" onclick="deleteAccessory('${a.id}')" title="حذف">
+                        <button type="button" class="btn btn-sm btn-outline-danger" onclick="deleteAccessory(${actionArg(a.id)})" title="حذف">
                           <i class="fas fa-trash"></i>
                         </button>
                       </div>

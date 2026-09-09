@@ -626,18 +626,21 @@
                     let visitDateStr = '-';
                     if (job.visitDate) {
                         try {
+                            let visitDate;
                             if (job.visitDate.seconds) {
-                                visitDateStr = new Date(job.visitDate.seconds * 1000).toLocaleDateString('ar-SA');
+                                visitDate = new Date(job.visitDate.seconds * 1000);
                             } else if (job.visitDate instanceof Date) {
-                                visitDateStr = job.visitDate.toLocaleDateString('ar-SA');
+                                visitDate = job.visitDate;
                             } else {
-                                visitDateStr = new Date(job.visitDate).toLocaleDateString('ar-SA');
+                                visitDate = new Date(job.visitDate);
                             }
+                            if (!isNaN(visitDate.getTime())) visitDateStr = visitDate.toLocaleDateString('ar-SA');
                         } catch (e) {
                             visitDateStr = '-';
                         }
                     }
                     
+                    const safeStatus = ['pending', 'done', 'canceled'].includes(job.status) ? job.status : 'pending';
                     const row = document.createElement('tr');
                     row.innerHTML = `
                         <td>${visitDateStr}</td>
@@ -651,8 +654,8 @@
                         <td>${techCommission.toFixed(2)} ريال</td>
                         <td>${shopProfit.toFixed(2)} ريال</td>
                         <td>
-                            <span class="status-badge status-${job.status || 'pending'}">
-                                ${getStatusText(job.status || 'pending')}
+                            <span class="status-badge status-${safeStatus}">
+                                ${escapeHTML(getStatusText(job.status || 'pending'))}
                             </span>
                         </td>
                         <td>
@@ -1098,12 +1101,15 @@
 
         // Apply filters
         async function applyFilters() {
+            const dateToValue = document.getElementById('filterDateTo').value;
+            const dateTo = dateToValue ? new Date(dateToValue) : null;
+            if (dateTo) dateTo.setHours(23, 59, 59, 999);
             currentFilters = {
                 status: document.getElementById('filterStatus').value,
                 repId: document.getElementById('filterRep').value,
                 techId: document.getElementById('filterTech').value,
                 dateFrom: document.getElementById('filterDateFrom').value ? new Date(document.getElementById('filterDateFrom').value) : null,
-                dateTo: document.getElementById('filterDateTo').value ? new Date(document.getElementById('filterDateTo').value) : null
+                dateTo
             };
 
             try {
