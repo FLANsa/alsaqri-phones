@@ -14,6 +14,34 @@ service cloud.firestore {
       return request.auth != null && request.auth.token.email == 'admin@alsaqri.store';
     }
 
+    function nonNegativeNumber(data, field) {
+      return !(field in data) || (data[field] is number && data[field] >= 0);
+    }
+
+    function validInventory(data) {
+      return nonNegativeNumber(data, 'purchase_price') &&
+        nonNegativeNumber(data, 'purchase_price_with_vat') &&
+        nonNegativeNumber(data, 'selling_price') &&
+        nonNegativeNumber(data, 'selling_price_with_vat') &&
+        nonNegativeNumber(data, 'quantity') &&
+        nonNegativeNumber(data, 'quantity_in_stock');
+    }
+
+    function validSale(data) {
+      return data.items is list && data.items.size() > 0 &&
+        data.total_amount is number && data.total_amount >= 0 &&
+        (!(data.vat_rate is number) || (data.vat_rate >= 0 && data.vat_rate <= 1));
+    }
+
+    function validMaintenanceJob(data) {
+      return nonNegativeNumber(data, 'partCost') &&
+        nonNegativeNumber(data, 'totalPartCost') &&
+        nonNegativeNumber(data, 'amountCharged') &&
+        nonNegativeNumber(data, 'techPercent') &&
+        (!('techPercent' in data) || data.techPercent <= 1) &&
+        nonNegativeNumber(data, 'techCommission');
+    }
+
     // الحسابان يقرآن بيانات النظام، لكن الإدارة المالية والحذف العام للمدير فقط.
     match /{document=**} {
       allow read: if isAuthorizedAccount();
@@ -22,23 +50,39 @@ service cloud.firestore {
 
     // الموظف ينفذ العمليات التشغيلية اللازمة للإضافة والبيع والاسترجاع، دون حذف.
     match /phones/{id} {
-      allow create, update: if isAuthorizedAccount();
+      allow create: if isAuthorizedAccount() && validInventory(request.resource.data);
+      allow update: if isAuthorizedAccount() && validInventory(request.resource.data) &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'manufacturer', 'brand', 'model', 'phone_color', 'color', 'storage_capacity',
+          'storage', 'ram', 'condition', 'phone_type', 'battery_level', 'selling_price',
+          'description', 'notes', 'supplier', 'warranty', 'quantity', 'quantity_in_stock',
+          'sold', 'last_sale_id', 'updatedAt', 'date_updated'
+        ]);
     }
     match /accessories/{id} {
-      allow create, update: if isAuthorizedAccount();
+      allow create: if isAuthorizedAccount() && validInventory(request.resource.data);
+      allow update: if isAuthorizedAccount() && validInventory(request.resource.data) &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'name', 'arabic_name', 'category', 'description', 'selling_price',
+          'selling_price_with_vat', 'quantity', 'quantity_in_stock', 'supplier',
+          'notes', 'updatedAt', 'date_updated'
+        ]);
     }
     match /sales/{id} {
-      allow create: if isAuthorizedAccount();
+      allow create: if isAuthorizedAccount() && validSale(request.resource.data);
       allow update: if isAuthorizedAccount() &&
         request.resource.data.diff(resource.data).affectedKeys().hasOnly([
           'date_created', 'returned', 'returned_at', 'status', 'updatedAt'
         ]);
     }
     match /counters/{id} {
-      allow create, update: if isAuthorizedAccount();
+      allow create: if isAuthorizedAccount() && request.resource.data.lastPhoneNumber is number;
+      allow update: if isAuthorizedAccount() &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['lastPhoneNumber']) &&
+        request.resource.data.lastPhoneNumber == resource.data.lastPhoneNumber + 1;
     }
     match /phone_keys/{id} {
-      allow create, update: if isAuthorizedAccount();
+      allow create, update: if isAuthorizedAccount() && request.resource.data.phoneIds is list;
     }
     match /phone_types/{id} {
       allow create, update, delete: if isAuthorizedAccount();
@@ -47,7 +91,7 @@ service cloud.firestore {
       allow create, update, delete: if isAuthorizedAccount();
     }
     match /maintenanceJobs/{id} {
-      allow create, update: if isAuthorizedAccount();
+      allow create, update: if isAuthorizedAccount() && validMaintenanceJob(request.resource.data);
     }
   }
 }

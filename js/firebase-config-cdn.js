@@ -34,6 +34,18 @@ window.firebaseDB = db;
 window.firebaseAuth = auth;
 window.firebaseSignOut = signOut;
 
+// إشعار موحد عندما يتعذر التحديث وتُعرض آخر لقطة محلية سليمة.
+window.addEventListener('firebase-stale-cache', function (event) {
+  if (document.getElementById('firebase-stale-cache-warning')) return;
+  const warning = document.createElement('div');
+  warning.id = 'firebase-stale-cache-warning';
+  warning.className = 'alert alert-warning position-fixed top-0 start-50 translate-middle-x mt-2';
+  warning.style.zIndex = '10000';
+  const cachedAt = new Date(event.detail?.cachedAt || Date.now());
+  warning.textContent = 'تعذر تحديث البيانات؛ المعروض نسخة محفوظة منذ ' + cachedAt.toLocaleString('ar-SA');
+  document.body.appendChild(warning);
+});
+
 // كتم سجلات console.log في الإنتاج (console.error/warn تبقى ظاهرة).
 // للتصحيح: نفّذ localStorage.setItem('__verbose', '1') ثم أعد تحميل الصفحة
 try {

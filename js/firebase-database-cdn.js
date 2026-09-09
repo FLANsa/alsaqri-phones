@@ -192,6 +192,13 @@ class FirebaseDatabase {
     }
   }
 
+  async _cacheEntryPeek(key) {
+    try {
+      const entry = await idbGet(key);
+      return entry && typeof entry === 'object' && Array.isArray(entry.data) ? entry : null;
+    } catch (_) { return null; }
+  }
+
   async _cacheSet(key, data, t = Date.now()) {
     await idbSet(key, { t, data });
   }
@@ -284,15 +291,21 @@ class FirebaseDatabase {
     const pendingKey = key + ':' + revision;
     if (this._pendingReads.has(pendingKey)) return this._pendingReads.get(pendingKey);
     const pending = (async () => {
-      const entry = await this._cacheEntryGet(key);
-      if (entry) return entry.data;
-      const snap = await this._getDocs(label, buildQuery());
-      const rows = [];
-      snap.forEach(d => rows.push(mapRow(d)));
-      if (revision === this._cacheRevision && (rows.length || snap.metadata?.fromCache === false)) {
-        await this._cacheSet(key, rows);
+      const stored = await this._cacheEntryPeek(key);
+      if (stored && Date.now() - stored.t <= CACHE_TTL_MS) return stored.data;
+      try {
+        const snap = await this._getDocs(label, buildQuery());
+        const rows = [];
+        snap.forEach(d => rows.push(mapRow(d)));
+        if (revision === this._cacheRevision && (rows.length || snap.metadata?.fromCache === false)) {
+          await this._cacheSet(key, rows);
+        }
+        return rows;
+      } catch (error) {
+        if (!stored) throw error;
+        window.dispatchEvent(new CustomEvent('firebase-stale-cache', { detail: { key, cachedAt: stored.t } }));
+        return stored.data;
       }
-      return rows;
     })();
     this._pendingReads.set(pendingKey, pending);
     try { return await pending; }
@@ -800,7 +813,9 @@ class FirebaseDatabase {
       if (item.type === 'phone') {
         if (quantity !== 1 || phoneIds.has(id)) throw new Error('لا يمكن بيع نفس الهاتف أكثر من مرة');
         phoneIds.add(id);
-      } else accessoryQuantities.set(id, (accessoryQuantities.get(id) || 0) + quantity);
+      } else if (item.type === 'accessory') {
+        accessoryQuantities.set(id, (accessoryQuantities.get(id) || 0) + quantity);
+      } else throw new Error('نوع منتج البيع غير صالح');
     }
 
     const saleRef = saleData.operation_id
@@ -821,7 +836,7 @@ class FirebaseDatabase {
         const quantity = accessoryQuantities.get(ref.id);
         if (!snap.exists()) throw new Error('الأكسسوار لم يعد موجوداً');
         const current = Number(snap.data().quantity_in_stock ?? snap.data().quantity ?? 0);
-        if (!Number.isFinite(quantity) || quantity <= 0 || current < quantity) {
+        if (!Number.isFinite(current) || current < 0 || current < quantity) {
           throw new Error('الكمية المطلوبة غير متاحة');
         }
         const next = current - quantity;
@@ -857,8 +872,10 @@ class FirebaseDatabase {
     if (!original) throw new Error('الفاتورة غير موجودة');
     if (original.returned === true || original.status === 'مسترجعة') return false;
     const items = original.items || [];
-    const phoneItems = items.filter(item => item.type === 'phone');
-    const accessoryItems = items.filter(item => item.type && item.type !== 'phone');
+    const normalizedItems = items.map(item => ({ ...item, type: item.type || item.product_type }));
+    if (normalizedItems.some(item => !['phone', 'accessory'].includes(item.type))) throw new Error('نوع منتج الفاتورة غير صالح');
+    const phoneItems = normalizedItems.filter(item => item.type === 'phone');
+    const accessoryItems = normalizedItems.filter(item => item.type === 'accessory');
     const phones = await this.getPhonesByRefs(phoneItems.map(item => item.id ?? item.phone_id));
     const accessories = await this.getAccessoriesByIds(accessoryItems.map(item => item.id));
     for (const item of accessoryItems) {
@@ -925,8 +942,9 @@ class FirebaseDatabase {
     try {
       const sales = await this._getCollectionCached('sales');
       // ترتيب تنازلي حسب تاريخ الإنشاء (يدعم Timestamp وISO بعد دورة الكاش)
-      sales.sort((a, b) => (this._asDate(b.createdAt) || this._asDate(b.date_created) || 0) -
-                           (this._asDate(a.createdAt) || this._asDate(a.date_created) || 0));
+      const saleDate = sale => this._asDate(sale.date_created) || this._asDate(sale.date_added) ||
+        this._asDate(sale.created_at) || this._asDate(sale.createdAt);
+      sales.sort((a, b) => (saleDate(b) || 0) - (saleDate(a) || 0));
       console.log('💰 Retrieved sales:', sales.length);
       return sales;
     } catch (error) {
@@ -971,9 +989,9 @@ class FirebaseDatabase {
       // date_created/date_added/created_at. نقرأ اللقطة الموحدة المخزنة مؤقتاً
       // ثم نطبّق نطاقاً متوافقاً مع جميع صيغ البيانات القديمة.
       const allSales = await this.getSales();
-      const saleDate = (sale) => this._asDate(sale.createdAt) ||
-        this._asDate(sale.date_created) || this._asDate(sale.date_added) ||
-        this._asDate(sale.created_at);
+      const saleDate = (sale) => this._asDate(sale.date_created) ||
+        this._asDate(sale.date_added) || this._asDate(sale.created_at) ||
+        this._asDate(sale.createdAt);
       const rows = allSales.filter((sale) => {
         const d = saleDate(sale);
         return d && d >= df && (!dt || d <= dt);
@@ -1129,6 +1147,12 @@ class FirebaseDatabase {
           },
           (d) => ({ ...d.data(), id: d.id })
         );
+        // الاستعلام الخادمي لا يرى السجلات التاريخية التي خُزن visitDate فيها كنص.
+        // ادمجها من اللقطة العامة ثم طبّق الفلتر الموحد أدناه.
+        const legacyRows = await this._getCollectionCached('maintenanceJobs');
+        const byId = new Map(jobs.map(job => [String(job.id), job]));
+        legacyRows.forEach(job => { if (!byId.has(String(job.id))) byId.set(String(job.id), job); });
+        jobs = [...byId.values()];
       } else if (filters.status) {
         const key = DERIVED_PREFIX('maintenanceJobs') + `q_s_${filters.status}`;
         jobs = await this._derivedQueryCached(
@@ -1221,7 +1245,7 @@ class FirebaseDatabase {
       // إعادة حساب الأرباح المشتقة إذا تغيرت القيم.
       // إن اكتملت قيم التسعير في jobData نحسب مباشرة بلا قراءة للمستند؛
       // نقرأ الحالي فقط عند نقص قيمة (تعديل جزئي).
-      if (jobData.partCost !== undefined || jobData.amountCharged !== undefined || jobData.techPercent !== undefined) {
+      if (jobData.totalPartCost !== undefined || jobData.partCost !== undefined || jobData.amountCharged !== undefined || jobData.techPercent !== undefined) {
         const pricingComplete =
           (jobData.totalPartCost !== undefined || jobData.partCost !== undefined) &&
           jobData.amountCharged !== undefined &&
@@ -1295,6 +1319,10 @@ class FirebaseDatabase {
           },
           (d) => ({ ...d.data(), id: d.id })
         );
+        const legacyRows = await this._getCollectionCached('payments');
+        const byId = new Map(payments.map(payment => [String(payment.id), payment]));
+        legacyRows.forEach(payment => { if (!byId.has(String(payment.id))) byId.set(String(payment.id), payment); });
+        payments = [...byId.values()];
       } else {
         payments = await this._getCollectionCached('payments');
       }
