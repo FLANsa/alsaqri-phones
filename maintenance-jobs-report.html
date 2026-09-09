@@ -491,7 +491,7 @@
                     'done': 'مكتملة',
                     'canceled': 'ملغية'
                 };
-                filtersHTML += `<span class="filter-item">الحالة: ${statusText[filters.status] || filters.status}</span>`;
+                filtersHTML += `<span class="filter-item">الحالة: ${escapeHTML(statusText[filters.status] || filters.status)}</span>`;
             }
             
             if (filters.repId) {
@@ -505,11 +505,11 @@
             }
             
             if (filters.dateFrom) {
-                filtersHTML += `<span class="filter-item">من: ${filters.dateFrom}</span>`;
+                filtersHTML += `<span class="filter-item">من: ${escapeHTML(filters.dateFrom)}</span>`;
             }
             
             if (filters.dateTo) {
-                filtersHTML += `<span class="filter-item">إلى: ${filters.dateTo}</span>`;
+                filtersHTML += `<span class="filter-item">إلى: ${escapeHTML(filters.dateTo)}</span>`;
             }
             
             if (!filtersHTML) {
@@ -555,7 +555,7 @@
                     totalPartCost = Number(job.partCost) || 0;
                 } else {
                     partsHTML = '<span class="text-muted">لا توجد قطع</span>';
-                    totalPartCost = job.totalPartCost || 0;
+                    totalPartCost = Number(job.totalPartCost) || 0;
                 }
                 
                 // Format date
@@ -659,8 +659,12 @@
 
         function showError(message) {
             document.getElementById('loading').style.display = 'none';
-            document.getElementById('error').style.display = 'block';
-            document.getElementById('error').innerHTML = '<i class="fas fa-exclamation-triangle"></i> ' + message;
+            const error = document.getElementById('error');
+            error.style.display = 'block';
+            error.replaceChildren();
+            const icon = document.createElement('i');
+            icon.className = 'fas fa-exclamation-triangle';
+            error.append(icon, document.createTextNode(' ' + String(message || 'حدث خطأ')));
         }
     </script>
     <script src="js/pwa-register.js"></script>

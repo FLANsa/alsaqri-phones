@@ -238,6 +238,7 @@
     
     <script>
         let repsData = [];
+        const actionArg = value => escapeHTML(JSON.stringify(String(value ?? '')));
         let currentEditId = null;
 
         // ===== دعم الأرقام العربية والإنجليزية =====
@@ -321,10 +322,10 @@
                     </td>
                     <td>${rep.createdAt ? (() => { const d = rep.createdAt.seconds ? new Date(rep.createdAt.seconds * 1000) : new Date(rep.createdAt); return Number.isNaN(d.getTime()) ? '-' : d.toLocaleDateString('ar-SA'); })() : '-'}</td>
                     <td>
-                        <button class="btn btn-sm btn-warning me-1" onclick="editRep('${rep.id}')">
+                        <button class="btn btn-sm btn-warning me-1" onclick="editRep(${actionArg(rep.id)})">
                             <i class="fas fa-edit"></i>
                         </button>
-                        <button class="btn btn-sm btn-danger" onclick="deleteRep('${rep.id}')">
+                        <button class="btn btn-sm btn-danger" onclick="deleteRep(${actionArg(rep.id)})">
                             <i class="fas fa-trash"></i>
                         </button>
                     </td>

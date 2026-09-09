@@ -543,8 +543,12 @@
 
         function showError(message) {
             document.getElementById('loading').style.display = 'none';
-            document.getElementById('error').style.display = 'block';
-            document.getElementById('error').innerHTML = '<i class="fas fa-exclamation-triangle"></i> ' + message;
+            const error = document.getElementById('error');
+            error.style.display = 'block';
+            error.replaceChildren();
+            const icon = document.createElement('i');
+            icon.className = 'fas fa-exclamation-triangle';
+            error.append(icon, document.createTextNode(' ' + String(message || 'حدث خطأ')));
         }
 
         // ✅ دالة تُرجع تاريخ اليوم بصيغة YYYY/MM/DD بالأرقام اللاتينية وبتوقيت الرياض

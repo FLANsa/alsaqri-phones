@@ -384,7 +384,7 @@
             </div>
             <div class="col-md-4 text-center">
               <div class="border rounded p-3">
-                <h6 class="text-muted">الضريبة (15%)</h6>
+                <h6 class="text-muted" id="vat_heading">الضريبة (15%)</h6>
                 <h4 class="text-info fw-bold" id="vat_amount">0.00 ريال</h4>
               </div>
             </div>
@@ -488,7 +488,7 @@
         <span id="receipt_subtotal">0.00 ريال</span>
       </div>
       <div class="summary-row">
-        <span>ضريبة القيمة المضافة (15%):</span>
+        <span id="receipt_vat_label">ضريبة القيمة المضافة (15%):</span>
         <span id="receipt_vat">0.00 ريال</span>
       </div>
       <div class="summary-row total">
@@ -589,10 +589,7 @@
       if (window.storage && window.storage.isFirebaseAvailable) {
         // قراءة مستند البيع وحده بدل جلب مجموعة المبيعات كاملة (994+ قراءة لعرض فاتورة واحدة)
         currentSale = await window.firebaseDatabase.getSale(saleId);
-      } else {
-        const sales = JSON.parse(localStorage.getItem('sales') || '[]');
-        currentSale = sales.find(sale => sale.id === saleId);
-      }
+      } else throw new Error('تعذر تهيئة قاعدة البيانات');
       
       if (currentSale) {
         await displaySaleData();
@@ -624,7 +621,7 @@
     document.getElementById('status').innerHTML = getStatusBadge(currentSale.status || 'مكتمل');
     document.getElementById('payment_method').textContent = currentSale.payment_method || 'نقدي';
     const sellerEl = document.getElementById('seller_name');
-    if (sellerEl) sellerEl.textContent = (currentSale.seller_name || currentSale.sellerName || '').trim() || 'غير محدد';
+    if (sellerEl) sellerEl.textContent = String(currentSale.seller_name || currentSale.sellerName || '').trim() || 'غير محدد';
 
     document.getElementById('customer_name').textContent = currentSale.customer_name || 'عميل نقدي';
     document.getElementById('customer_phone').textContent = currentSale.customer_phone || 'غير محدد';
@@ -636,7 +633,11 @@
     const totalAmount = Number(currentSale.total_amount) || 0;
     
     // حساب الضريبة - السعر يشمل الضريبة (15%)
-    const vatRate = Number(currentSale.vat_rate ?? 0.15);
+    const rawVatRate = Number(currentSale.vat_rate ?? 0.15);
+    const vatRate = Number.isFinite(rawVatRate) && rawVatRate >= 0 ? rawVatRate : 0.15;
+    const vatPercent = (vatRate * 100).toLocaleString('ar-SA', { maximumFractionDigits: 2 });
+    const vatHeading = document.getElementById('vat_heading');
+    if (vatHeading) vatHeading.textContent = `الضريبة (${vatPercent}%)`;
     let subtotal, vatAmount;
     
     // إذا كانت البيانات محفوظة مسبقاً
@@ -659,7 +660,7 @@
     // عرض الضمان إن وجد
     const warrantyEl = document.getElementById('warranty_display');
     if (warrantyEl) {
-      const w = (currentSale.warranty || '').trim();
+      const w = String(currentSale.warranty || '').trim();
       warrantyEl.textContent = w ? w : '-';
     }
 
@@ -687,13 +688,7 @@
           return {};
         }
       }
-      const phones = JSON.parse(localStorage.getItem('phones') || '[]');
-      const map = {};
-      phones.forEach(p => {
-        if (p.id != null) map[String(p.id)] = p;
-        if (p.phone_number != null) map[String(p.phone_number)] = p;
-      });
-      return map;
+      return {};
     })();
     return _invoicePhonesMapPromise;
   }
@@ -742,7 +737,7 @@
           <td>${escapeHTML(item.description || item.product_description || 'لا يوجد وصف')}</td>
           <td>${escapeHTML(serialNumber)}</td>
           <td>${(Number(item.unitPrice ?? item.unit_price) || 0).toFixed(2)} ريال</td>
-          <td>${Number(item.quantity ?? 1) || 1}</td>
+          <td>${Number.isFinite(Number(item.quantity)) && Number(item.quantity) >= 0 ? Number(item.quantity) : 1}</td>
           <td class="fw-bold text-success">${(Number(item.totalPrice ?? item.total_price) || 0).toFixed(2)} ريال</td>
         `;
         itemsContainer.appendChild(row);
@@ -1061,10 +1056,10 @@
 
     // البائع في الفاتورة
     const receiptSellerEl = document.getElementById('receipt_seller_name');
-    if (receiptSellerEl) receiptSellerEl.textContent = (currentSale.seller_name || currentSale.sellerName || '').trim() || 'غير محدد';
+    if (receiptSellerEl) receiptSellerEl.textContent = String(currentSale.seller_name || currentSale.sellerName || '').trim() || 'غير محدد';
 
     // الضمان في الفاتورة (إن وجد)
-    const w = (currentSale.warranty || '').trim();
+    const w = String(currentSale.warranty || '').trim();
     const rWe = document.getElementById('receipt_warranty');
     if (rWe) {
       if (w) {
@@ -1128,7 +1123,7 @@
           : escapeHTML(productName);
         
         row.innerHTML = `
-          <td>${Number(item.quantity ?? 1) || 0}</td>
+          <td>${Number.isFinite(Number(item.quantity)) && Number(item.quantity) >= 0 ? Number(item.quantity) : 1}</td>
           <td>${productWithSerial}</td>
           <td>${unitPrice.toFixed(2)}</td>
         `;
@@ -1140,7 +1135,13 @@
     const totalAmount = Number(currentSale.total_amount) || 0;
     
     // حساب الضريبة - السعر يشمل الضريبة (15%)
-    const vatRate = Number(currentSale.vat_rate ?? 0.15);
+    const rawVatRate = Number(currentSale.vat_rate ?? 0.15);
+    const vatRate = Number.isFinite(rawVatRate) && rawVatRate >= 0 ? rawVatRate : 0.15;
+    const receiptVatLabel = document.getElementById('receipt_vat_label');
+    if (receiptVatLabel) {
+      const vatPercent = (vatRate * 100).toLocaleString('ar-SA', { maximumFractionDigits: 2 });
+      receiptVatLabel.textContent = `ضريبة القيمة المضافة (${vatPercent}%):`;
+    }
     let receiptSubtotal, receiptVatAmount;
     
     if (currentSale.subtotal !== undefined && currentSale.vat_amount !== undefined) {

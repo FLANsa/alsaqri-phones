@@ -259,6 +259,7 @@
     
     <script>
         let techniciansData = [];
+        const actionArg = value => escapeHTML(JSON.stringify(String(value ?? '')));
         let currentEditId = null;
 
         // Initialize page
@@ -315,10 +316,10 @@
                     </td>
                     <td>${tech.createdAt ? (() => { const d = tech.createdAt.seconds ? new Date(tech.createdAt.seconds * 1000) : new Date(tech.createdAt); return Number.isNaN(d.getTime()) ? '-' : d.toLocaleDateString('ar-SA'); })() : '-'}</td>
                     <td>
-                        <button class="btn btn-sm btn-warning me-1" onclick="editTechnician('${tech.id}')">
+                        <button class="btn btn-sm btn-warning me-1" onclick="editTechnician(${actionArg(tech.id)})">
                             <i class="fas fa-edit"></i>
                         </button>
-                        <button class="btn btn-sm btn-danger" onclick="deleteTechnician('${tech.id}')">
+                        <button class="btn btn-sm btn-danger" onclick="deleteTechnician(${actionArg(tech.id)})">
                             <i class="fas fa-trash"></i>
                         </button>
                     </td>

@@ -440,6 +440,7 @@
         let jobsData = [];
         let repsData = [];
         let techniciansData = [];
+        const actionArg = value => escapeHTML(JSON.stringify(String(value ?? '')));
         let currentEditId = null;
         let currentFilters = {};
         let selectedTechPercent = 0; // Default commission percentage
@@ -659,13 +660,13 @@
                             </span>
                         </td>
                         <td>
-                            <button class="btn btn-sm btn-info me-1" onclick="printInvoice('${job.id.replace(/'/g, "\\'")}')" title="طباعة الفاتورة">
+                            <button class="btn btn-sm btn-info me-1" onclick="printInvoice(${actionArg(job.id)})" title="طباعة الفاتورة">
                                 <i class="fas fa-print"></i>
                             </button>
-                            <button class="btn btn-sm btn-warning me-1" onclick="editJob('${job.id.replace(/'/g, "\\'")}')">
+                            <button class="btn btn-sm btn-warning me-1" onclick="editJob(${actionArg(job.id)})">
                                 <i class="fas fa-edit"></i>
                             </button>
-                            ${getCurrentRole() === 'admin' ? `<button class="btn btn-sm btn-danger" onclick="deleteJob('${job.id.replace(/'/g, "\\'")}')">
+                            ${getCurrentRole() === 'admin' ? `<button class="btn btn-sm btn-danger" onclick="deleteJob(${actionArg(job.id)})">
                                 <i class="fas fa-trash"></i>
                             </button>` : ''}
                         </td>
@@ -864,7 +865,7 @@
                     <div class="col-md-3 mb-2">
                         <label class="form-label">تكلفة القطعة (ريال) </label>
                         <input type="number" class="form-control arabic-number-field part-cost" 
-                               value="${partData?.partCost || ''}" min="0" step="0.01" required 
+                               value="${escapeHTML(partData?.partCost ?? '')}" min="0" step="0.01" required
                                oninput="calculateTotalPartCost()">
                     </div>
                     <div class="col-md-4 mb-2">
@@ -877,7 +878,7 @@
                         </select>
                     </div>
                     <div class="col-md-1 mb-2 d-flex align-items-end">
-                        <button type="button" class="btn btn-danger btn-sm" onclick="removePart('${partId}')" title="حذف القطعة">
+                        <button type="button" class="btn btn-danger btn-sm" onclick="removePart(${actionArg(partId)})" title="حذف القطعة">
                             <i class="fas fa-trash"></i>
                         </button>
                     </div>
