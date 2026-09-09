@@ -27,6 +27,19 @@ service cloud.firestore {
         nonNegativeNumber(data, 'quantity_in_stock');
     }
 
+    function validChangedNumber(field) {
+      return !request.resource.data.diff(resource.data).affectedKeys().hasAny([field]) ||
+        (request.resource.data[field] is number && request.resource.data[field] >= 0);
+    }
+
+    function validInventoryUpdate() {
+      return validChangedNumber('purchase_price') &&
+        validChangedNumber('purchase_price_with_vat') &&
+        validChangedNumber('selling_price') &&
+        validChangedNumber('selling_price_with_vat') &&
+        validChangedNumber('quantity') && validChangedNumber('quantity_in_stock');
+    }
+
     function validSale(data) {
       return data.items is list && data.items.size() > 0 &&
         data.total_amount is number && data.total_amount >= 0 &&
@@ -51,7 +64,7 @@ service cloud.firestore {
     // الموظف ينفذ العمليات التشغيلية اللازمة للإضافة والبيع والاسترجاع، دون حذف.
     match /phones/{id} {
       allow create: if isAuthorizedAccount() && validInventory(request.resource.data);
-      allow update: if isAuthorizedAccount() && validInventory(request.resource.data) &&
+      allow update: if isAuthorizedAccount() && validInventoryUpdate() &&
         request.resource.data.diff(resource.data).affectedKeys().hasOnly([
           'manufacturer', 'brand', 'model', 'phone_color', 'color', 'storage_capacity',
           'storage', 'ram', 'condition', 'phone_type', 'battery_level', 'selling_price',
@@ -61,7 +74,7 @@ service cloud.firestore {
     }
     match /accessories/{id} {
       allow create: if isAuthorizedAccount() && validInventory(request.resource.data);
-      allow update: if isAuthorizedAccount() && validInventory(request.resource.data) &&
+      allow update: if isAuthorizedAccount() && validInventoryUpdate() &&
         request.resource.data.diff(resource.data).affectedKeys().hasOnly([
           'name', 'arabic_name', 'category', 'description', 'selling_price',
           'selling_price_with_vat', 'quantity', 'quantity_in_stock', 'supplier',
