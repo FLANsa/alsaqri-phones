@@ -32,7 +32,7 @@ const tokens = (...values) => [...new Set(values.flatMap(value => {
   const text = normalize(value); const words = text.split(/\s+/).filter(Boolean);
   return words.flatMap(word => Array.from({ length: Math.min(word.length, 12) }, (_, i) => word.slice(0, i + 1)));
 }))].slice(0, 100);
-exports.syncSaleSummaries = onDocumentWritten('sales/{saleId}', async event => {
+exports.syncSaleSummaryEvents = onDocumentWritten('sales/{saleId}', async event => {
   const before = event.data.before.exists ? event.data.before.data() : null;
   const after = event.data.after.exists ? event.data.after.data() : null;
   const changes = new Map();
