@@ -512,33 +512,25 @@
                 const toDate = new Date(dateTo);
                 toDate.setHours(23, 59, 59, 999);
 
-                console.log('🔄 Loading accounts data...');
-                console.log('📅 Date range:', fromDate, 'to', toDate);
 
                 // قراءة واحدة للأعمال المنجزة في النطاق تُشارك بين تسويات
                 // المندوبين والفنيين (كانت تُقرأ نفس المجموعة مرتين)
-                console.log('📊 Loading done jobs for settlements...');
                 const doneJobs = await window.firebaseDatabase.getMaintenanceJobs({
                     status: 'done',
                     dateFrom: fromDate,
                     dateTo: toDate
                 });
                 completedJobs = doneJobs;
-                console.log('✅ Done jobs loaded:', doneJobs.length);
 
                 repsAccounts = await window.firebaseDatabase.getRepSettlements(fromDate, toDate, doneJobs);
-                console.log('✅ Reps loaded:', repsAccounts.length);
 
                 techsAccounts = await window.firebaseDatabase.getTechSettlements(fromDate, toDate, doneJobs);
-                console.log('✅ Techs loaded:', techsAccounts.length);
                 
                 // Load payments
-                console.log('📊 Loading payments...');
                 payments = await window.firebaseDatabase.getPayments({
                     dateFrom: fromDate,
                     dateTo: toDate
                 });
-                console.log('✅ Payments loaded:', payments.length);
                 
                 // Calculate balances
                 calculateBalances();
@@ -552,7 +544,6 @@
                 displayPayments();
                 displaySummary();
                 
-                console.log('✅ All data loaded successfully');
                 
             } catch (error) {
                 console.error('❌ Error loading accounts:', error);
@@ -619,16 +610,6 @@
                 (sum, job) => sum + (Number(job.amountCharged) || 0), 0);
             const totalShopProfit = totalRevenue - totalPartCosts - totalTechCommissions; // أرباح المحل
 
-            console.log('📊 Summary calculations:');
-            console.log('- Total reps:', totalReps);
-            console.log('- Total techs:', totalTechs);
-            console.log('- Total profit (إجمالي الأرباح):', totalProfit);
-            console.log('- Part costs (تكلفة القطع من المندوبين):', totalPartCosts);
-            console.log('- Tech commissions (عمولة الفنيين):', totalTechCommissions);
-            console.log('- Total payments:', totalPayments);
-            console.log('🏪 Shop profits:');
-            console.log('- Total revenue (إجمالي المبالغ المحصلة):', totalRevenue, '= مجموع amountCharged من repsAccounts فقط (تجنب الحساب المزدوج)');
-            console.log('- Shop profit (أرباح المحل):', totalShopProfit, '=', totalRevenue, '-', totalPartCosts, '-', totalTechCommissions);
 
             document.getElementById('totalReps').textContent = totalReps;
             document.getElementById('totalRepAmount').textContent = totalRepAmount.toFixed(2) + ' ريال';

@@ -51,14 +51,6 @@ window.addEventListener('firebase-stale-cache', function (event) {
   document.body.appendChild(warning);
 });
 
-// كتم سجلات console.log في الإنتاج (console.error/warn تبقى ظاهرة).
-// للتصحيح: نفّذ localStorage.setItem('__verbose', '1') ثم أعد تحميل الصفحة
-try {
-  if (localStorage.getItem('__verbose') !== '1') {
-    console.log = function () {};
-  }
-} catch (_) {}
-
 // تحذير إذا كان المشروع خاطئ
 if (firebaseConfig.projectId !== 'alsaqri-dc3ca') {
   console.error('⚠️ تحذير: Project ID غير صحيح! يجب أن يكون alsaqri-dc3ca');

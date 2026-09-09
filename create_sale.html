@@ -264,7 +264,6 @@
 
       // ملفات Firebase نوعها module وتُنفَّذ قبل إطلاق DOMContentLoaded — لا حاجة لأي مهلة
       if (window.storage && window.storage.isFirebaseAvailable) {
-        console.log('✅ Firebase متاح في صفحة المبيعات');
         await loadDataFromFirebase();
       } else {
         phones = []; accessories = []; accessoryCategories = []; sales = [];
@@ -296,7 +295,6 @@
         } else {
           sales = [];
         }
-        console.log('📥 Firebase:', { phones: phones.length, accessories: accessories.length, categories: accessoryCategories.length, sales: sales.length, soldFlagsReady: allFlagged });
       } catch (err) {
         console.error('❌ خطأ تحميل Firebase:', err);
         phones = []; accessories = []; accessoryCategories = []; sales = [];
@@ -351,7 +349,6 @@
         productTypeSelect.appendChild(noCat);
       }
   
-      console.log('✅ تم تحديث نوع المنتج:', productTypeSelect.options.length, 'خيار');
     }
   
     // ====== تحميل المنتجات حسب النوع المختار ======

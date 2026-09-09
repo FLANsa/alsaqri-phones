@@ -383,13 +383,11 @@
                 dateTo: urlParams.get('dateTo') || ''
             };
             
-            console.log('📊 Filters parsed:', filters);
         }
 
         // Load report data
         async function loadReportData() {
             try {
-                console.log('🔄 Loading report data...');
                 
                 if (!window.firebaseDatabase) {
                     console.error('❌ Firebase database not initialized');
@@ -428,12 +426,6 @@
                         return false;
                     });
                 }
-
-                console.log('✅ Data loaded:', {
-                    jobs: jobsData.length,
-                    repFiltered: !!filters.repId,
-                    techFiltered: !!filters.techId
-                });
 
                 // Display report
                 displayReport();

@@ -553,7 +553,6 @@
       startTime = Date.now();
       
       try {
-        console.log('🚀 Starting dashboard update...');
         
         // الهواتف والأكسسوارات والصيانة بشكل متوازي، ثم المبيعات:
         // إذا كانت كل الهواتف تحمل علم sold (بعد الترحيل) نقرأ فترة التاريخ فقط
@@ -570,13 +569,6 @@
         const sales = allFlagged
           ? await getSalesPeriodData(startDate, endDate)
           : await getSalesData();
-
-        console.log('📊 Data loaded:', {
-          phones: phones.length,
-          accessories: accessories.length,
-          sales: sales.length,
-          maintenance: maintenanceJobs.length
-        });
 
         // تصفية الهواتف المتاحة
         const availablePhones = phones.filter(phone => {
@@ -671,7 +663,6 @@
         updateRecentSales(effectiveSales);
 
         const totalTime = Date.now() - startTime;
-        console.log('✅ Dashboard updated successfully:', { loadTime: `${totalTime}ms` });
 
       } catch (error) {
         console.error('❌ خطأ في تحديث الصفحة الرئيسية:', error);

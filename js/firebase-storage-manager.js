@@ -36,11 +36,9 @@ class FirebaseStorageManager {
     this.isFirebaseAvailable = !!(this.firebaseDB && this.firebaseDB.db);
     
     if (this.isFirebaseAvailable) {
-      console.log('🔥 Firebase Storage Manager initialized with Firebase');
       // ملاحظة: لم يعد يُقرأ عداد الأجهزة عند تحميل الصفحات — تُؤجّل القراءة إلى
       // لحظة حفظ هاتف جديد في صفحات الإضافة (انظر primePhoneCounterBase)
     } else {
-      console.log('💾 Firebase not available, using LocalStorage fallback');
       this.initializeLocalStorage();
     }
   }
@@ -124,7 +122,6 @@ class FirebaseStorageManager {
 
   async setPhones(phones) {
     if (this.isFirebaseAvailable) {
-      console.log('Firebase mode: phones are managed individually');
       return true;
     }
     throw new Error('يلزم الاتصال بقاعدة البيانات لتعديل الهواتف');
@@ -300,7 +297,6 @@ class FirebaseStorageManager {
 
   async setAccessories(accessories) {
     if (this.isFirebaseAvailable) {
-      console.log('Firebase mode: accessories are managed individually');
       return true;
     }
     throw new Error('يلزم الاتصال بقاعدة البيانات لتعديل الأكسسوارات');
@@ -309,10 +305,8 @@ class FirebaseStorageManager {
   async addAccessory(accessory) {
     if (this.isFirebaseAvailable) {
       try {
-        console.log('🔥 Storage Manager: Firebase متاح، إرسال إلى Firebase...');
         accessory.date_added = new Date();
         const accessoryId = await this.firebaseDB.addAccessory(accessory);
-        console.log('✅ Storage Manager: تم إضافة الأكسسوار في Firebase، ID:', accessoryId);
         return accessoryId;
       } catch (error) {
         console.error('❌ Storage Manager: خطأ في إضافة الأكسسوار إلى Firebase:', error);
@@ -393,7 +387,6 @@ class FirebaseStorageManager {
 
   async setSales(sales) {
     if (this.isFirebaseAvailable) {
-      console.log('Firebase mode: sales are managed individually');
       return true;
     }
     throw new Error('يلزم الاتصال بقاعدة البيانات لتعديل المبيعات');
@@ -419,9 +412,7 @@ class FirebaseStorageManager {
   async getPhoneTypes() {
     if (this.isFirebaseAvailable) {
       try {
-        console.log('🔄 Storage Manager: تحميل أنواع الهواتف من Firebase...');
         const phoneTypes = await this.firebaseDB.getPhoneTypes();
-        console.log('📱 Storage Manager: أنواع الهواتف المحملة:', phoneTypes);
         
         // Convert array to object format for compatibility with existing code
         const phoneTypesObj = {};
@@ -432,20 +423,17 @@ class FirebaseStorageManager {
           }
           phoneTypesObj[manufacturer].push(type.model);
         });
-        console.log('🏭 Storage Manager: البيانات المحولة:', phoneTypesObj);
         return phoneTypesObj;
       } catch (error) {
         console.error('❌ Storage Manager: خطأ في تحميل أنواع الهواتف من Firebase:', error);
         throw error;
       }
     }
-    console.log('💾 Storage Manager: Firebase غير متاح، تحميل من localStorage...');
     return this.getItem(CONFIG.STORAGE_KEYS.PHONE_TYPES);
   }
 
   async setPhoneTypes(phoneTypes) {
     if (this.isFirebaseAvailable) {
-      console.log('Firebase mode: phone types are managed individually');
       return true;
     }
     throw new Error('يلزم الاتصال بقاعدة البيانات لتعديل أنواع الهواتف');
@@ -496,7 +484,6 @@ class FirebaseStorageManager {
 
   async setAccessoryCategories(categories) {
     if (this.isFirebaseAvailable) {
-      console.log('Firebase mode: accessory categories are managed individually');
       return true;
     }
     throw new Error('يلزم الاتصال بقاعدة البيانات لتعديل فئات الأكسسوارات');

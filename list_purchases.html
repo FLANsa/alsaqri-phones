@@ -605,12 +605,10 @@
   // ---------- تحميل البيانات من Firebase ----------
   async function loadPurchasesFromFirebase() {
     try {
-      console.log('🔄 تحميل المشتريات من Firebase...');
 
       let phones = [];
       if (window.storage && window.storage.isFirebaseAvailable) {
         phones = await window.storage.getPhones();
-        console.log('✅ تم تحميل الأجهزة من Firebase:', phones.length);
       } else throw new Error('تعذر تهيئة قاعدة البيانات');
 
       // نقرأ المبيعات إذا لم تكن كل الأجهزة تحمل علم sold (للكشف عن المباع قديمًا)

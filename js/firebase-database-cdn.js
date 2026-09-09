@@ -292,7 +292,6 @@ class FirebaseDatabase {
     this._cacheRevision++;
     await this._patchQueue;
     await idbClearAll();
-    console.log('🗑️ تم مسح كاش Firestore المحلي بالكامل');
   }
 
   /**
@@ -452,7 +451,6 @@ class FirebaseDatabase {
           if (serverVal > prev) localStorage.setItem('serverPhoneCounterBase', String(serverVal));
           const localCurr = parseInt(localStorage.getItem('localDeviceCounter') || '0', 10) || 0;
           if (serverVal > localCurr) localStorage.setItem('localDeviceCounter', String(serverVal));
-          console.log('✅ primePhoneCounterBase: عداد الأجهزة محفوظ محلياً عند', serverVal);
         }
       }
       clearQuotaCooling();
@@ -556,7 +554,6 @@ class FirebaseDatabase {
   async getPhones() {
     try {
       const phones = await this._getCollectionCached('phones');
-      console.log('📱 Retrieved phones:', phones.length);
       return phones;
     } catch (error) {
       console.error('❌ Error getting phones:', error);
@@ -572,7 +569,6 @@ class FirebaseDatabase {
     try {
       await deleteDoc(doc(this.db, 'phones', phoneId));
       await this._patchRemoveRow('phones', phoneId);
-      console.log('✅ Phone deleted:', phoneId);
     } catch (error) {
       console.error('❌ Error deleting phone:', error);
       throw error;
@@ -661,7 +657,6 @@ class FirebaseDatabase {
     // إعادة كتابة جماعية نادرة (من الكونسول) — مسح كاش الهواتف كاملاً مقبول هنا
     await this._dropCollectionCache('phones');
     const summary = { phones: phones.length, sold: soldCount, available: availCount, skipped, written: soldCount + availCount - skipped };
-    console.log('✅ migrateSoldFlags:', summary);
     return summary;
   }
 
@@ -681,7 +676,6 @@ class FirebaseDatabase {
         id: docRef.id, ...accessoryData,
         createdAt: new Date(), updatedAt: new Date()
       });
-      console.log('✅ Accessory added:', docRef.id);
       return docRef.id;
     } catch (error) {
       console.error('❌ Error adding accessory:', error);
@@ -692,7 +686,6 @@ class FirebaseDatabase {
   async getAccessories() {
     try {
       const accessories = await this._getCollectionCached('accessories');
-      console.log('🛍️ Retrieved accessories:', accessories.length);
       return accessories;
     } catch (error) {
       console.error('❌ Error getting accessories:', error);
@@ -707,7 +700,6 @@ class FirebaseDatabase {
         updatedAt: serverTimestamp()
       });
       await this._patchUpdateRow('accessories', accessoryId, { ...accessoryData, updatedAt: new Date() });
-      console.log('✅ Accessory updated:', accessoryId);
     } catch (error) {
       console.error('❌ Error updating accessory:', error);
       throw error;
@@ -718,7 +710,6 @@ class FirebaseDatabase {
     try {
       await deleteDoc(doc(this.db, 'accessories', accessoryId));
       await this._patchRemoveRow('accessories', accessoryId);
-      console.log('✅ Accessory deleted:', accessoryId);
     } catch (error) {
       console.error('❌ Error deleting accessory:', error);
       throw error;
@@ -792,7 +783,6 @@ class FirebaseDatabase {
         id: docRef.id, ...categoryData,
         createdAt: new Date(), updatedAt: new Date()
       });
-      console.log('✅ Category added:', docRef.id);
       return docRef.id;
     } catch (error) {
       console.error('❌ Error adding category:', error);
@@ -803,7 +793,6 @@ class FirebaseDatabase {
   async getAccessoryCategories() {
     try {
       const categories = await this._getCollectionCached('accessory_categories');
-      console.log('📂 Retrieved categories:', categories.length);
       return categories;
     } catch (error) {
       console.error('❌ Error getting categories:', error);
@@ -821,7 +810,6 @@ class FirebaseDatabase {
       await Promise.all(deletes);
       await this._applyWrite('accessory_categories', (rows) =>
         rows.filter(r => r.arabic_name !== categoryName));
-      console.log('✅ Accessory category deleted:', categoryName);
       return true;
     } catch (error) {
       console.error('❌ Error deleting accessory category:', error);
@@ -842,7 +830,6 @@ class FirebaseDatabase {
         id: docRef.id, ...phoneTypeData,
         createdAt: new Date(), updatedAt: new Date()
       });
-      console.log('✅ Phone type added:', docRef.id);
       return docRef.id;
     } catch (error) {
       console.error('❌ Error adding phone type:', error);
@@ -853,7 +840,6 @@ class FirebaseDatabase {
   async getPhoneTypes() {
     try {
       const types = await this._getCollectionCached('phone_types');
-      console.log('📱 Retrieved phone types:', types.length);
       return types;
     } catch (error) {
       console.error('❌ Error getting phone types:', error);
@@ -871,7 +857,6 @@ class FirebaseDatabase {
       await Promise.all(deletes);
       await this._applyWrite('phone_types', (rows) =>
         rows.filter(r => !(r.brand === brand && r.model === model)));
-      console.log('✅ Phone type deleted:', brand, model);
       return true;
     } catch (error) {
       console.error('❌ Error deleting phone type:', error);
@@ -1031,7 +1016,6 @@ class FirebaseDatabase {
       const saleDate = sale => this._asDate(sale.date_created) || this._asDate(sale.date_added) ||
         this._asDate(sale.created_at) || this._asDate(sale.createdAt);
       sales.sort((a, b) => (saleDate(b) || 0) - (saleDate(a) || 0));
-      console.log('💰 Retrieved sales:', sales.length);
       return sales;
     } catch (error) {
       console.error('❌ Error getting sales:', error);
@@ -1063,7 +1047,6 @@ class FirebaseDatabase {
         updatedAt: serverTimestamp()
       });
       await this._patchUpdateRow('sales', saleId, { ...saleData, updatedAt: new Date() });
-      console.log('✅ Sale updated:', saleId);
     } catch (error) {
       console.error('❌ Error updating sale:', error);
       throw error;
@@ -1081,7 +1064,6 @@ class FirebaseDatabase {
       clauses.push(orderBy('sortAt', 'desc'));
       const snap = await this._getDocs('sales:range', query(collection(this.db, 'sales'), ...clauses));
       const rows = snap.docs.map(row => ({ ...row.data(), id: row.id }));
-      console.log('💰 Sales in range loaded:', rows.length);
       return rows;
     } catch (error) {
       console.error('❌ Error getting sales in range:', error);
@@ -1103,7 +1085,6 @@ class FirebaseDatabase {
         id: docRef.id, ...repData, active: true,
         createdAt: new Date(), updatedAt: new Date()
       });
-      console.log('✅ Rep added with ID:', docRef.id);
       return docRef.id;
     } catch (error) {
       console.error('❌ Error adding rep:', error);
@@ -1114,7 +1095,6 @@ class FirebaseDatabase {
   async getReps() {
     try {
       const reps = await this._getCollectionCached('reps');
-      console.log('✅ Reps loaded:', reps.length);
       return reps;
     } catch (error) {
       console.error('❌ Error getting reps:', error);
@@ -1126,7 +1106,6 @@ class FirebaseDatabase {
     try {
       await updateDoc(doc(this.db, 'reps', repId), { ...repData, updatedAt: serverTimestamp() });
       await this._patchUpdateRow('reps', repId, { ...repData, updatedAt: new Date() });
-      console.log('✅ Rep updated:', repId);
     } catch (error) {
       console.error('❌ Error updating rep:', error);
       throw error;
@@ -1137,7 +1116,6 @@ class FirebaseDatabase {
     try {
       await deleteDoc(doc(this.db, 'reps', repId));
       await this._patchRemoveRow('reps', repId);
-      console.log('✅ Rep deleted:', repId);
     } catch (error) {
       console.error('❌ Error deleting rep:', error);
       throw error;
@@ -1164,7 +1142,6 @@ class FirebaseDatabase {
         defaultCommissionPercent,
         createdAt: new Date(), updatedAt: new Date()
       });
-      console.log('✅ Technician added with ID:', docRef.id);
       return docRef.id;
     } catch (error) {
       console.error('❌ Error adding technician:', error);
@@ -1175,7 +1152,6 @@ class FirebaseDatabase {
   async getTechnicians() {
     try {
       const technicians = await this._getCollectionCached('technicians');
-      console.log('✅ Technicians loaded:', technicians.length);
       return technicians;
     } catch (error) {
       console.error('❌ Error getting technicians:', error);
@@ -1187,7 +1163,6 @@ class FirebaseDatabase {
     try {
       await updateDoc(doc(this.db, 'technicians', techId), { ...techData, updatedAt: serverTimestamp() });
       await this._patchUpdateRow('technicians', techId, { ...techData, updatedAt: new Date() });
-      console.log('✅ Technician updated:', techId);
     } catch (error) {
       console.error('❌ Error updating technician:', error);
       throw error;
@@ -1198,7 +1173,6 @@ class FirebaseDatabase {
     try {
       await deleteDoc(doc(this.db, 'technicians', techId));
       await this._patchRemoveRow('technicians', techId);
-      console.log('✅ Technician deleted:', techId);
     } catch (error) {
       console.error('❌ Error deleting technician:', error);
       throw error;
@@ -1275,7 +1249,6 @@ class FirebaseDatabase {
       }
 
       jobs = jobs.slice().sort((a, b) => (jobDate(b) || 0) - (jobDate(a) || 0));
-      console.log('✅ Maintenance jobs loaded:', jobs.length);
       return jobs;
     } catch (error) {
       console.error('❌ Error getting maintenance jobs:', error);
@@ -1317,7 +1290,6 @@ class FirebaseDatabase {
         profit, techCommission, shopProfit, status: 'pending',
         createdAt: new Date(), updatedAt: new Date()
       });
-      console.log('✅ Maintenance job added with ID:', docRef.id);
       return docRef.id;
     } catch (error) {
       console.error('❌ Error adding maintenance job:', error);
@@ -1360,7 +1332,6 @@ class FirebaseDatabase {
 
       await updateDoc(doc(this.db, 'maintenanceJobs', jobId), { ...jobData, updatedAt: serverTimestamp() });
       await this._patchUpdateRow('maintenanceJobs', jobId, { ...jobData, updatedAt: new Date() });
-      console.log('✅ Maintenance job updated:', jobId);
     } catch (error) {
       console.error('❌ Error updating maintenance job:', error);
       throw error;
@@ -1371,7 +1342,6 @@ class FirebaseDatabase {
     try {
       await deleteDoc(doc(this.db, 'maintenanceJobs', jobId));
       await this._patchRemoveRow('maintenanceJobs', jobId);
-      console.log('✅ Maintenance job deleted:', jobId);
     } catch (error) {
       console.error('❌ Error deleting maintenance job:', error);
       throw error;
@@ -1423,7 +1393,6 @@ class FirebaseDatabase {
       if (filters.entityId) payments = payments.filter(p => p.entityId === filters.entityId);
 
       payments = payments.slice().sort((a, b) => (payDate(b) || 0) - (payDate(a) || 0));
-      console.log('✅ Payments loaded:', payments.length);
       return payments;
     } catch (error) {
       console.error('❌ Error getting payments:', error);
@@ -1442,7 +1411,6 @@ class FirebaseDatabase {
         id: docRef.id, ...paymentData,
         createdAt: new Date(), updatedAt: new Date()
       });
-      console.log('✅ Payment added with ID:', docRef.id);
       return docRef.id;
     } catch (error) {
       console.error('❌ Error adding payment:', error);
@@ -1454,7 +1422,6 @@ class FirebaseDatabase {
     try {
       await deleteDoc(doc(this.db, 'payments', paymentId));
       await this._patchRemoveRow('payments', paymentId);
-      console.log('✅ Payment deleted:', paymentId);
     } catch (error) {
       console.error('❌ Error deleting payment:', error);
       throw error;
@@ -1535,7 +1502,6 @@ class FirebaseDatabase {
       });
 
       const result = Object.values(repTotals);
-      console.log('✅ Rep settlements calculated:', result.length);
       return result;
     } catch (error) {
       console.error('❌ Error getting rep settlements:', error);
@@ -1576,7 +1542,6 @@ class FirebaseDatabase {
       });
 
       const result = Object.values(techTotals);
-      console.log('✅ Tech settlements calculated:', result.length);
       return result;
     } catch (error) {
       console.error('❌ Error getting tech settlements:', error);
@@ -1587,5 +1552,3 @@ class FirebaseDatabase {
 
 // إنشاء instance واحد للاستخدام في جميع أنحاء التطبيق
 window.firebaseDatabase = new FirebaseDatabase();
-
-console.log('🔥 Firebase Database Manager initialized successfully!');

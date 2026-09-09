@@ -265,7 +265,6 @@
     // ===== تحميل بيانات الهاتف للتعديل =====
     async function loadPhoneForEdit(phoneNumber) {
       try {
-        console.log('🔄 تحميل بيانات الهاتف للتعديل:', phoneNumber);
         
         let phone = null;
 
@@ -338,7 +337,6 @@
           }
           
         } else {
-          console.log('❌ لم يتم العثور على الهاتف');
           document.getElementById('loadingSpinner').classList.add('d-none');
           document.getElementById('phoneNotFound').classList.remove('d-none');
         }
@@ -477,15 +475,12 @@
     // ===== تحميل قائمة الشركات المصنعة =====
     async function loadManufacturers() {
       try {
-        console.log('🔄 تحميل قائمة الشركات المصنعة من Firebase...');
 
         if (window.storage && window.storage.isFirebaseAvailable) {
           const phoneTypes = await getPhoneTypesCached();
-          console.log('📱 أنواع الهواتف المحملة:', phoneTypes);
           
           // phoneTypes is now an object with brand as keys
           const manufacturers = Object.keys(phoneTypes);
-          console.log('🏭 الشركات المصنعة:', manufacturers);
           
           const select = document.getElementById('manufacturer');
           select.innerHTML = '<option value="">اختر الشركة المصنعة</option>';
@@ -496,9 +491,7 @@
             select.appendChild(option);
           });
           
-          console.log('✅ تم تحميل الشركات المصنعة بنجاح');
         } else {
-          console.log('⚠️ Firebase غير متاح، تحميل من localStorage...');
           const phoneTypes = JSON.parse(localStorage.getItem('phone_types') || '{}');
           const manufacturers = Object.keys(phoneTypes);
           
@@ -520,7 +513,6 @@
     // ===== تحميل قائمة الموديلات حسب الشركة المصنعة =====
     async function loadModels(manufacturer) {
       try {
-        console.log('🔄 تحميل موديلات الشركة:', manufacturer);
         
         if (!manufacturer) {
           document.getElementById('model').innerHTML = '<option value="">اختر الموديل</option>';
@@ -534,7 +526,6 @@
         // phoneTypes is now an object with brand as keys and models as arrays
         const models = phoneTypes[manufacturer] || [];
         
-        console.log('📱 الموديلات المتاحة:', models);
         
         const modelSelect = document.getElementById('model');
         const currentModel = modelSelect.value;
@@ -562,7 +553,6 @@
           modelSelect.insertBefore(option, modelSelect.firstChild);
         }
         
-        console.log('✅ تم تحميل الموديلات بنجاح');
         
       } catch (error) {
         console.error('❌ خطأ في تحميل الموديلات:', error);
@@ -610,9 +600,7 @@
       // لذا window.storage جاهز هنا دائماً ولا حاجة لأي انتظار.
       
       if (window.storage && window.storage.isFirebaseAvailable) {
-        console.log('✅ Firebase متاح في صفحة تعديل الهاتف');
       } else {
-        console.log('⚠️ Firebase غير متاح، استخدام localStorage');
       }
 
       // تحميل قائمة الشركات المصنعة
@@ -635,7 +623,6 @@
       // إضافة مستمع لتغيير الشركة المصنعة
       document.getElementById('manufacturer').addEventListener('change', async function(e) {
         const selectedManufacturer = e.target.value;
-        console.log('🔄 تغيير الشركة المصنعة إلى:', selectedManufacturer);
         await loadModels(selectedManufacturer);
       });
 

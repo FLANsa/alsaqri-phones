@@ -271,7 +271,6 @@
     const type = document.getElementById('search_type').value || 'all';
     const statusFilter = 'all';
 
-    console.log('🔍 البحث عن:', term, 'نوع:', type, 'حالة:', statusFilter);
 
     if (!term) {
       showAlert('warning', 'يرجى إدخال كلمة البحث');
@@ -297,7 +296,6 @@
       const searchTerms = [term.toLowerCase(), englishTerm.toLowerCase(), arabicTerm.toLowerCase()];
       const uniqueTerms = [...new Set(searchTerms)]; // إزالة التكرار
       
-      console.log('🔤 الرموز المطلوب البحث عنها:', uniqueTerms);
 
       let phones = [];
       let accessories = [];
@@ -336,7 +334,6 @@
         });
       }
 
-      console.log('📊 نتائج البحث:', { phones: phones.length, accessories: accessories.length });
 
       // حفظ النتائج وإعادة تعيين الصفحة الأولى
       currentSearchResults = { phones, accessories };
@@ -719,9 +716,7 @@
     // لذا window.storage جاهز هنا دائماً ولا حاجة لأي انتظار.
     
     if (window.storage && window.storage.isFirebaseAvailable) {
-      console.log('✅ Firebase متاح في صفحة البحث');
     } else {
-      console.log('⚠️ Firebase غير متاح، استخدام localStorage');
     }
     
     // لا تُظهر النتائج افتراضياً — تُعرض فقط بعد البحث أو عند النقر على "عرض الكل"
@@ -732,7 +727,6 @@
     const type = urlParams.get('type');
     
     if (barcode) {
-      console.log('🔍 بحث تلقائي بالباركود:', barcode, 'النوع:', type);
       document.getElementById('search_term').value = barcode;
       
       if (type) {
@@ -770,7 +764,6 @@
 
   // ===== حذف الجهاز =====
   async function deletePhone(phoneId) {
-    console.log('🗑️ محاولة حذف الجهاز:', phoneId);
     
     if (!phoneId) {
       console.error('❌ معرف الجهاز غير صالح');
@@ -803,18 +796,14 @@
 ⚠️ تحذير: هذا الإجراء لا يمكن التراجع عنه!`;
 
     if (!confirm(confirmMessage)) {
-      console.log('❌ تم إلغاء عملية الحذف');
       return;
     }
 
     try {
-      console.log('🔄 بدء عملية الحذف...');
       
       if (window.storage && window.storage.isFirebaseAvailable) {
         // حذف من Firebase
-        console.log('🔥 حذف من Firebase...');
         await window.storage.deletePhone(phoneId);
-        console.log('✅ تم الحذف من Firebase بنجاح');
       } else throw new Error('يلزم الاتصال بقاعدة البيانات لحذف الجهاز');
 
       // إعادة تحميل البيانات وعرض النتائج
@@ -823,7 +812,6 @@
       inventoryLoadedAt = Date.now();
       
       showAlert('success', 'تم حذف الجهاز بنجاح');
-      console.log('✅ تم حذف الجهاز بنجاح');
       
     } catch (error) {
       console.error('❌ خطأ في حذف الجهاز:', error);

@@ -42,7 +42,7 @@ python3 -m http.server 8000
 
 - كاش IndexedDB باسم `alsaqri_fs_cache` بعمر 5 دقائق لكل مجموعة.
 - عند نفاد حصة Firestore يوجد قاطع دائرة 5 دقائق (انظر `firebase-database-cdn.js`).
-- سجلات `console.log` مكتومة إنتاجياً؛ للتصحيح: `localStorage.setItem('__verbose','1')`.
+- لا تطبع الواجهة سجلات تشخيص عادية في وحدة التحكم؛ تبقى الأخطاء والتحذيرات ذات الصلة مرئية للتشخيص.
 - الحماية: جلسة Firebase حقيقية (حسابا admin/user عبر login.html) + guard.js على كل الصفحات المحمية — راجع `firestore.rules`.
 
 ## سلامة عمليات المخزون

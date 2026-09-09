@@ -293,7 +293,6 @@
   // تحديث ملخص المخزون من قاعدة البيانات
   async function updateInventorySummary() {
     try {
-      console.log('📊 تحديث ملخص المخزون من قاعدة البيانات...');
 
       let phones = [];
       let accessories = [];
@@ -301,7 +300,6 @@
 
       // تحميل البيانات من Firebase أو localStorage
       if (window.storage && window.storage.isFirebaseAvailable) {
-        console.log('🔥 تحميل البيانات من Firebase...');
         // قراءات متوازية بدل التسلسل، ومبيعات فقط إذا لزمت (قبل اكتمال علم sold)
         const [p, a] = await Promise.all([
           window.storage.getPhones(),
@@ -310,7 +308,6 @@
         phones = p; accessories = a;
         const allFlagged = phones.length > 0 && phones.every(ph => typeof ph.sold === 'boolean');
         if (!allFlagged) sales = await window.storage.getSales();
-        console.log('✅ تم تحميل البيانات من Firebase:', { phones: phones.length, accessories: accessories.length, sales: sales.length, soldFlagsReady: allFlagged });
       } else throw new Error('تعذر تهيئة قاعدة البيانات');
 
       // تصفية الهواتف المباعة - إبقاء الهواتف المتاحة فقط
@@ -319,7 +316,6 @@
         return phoneId && !isPhoneSold(phone, sales);
       });
 
-      console.log('📱 الهواتف المتاحة:', availablePhones.length, 'من أصل', phones.length);
 
       // فصل الهواتف الجديدة والمستعملة (من الهواتف المتاحة فقط)
       const newPhones = availablePhones.filter(p => p.condition === 'new' || p.phone_type === 'new');
@@ -354,19 +350,6 @@
         sum + ((Number(a.purchase_price) || 0) * accessoryQuantity(a)), 0);
       const totalAccessorySellingValue = accessories.reduce((sum, a) => 
         sum + ((Number(a.selling_price) || 0) * accessoryQuantity(a)), 0);
-
-      console.log('📈 الإحصائيات المحسوبة:', {
-        totalPhones,
-        totalPurchaseValue,
-        totalSellingValue,
-        totalProfit,
-        newPhonesCount,
-        usedPhonesCount,
-        totalAccessories,
-        totalAccessoryQuantity,
-        totalAccessoryPurchaseValue,
-        totalAccessorySellingValue
-      });
 
       // تحديث العناصر في الصفحة - قيم الهواتف فقط
       document.getElementById('total_phones').textContent = totalPhones;
@@ -544,9 +527,7 @@
     // لذا window.storage جاهز هنا دائماً ولا حاجة لأي انتظار.
     
     if (window.storage && window.storage.isFirebaseAvailable) {
-      console.log('✅ Firebase متاح في صفحة ملخص المخزون');
     } else {
-      console.log('⚠️ Firebase غير متاح، استخدام localStorage');
     }
 
     // تحديث ملخص المخزون مرة واحدة عند تحميل الصفحة

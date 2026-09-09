@@ -67,7 +67,6 @@ function setupArabicNumberSupport() {
         });
     });
     
-    console.log('✅ تم تفعيل دعم الأرقام العربية');
 }
 
 // تشغيل تلقائي عند تحميل الصفحة

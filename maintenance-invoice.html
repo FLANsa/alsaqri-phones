@@ -404,7 +404,6 @@
                     return;
                 }
 
-                console.log('🔍 Loading invoice for job:', jobId);
 
                 // Load job data
                 currentJob = await window.firebaseDatabase.getMaintenanceJob(jobId);
@@ -588,7 +587,6 @@
 
         // طباعة الفاتورة
         async function printInvoice() {
-            console.log('🖨️ بدء عملية الطباعة...');
             
             if (isPrinting) { 
                 alert('جاري الطباعة...'); 
@@ -607,7 +605,6 @@
             }
 
             try {
-                console.log('📋 تعبئة قالب الفاتورة...');
                 // 1) جهّز المحتوى أولاً
                 await populateInvoiceTemplate();
                 const receiptHTML = document.getElementById('receipt-roll-template').innerHTML;
@@ -616,7 +613,6 @@
                     throw new Error('لم يتم العثور على محتوى الفاتورة');
                 }
                 
-                console.log('✅ تم تحضير محتوى الفاتورة');
 
                 // 2) افتح النافذة
                 const popup = window.open('', 'printWindow', 'width=420,height=800');

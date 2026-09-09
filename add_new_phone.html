@@ -234,21 +234,16 @@
     let brandsData = {};
     async function populateBrandsFromFirebase(){
       try{
-        console.log('🔄 تحميل أنواع الهواتف من Firebase...');
         if(window.storage && window.storage.isFirebaseAvailable){
           const phoneTypes = await window.storage.getPhoneTypes();
-          console.log('📱 أنواع الهواتف المحملة:', phoneTypes);
           
           if(phoneTypes && Object.keys(phoneTypes).length > 0){
             // phoneTypes is already in the correct object format from storage manager
             brandsData = phoneTypes;
-            console.log('🏭 البيانات المحولة:', brandsData);
           } else {
-            console.log('⚠️ لا توجد أنواع هواتف في قاعدة البيانات');
           }
         }
       }catch(e){ 
-        console.log('❌ خطأ في تحميل أنواع الهواتف من Firebase:', e); 
       }
 
       const brandSelect = document.getElementById('brand');
@@ -260,7 +255,6 @@
           const opt=document.createElement('option'); opt.value=brand; opt.textContent=brand;
           brandSelect.insertBefore(opt, brandSelect.querySelector('option[value="other"]'));
         });
-        console.log('✅ تم تحميل الشركات المصنعة بنجاح');
       } else {
         // إضافة رسالة توضيحية إذا لم توجد بيانات
         const opt = document.createElement('option');
@@ -268,7 +262,6 @@
         opt.textContent = 'لا توجد شركات مصنعة - اضغط "إضافة" لإضافة شركة جديدة';
         opt.disabled = true;
         brandSelect.insertBefore(opt, brandSelect.querySelector('option[value="other"]'));
-        console.log('ℹ️ لا توجد شركات مصنعة متاحة - يجب إضافتها يدوياً');
       }
     }
     function updateModelOptions(){
@@ -482,7 +475,6 @@
         
         // التحقق من وجود معرف التعديل
         if (window.editingPhoneId) {
-          console.log('🔄 تحديث الهاتف:', window.editingPhoneId);
           phoneData.id = window.editingPhoneId;
           
           if(window.storage && window.storage.isFirebaseAvailable){
@@ -560,7 +552,6 @@
     // ===== تحميل بيانات الهاتف للتعديل =====
     async function loadPhoneForEdit(phoneNumber) {
       try {
-        console.log('🔄 تحميل بيانات الهاتف للتعديل:', phoneNumber);
         
         let phone = null;
         
@@ -595,7 +586,6 @@
           
           showAlert('info', 'تم تحميل بيانات الهاتف للتعديل');
         } else {
-          console.log('❌ لم يتم العثور على الهاتف');
           showAlert('warning', 'لم يتم العثور على الهاتف المطلوب');
         }
         

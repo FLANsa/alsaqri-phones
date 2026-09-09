@@ -276,20 +276,16 @@
     // تحميل وعرض الأكسسوارات من Firebase
     async function loadAccessories(page = 1) {
       try {
-        console.log('📦 تحميل الأكسسوارات من قاعدة البيانات...');
         
         // تحميل من Firebase
         if (window.dataRepositories?.accessoriesRepository) {
-          console.log('🔥 تحميل من Firebase...');
           const data = await window.dataRepositories.accessoriesRepository.getPage({ cursor: accessoriesHistory[page - 1] || null, pageSize: 20 });
           accessories = data.items || [];
           accessoriesCursor = data.nextCursor || null;
           accessoriesHasMore = data.hasMore === true;
           accessoriesPage = page;
           if (accessoriesCursor) accessoriesHistory[page] = accessoriesCursor;
-          console.log('✅ تم تحميل الأكسسوارات من Firebase:', accessories.length);
         } else {
-          console.log('❌ Firebase غير متاح - يرجى التحقق من الاتصال');
           showAlert('danger', 'Firebase غير متاح - يرجى التحقق من الاتصال');
           return;
         }
@@ -377,7 +373,6 @@
 
     // تحديث الإحصائيات من قاعدة البيانات
     function updateStatistics(accessories) {
-      console.log('📊 حساب الإحصائيات من قاعدة البيانات...');
       
       const totalItems = accessories.length;
       const quantityOf = acc => Number(acc.quantity_in_stock ?? acc.quantity ?? 0) || 0;
@@ -386,13 +381,6 @@
         sum + ((Number(acc.purchase_price) || 0) * quantityOf(acc)), 0);
       const totalSellingValue = accessories.reduce((sum, acc) => 
         sum + ((Number(acc.selling_price) || 0) * quantityOf(acc)), 0);
-
-      console.log('📈 الإحصائيات المحسوبة:', {
-        totalItems,
-        totalQuantity,
-        totalPurchaseValue,
-        totalSellingValue
-      });
 
       document.getElementById('total-items').textContent = totalItems;
       document.getElementById('total-quantity').textContent = totalQuantity;
@@ -403,7 +391,6 @@
     // تعديل أكسسوار
     async function editAccessory(accessoryId) {
       try {
-        console.log('✏️ تعديل الأكسسوار:', accessoryId);
         
         // تحميل الأكسسوارات من Firebase
         if (!window.storage || !window.storage.isFirebaseAvailable) {
@@ -488,7 +475,6 @@
     // حذف أكسسوار
     async function deleteAccessory(accessoryId) {
       try {
-        console.log('🗑️ حذف الأكسسوار:', accessoryId);
         
         // تحميل الأكسسوارات من Firebase
         if (!window.storage || !window.storage.isFirebaseAvailable) {
@@ -527,10 +513,8 @@
     // لذا window.storage جاهز هنا دائماً ولا حاجة لأي انتظار.
     
     if (window.storage && window.storage.isFirebaseAvailable) {
-      console.log('✅ Firebase متاح في صفحة مخزون الأكسسوارات');
       await loadAccessories();
     } else {
-      console.log('❌ Firebase غير متاح - يرجى التحقق من الاتصال');
       showAlert('danger', 'Firebase غير متاح - يرجى التحقق من الاتصال بالإنترنت');
       document.getElementById('accessories-table').classList.add('d-none');
       document.getElementById('empty-state').classList.remove('d-none');

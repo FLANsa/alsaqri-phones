@@ -459,7 +459,6 @@
         // Load all data
         async function loadData() {
             try {
-                console.log('🔄 بدء تحميل البيانات...');
                 
                 if (!window.firebaseDatabase) {
                     console.error('❌ Firebase database not initialized');
@@ -472,12 +471,6 @@
                     window.firebaseDatabase.getTechnicians(),
                     window.firebaseDatabase.getMaintenanceJobs()
                 ]);
-
-                console.log('✅ تم تحميل البيانات:', {
-                    reps: repsData.length,
-                    technicians: techniciansData.length,
-                    jobs: jobsData.length
-                });
 
                 populateDropdowns();
                 displayJobs();
@@ -575,7 +568,6 @@
             if (totalPartCost > 0 && amountCharged > 0 && selectedTechPercent > 0) {
                 const { profit, techCommission, shopProfit } = computeDerived(totalPartCost, amountCharged, selectedTechPercent);
                 // عناصر عرض الأرباح غير موجودة في هذه الصفحة؛ القيم تُحفظ عبر addMaintenanceJob/updateMaintenanceJob
-                console.log('💰 تم حساب الأرباح:', { profit, techCommission, shopProfit });
             }
         }
 
@@ -710,7 +702,6 @@
 
         // Edit job
         function editJob(jobId) {
-            console.log('🔧 محاولة تعديل عمل الصيانة:', jobId);
             
             const job = jobsData.find(j => j.id === jobId);
             if (!job) {
@@ -815,7 +806,6 @@
 
                 // Set the tech percent for editing
                 selectedTechPercent = job.techPercent !== undefined ? job.techPercent : 0;
-                console.log('💰 نسبة عمولة الفني:', selectedTechPercent);
 
                 // Show complete button only if job is not done
                 const completeBtn = document.getElementById('completeJobBtn');
@@ -834,7 +824,6 @@
                 const modal = document.getElementById('jobModal');
                 if (modal) {
                     new bootstrap.Modal(modal).show();
-                    console.log('✅ تم فتح نافذة التعديل بنجاح');
                 } else {
                     console.error('❌ لم يتم العثور على نافذة التعديل');
                 }
@@ -1012,7 +1001,6 @@
 
         // Delete job
         async function deleteJob(jobId) {
-            console.log('🗑️ محاولة حذف عمل الصيانة:', jobId);
             
             if (!jobId) {
                 console.error('❌ معرف عمل الصيانة غير صالح');
@@ -1026,7 +1014,6 @@
                 await window.firebaseDatabase.deleteMaintenanceJob(jobId);
                 showAlert('success', 'تم حذف عمل الصيانة بنجاح');
                 loadData();
-                console.log('✅ تم حذف عمل الصيانة بنجاح');
             } catch (error) {
                 console.error('❌ خطأ في حذف عمل الصيانة:', error);
                 showAlert('error', 'حدث خطأ في حذف عمل الصيانة');
@@ -1136,7 +1123,6 @@
 
         // Print invoice for maintenance job
         function printInvoice(jobId) {
-            console.log('🖨️ طباعة فاتورة عمل الصيانة:', jobId);
             
             const job = jobsData.find(j => j.id === jobId);
             if (!job) {
@@ -1151,7 +1137,6 @@
 
         // طباعة تقرير أعمال الصيانة
         function printReport() {
-            console.log('📊 طباعة تقرير أعمال الصيانة');
             
             // جمع الفلاتر الحالية
             const filters = {

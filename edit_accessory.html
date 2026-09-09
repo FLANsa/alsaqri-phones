@@ -133,11 +133,9 @@
     // لذا window.storage جاهز هنا دائماً ولا حاجة لأي انتظار.
 
     if (window.storage && window.storage.isFirebaseAvailable) {
-      console.log('✅ Firebase متاح في صفحة التعديل');
       await loadCategories();
       await loadAccessoryForEdit();
     } else {
-      console.log('⚠️ Firebase غير متاح، استخدام البيانات المحلية');
       populateCategories();
       await loadAccessoryForEdit();
     }
@@ -157,7 +155,6 @@
             option.textContent = cat.arabic_name;
             select.appendChild(option);
           });
-          console.log('✅ تم تحميل الفئات من Firebase');
         }
       }
     } catch (error) {
@@ -276,7 +273,6 @@
         payload.selling_price_with_vat = payload.selling_price;
         const ok = await window.storage.updateAccessory(currentAccessoryId, payload);
         if (ok) {
-          console.log('✅ تم تحديث الأكسسوار في Firebase:', currentAccessoryId);
           alert('تم تحديث الأكسسوار بنجاح!');
           // إعادة توجيه إلى صفحة قائمة الأكسسوارات
           window.location.href = 'list_accessories_simple.html';
