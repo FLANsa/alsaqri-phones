@@ -132,6 +132,7 @@
             </tbody>
           </table>
         </div>
+        <nav class="mt-3" aria-label="صفحات الأكسسوارات"><ul class="pagination" id="accessories-pagination"></ul></nav>
       </div>
     </div>
 
@@ -155,6 +156,7 @@
   <script type="module" src="js/firebase-config-cdn.js?v=20260119"></script>
   <script type="module" src="js/firebase-database-cdn.js?v=20260119"></script>
   <script type="module" src="js/firebase-storage-manager.js?v=20260119"></script>
+  <script type="module" src="js/repositories.js?v=20260910-2"></script>
 
   <!-- نظام عرض الأكسسوارات -->
   <script>
@@ -163,6 +165,10 @@
     
     // مصفوفة الأكسسوارات المحمّلة (تستخدمها الجدول والتعديل والحذف)
     let accessories = [];
+    let accessoriesCursor = null;
+    let accessoriesHistory = [null];
+    let accessoriesPage = 1;
+    let accessoriesHasMore = false;
     const actionArg = value => escapeHTML(JSON.stringify(String(value ?? '')));
 
     // خريطة الفئات
@@ -268,14 +274,19 @@
     }
 
     // تحميل وعرض الأكسسوارات من Firebase
-    async function loadAccessories() {
+    async function loadAccessories(page = 1) {
       try {
         console.log('📦 تحميل الأكسسوارات من قاعدة البيانات...');
         
         // تحميل من Firebase
-        if (window.storage && window.storage.isFirebaseAvailable) {
+        if (window.dataRepositories?.accessoriesRepository) {
           console.log('🔥 تحميل من Firebase...');
-          accessories = await window.storage.getAccessories();
+          const data = await window.dataRepositories.accessoriesRepository.getPage({ cursor: accessoriesHistory[page - 1] || null, pageSize: 20 });
+          accessories = data.items || [];
+          accessoriesCursor = data.nextCursor || null;
+          accessoriesHasMore = data.hasMore === true;
+          accessoriesPage = page;
+          if (accessoriesCursor) accessoriesHistory[page] = accessoriesCursor;
           console.log('✅ تم تحميل الأكسسوارات من Firebase:', accessories.length);
         } else {
           console.log('❌ Firebase غير متاح - يرجى التحقق من الاتصال');
@@ -345,11 +356,23 @@
         });
 
         updateStatistics(accessories);
+        renderAccessoriesPagination();
         
       } catch (error) {
         console.error('❌ خطأ في تحميل الأكسسوارات:', error);
         showAlert('danger', 'حدث خطأ في تحميل الأكسسوارات');
       }
+    }
+
+    function renderAccessoriesPagination() {
+      const el = document.getElementById('accessories-pagination');
+      if (!el) return;
+      if (accessoriesPage === 1 && !accessoriesHasMore) { el.innerHTML = ''; return; }
+      el.innerHTML = `<li class="page-item${accessoriesPage === 1 ? ' disabled' : ''}"><a class="page-link" href="#" onclick="gotoAccessoriesPage(${accessoriesPage - 1});return false">السابق</a></li><li class="page-item active"><span class="page-link">${accessoriesPage}</span></li><li class="page-item${accessoriesHasMore ? '' : ' disabled'}"><a class="page-link" href="#" onclick="gotoAccessoriesPage(${accessoriesPage + 1});return false">التالي</a></li>`;
+    }
+    async function gotoAccessoriesPage(page) {
+      if (page < 1 || (page > accessoriesPage && !accessoriesHasMore)) return;
+      await loadAccessories(page);
     }
 
     // تحديث الإحصائيات من قاعدة البيانات

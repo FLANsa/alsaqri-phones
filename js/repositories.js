@@ -10,10 +10,12 @@
   window.dataRepositories = {
     phonesRepository: {
       ...repo('getPhonesPage', 'getPhoneByNumberQuery'),
+      search: (value, options) => window.firebaseDatabase?.searchPhones(value, options) || unavailable(),
       findByBarcode: value => window.firebaseDatabase?.getPhoneByNumberQuery(value) || unavailable()
     },
     accessoriesRepository: {
       ...repo('getAccessoriesPage', 'getAccessoryById'),
+      search: (value, options) => window.firebaseDatabase?.searchAccessories(value, options) || unavailable(),
       findByBarcode: value => window.firebaseDatabase?.getAccessoryByBarcode(value) || unavailable()
     },
     salesRepository: {

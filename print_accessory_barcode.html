@@ -173,23 +173,6 @@
           // الاستعلام الموجّه حاسم: null تعني غير موجود — لا نعيد قراءة المجموعة كاملة
           return one || null;
         }
-        // Otherwise scan list (supports object or array):
-        const all = await window.storage.getAccessories();
-        if(all){
-          if(Array.isArray(all)){
-            const found = all.find(a => 
-              String(a.barcode)===String(barcode) || 
-              String(a.barcode_id)===String(barcode)
-            );
-            if(found) return found;
-          }else if(typeof all==='object'){
-            const found = Object.values(all).find(a => 
-              String(a.barcode)===String(barcode) || 
-              String(a.barcode_id)===String(barcode)
-            );
-            if(found) return found;
-          }
-        }
       }
     }catch(e){ console.warn('Firebase lookup failed:', e); }
 

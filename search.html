@@ -156,6 +156,7 @@
 <script type="module" src="js/firebase-config-cdn.js?v=20260119"></script>
 <script type="module" src="js/firebase-database-cdn.js?v=20260119"></script>
 <script type="module" src="js/firebase-storage-manager.js?v=20260119"></script>
+<script type="module" src="js/repositories.js?v=20260910-2"></script>
 
 <!-- Firebase Search Integration -->
 <script>
@@ -278,22 +279,13 @@
     }
 
     try {
-      // تحميل البيانات من Firebase أو localStorage (أول بحث فقط)
-      if (!inventoryDataLoaded || Date.now() - inventoryLoadedAt > INVENTORY_REFRESH_MS) {
-        if (window.storage && window.storage.isFirebaseAvailable) {
-          console.log('🔥 تحميل البيانات من Firebase للبحث...');
-          [allPhones, allAccessories] = await Promise.all([
-            window.storage.getPhones(),
-            window.storage.getAccessories()
-          ]);
-          // مجموعة sales تُقرأ فقط إذا لم تكن كل الهواتف تحمل علم sold
-          const allFlagged = allPhones.length > 0 && allPhones.every(p => typeof p.sold === 'boolean');
-          allSales = allFlagged ? [] : await window.storage.getSales();
-          console.log('📥 مجموعات محملة:', { هواتف: allPhones.length, أكسسوارات: allAccessories.length, مبيعات: allSales.length, 'أعلام sold جاهزة': allFlagged });
-        } else throw new Error('تعذر تهيئة قاعدة البيانات. تحقق من الاتصال ثم أعد تحميل الصفحة.');
-        inventoryDataLoaded = true;
-        inventoryLoadedAt = Date.now();
-      }
+      if (!window.dataRepositories) throw new Error('تعذر تهيئة قاعدة البيانات. تحقق من الاتصال ثم أعد تحميل الصفحة.');
+      // بحث خادمي محدود؛ لا ننزل المخزون أو المبيعات كاملةً إلى المتصفح.
+      [allPhones, allAccessories] = await Promise.all([
+        type === 'all' || type === 'phones' ? window.dataRepositories.phonesRepository.search(term, { pageSize: 50 }) : Promise.resolve([]),
+        type === 'all' || type === 'accessories' ? window.dataRepositories.accessoriesRepository.search(term, { pageSize: 50 }) : Promise.resolve([])
+      ]);
+      allSales = [];
 
       // لم نعد نحتاج Set لأننا سنستخدم isPhoneSold مباشرة
 

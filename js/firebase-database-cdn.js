@@ -187,6 +187,23 @@ class FirebaseDatabase {
 
   getPhonesPage(options) { return this._getPage('phones', options); }
   getAccessoriesPage(options) { return this._getPage('accessories', options); }
+  _searchTerm(value) {
+    return String(value || '').toLowerCase().trim()
+      .replace(/[أإآ]/g, 'ا').replace(/ى/g, 'ي').replace(/ة/g, 'ه')
+      .replace(/[^\p{L}\p{N}]+/gu, ' ').trim().split(/\s+/)[0] || '';
+  }
+  async searchPhones(value, { pageSize = 20 } = {}) {
+    const term = this._searchTerm(value);
+    if (!term) return [];
+    const snap = await this._getDocs('phones:search', query(collection(this.db, 'phones'), where('searchTokens', 'array-contains', term), limit(Math.min(Math.max(Number(pageSize) || 20, 1), 50))));
+    return snap.docs.map(row => ({ ...row.data(), id: row.id }));
+  }
+  async searchAccessories(value, { pageSize = 20 } = {}) {
+    const term = this._searchTerm(value);
+    if (!term) return [];
+    const snap = await this._getDocs('accessories:search', query(collection(this.db, 'accessories'), where('searchTokens', 'array-contains', term), limit(Math.min(Math.max(Number(pageSize) || 20, 1), 50))));
+    return snap.docs.map(row => ({ ...row.data(), id: row.id }));
+  }
   getSalesPage({ cursor = null, pageSize = 20, dateFrom = null, dateTo = null } = {}) {
     const filters = [];
     const from = this._normFilterDate(dateFrom);
