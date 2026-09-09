@@ -17,6 +17,7 @@ const firebaseConfig = {
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
 import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
 import { getAuth, signOut } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
+import { getFunctions, httpsCallable } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-functions.js';
 
 // تهيئة التطبيق
 const app = initializeApp(firebaseConfig);
@@ -26,6 +27,7 @@ const db = initializeFirestore(app, {
   localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() })
 });
 const auth = getAuth(app);
+const functions = getFunctions(app, 'me-central1');
 
 // تسجيل الدخول يحدث في login.html عبر Firebase Auth (حسابا admin/user).
 // لا يوجد تسجيل مجهول — قواعد Firestore تشترط request.auth != null
@@ -35,6 +37,7 @@ const auth = getAuth(app);
 window.firebaseDB = db;
 window.firebaseAuth = auth;
 window.firebaseSignOut = signOut;
+window.firebaseCall = (name, data) => httpsCallable(functions, name)(data).then(result => result.data);
 
 // إشعار موحد عندما يتعذر التحديث وتُعرض آخر لقطة محلية سليمة.
 window.addEventListener('firebase-stale-cache', function (event) {

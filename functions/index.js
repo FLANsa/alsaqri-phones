@@ -79,6 +79,25 @@ exports.rebuildSummary = onCall(async request => {
   return { id, ...totals };
 });
 
+exports.rebuildAllSummaries = onCall(async request => {
+  if (request.auth?.token?.email !== 'admin@alsaqri.store') throw new HttpsError('permission-denied', 'المدير فقط');
+  const days = new Map(); const months = new Map();
+  const add = (map, id, delta) => {
+    const row = map.get(id) || { salesCount: 0, returnedCount: 0, salesTotal: 0, purchaseCost: 0, profit: 0 };
+    for (const key of Object.keys(row)) row[key] += delta[key]; map.set(id, row);
+  };
+  const rows = await db.collection('sales').get();
+  rows.forEach(doc => {
+    const sale = doc.data(); const day = dayKey(sale.sortAt || sale.date_created || sale.createdAt); const delta = saleDelta(sale);
+    if (day && delta) { add(days, day, delta); add(months, day.slice(0, 7), delta); }
+  });
+  const batch = db.batch();
+  for (const [id, row] of days) batch.set(db.doc(`daily_summaries/${id}`), { ...row, rebuiltAt: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
+  for (const [id, row] of months) batch.set(db.doc(`monthly_summaries/${id}`), { ...row, rebuiltAt: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
+  await batch.commit();
+  return { sales: rows.size, days: days.size, months: months.size };
+});
+
 exports.migrateCollectionBatch = onCall(async request => {
   if (request.auth?.token?.email !== 'admin@alsaqri.store') throw new HttpsError('permission-denied', 'المدير فقط');
   const { collection: name, afterId = null, batchSize = 200 } = request.data || {};
