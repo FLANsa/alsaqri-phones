@@ -385,6 +385,8 @@
   function renderServerSearch() {
     const wrap = document.getElementById('results_wrap');
     const body = document.getElementById('results_body');
+    const count = activeSectionNames().reduce((total, name) => total + searchSections[name].total, 0);
+    document.getElementById('results_count').textContent = count;
     wrap.classList.remove('d-none');
     body.innerHTML = activeSectionNames().map(sectionMarkup).join('');
     allPhones = searchSections.phones.pages.flatMap(page => page.items || []);
