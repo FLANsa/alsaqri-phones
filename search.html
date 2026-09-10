@@ -375,9 +375,13 @@
     }
     if (!page) return `<div class="col-12"><div class="card mb-4"><div class="card-body text-center text-muted"><span class="spinner-border spinner-border-sm"></span> جارٍ تحميل ${title}...</div></div></div>`;
     const rows = page.items;
-    const tableRows = isPhone ? rows.map(p => `<tr><td>${escapeHTML(p.phone_number || p.device_number || '-')}</td><td>${escapeHTML(p.serial_number || '-')}</td><td>${escapeHTML(p.manufacturer || p.brand || '-')}</td><td>${escapeHTML(p.model || '-')}</td><td>${fmtMoney(p.selling_price || p.price)} ريال</td><td><button class="btn btn-sm btn-outline-info" onclick="viewPhoneDetails(${actionArg(p.phone_number || p.id)})"><i class="fas fa-eye"></i></button></td></tr>`).join('')
-      : rows.map(a => `<tr><td>${escapeHTML(a.arabic_name || a.name || '-')}</td><td>${escapeHTML(a.barcode || '-')}</td><td>${escapeHTML(a.category || '-')}</td><td>${Number(a.quantity_in_stock ?? a.quantity ?? 0) || 0}</td><td>${fmtMoney(a.selling_price)} ريال</td><td><button class="btn btn-sm btn-outline-info" onclick="viewAccessoryDetails(${actionArg(a.id)})"><i class="fas fa-eye"></i></button></td></tr>`).join('');
-    const headers = isPhone ? '<th>الباركود</th><th>التسلسلي</th><th>الماركة</th><th>الموديل</th><th>سعر البيع</th><th>الإجراء</th>' : '<th>الاسم</th><th>الباركود</th><th>الفئة</th><th>الكمية</th><th>سعر البيع</th><th>الإجراء</th>';
+    const adminActions = getCurrentRole() === 'admin';
+    const tableRows = isPhone ? rows.map(p => {
+      const id = p.id || p.phone_number;
+      const status = p.sold === true ? '<span class="badge bg-danger">مباع</span>' : '<span class="badge bg-success">متاح</span>';
+      return `<tr><td><strong>${escapeHTML(p.phone_number || p.device_number || '-')}</strong></td><td>${escapeHTML(p.serial_number || '-')}</td><td>${escapeHTML(p.manufacturer || p.brand || '-')}</td><td>${escapeHTML(p.model || '-')}</td><td>${status}</td><td>${fmtMoney(p.purchase_price)} ريال</td><td>${fmtMoney(p.selling_price || p.price)} ريال</td><td><div class="btn-group"><button class="btn btn-sm btn-outline-info" title="عرض التفاصيل" onclick="viewPhoneDetails(${actionArg(id)})"><i class="fas fa-eye"></i></button><button class="btn btn-sm btn-outline-primary" title="تعديل" onclick="editPhone(${actionArg(id)})"><i class="fas fa-edit"></i></button><button class="btn btn-sm btn-outline-dark" title="طباعة الباركود" onclick="goPrintBarcode(${actionArg(p.phone_number || p.device_number || p.serial_number || id)})"><i class="fas fa-barcode"></i></button>${adminActions ? `<button class="btn btn-sm btn-outline-danger" title="حذف" onclick="deletePhone(${actionArg(id)})"><i class="fas fa-trash"></i></button>` : ''}</div></td></tr>`;
+    }).join('') : rows.map(a => `<tr><td><strong>${escapeHTML(a.arabic_name || a.name || '-')}</strong></td><td>${escapeHTML(a.barcode || '-')}</td><td>${escapeHTML(a.category || '-')}</td><td>${Number(a.quantity_in_stock ?? a.quantity ?? 0) || 0}</td><td>${fmtMoney(a.purchase_price)} ريال</td><td>${fmtMoney(a.selling_price)} ريال</td><td><div class="btn-group"><button class="btn btn-sm btn-outline-info" title="عرض التفاصيل" onclick="viewAccessoryDetails(${actionArg(a.id)})"><i class="fas fa-eye"></i></button><button class="btn btn-sm btn-outline-primary" title="تعديل" onclick="editAccessory(${actionArg(a.id)})"><i class="fas fa-edit"></i></button>${a.barcode ? `<button class="btn btn-sm btn-outline-dark" title="طباعة الباركود" onclick="goPrintAccessoryBarcode(${actionArg(a.barcode)})"><i class="fas fa-barcode"></i></button>` : ''}${adminActions ? `<button class="btn btn-sm btn-outline-danger" title="حذف" onclick="deleteAccessory(${actionArg(a.id)})"><i class="fas fa-trash"></i></button>` : ''}</div></td></tr>`).join('');
+    const headers = isPhone ? '<th>الباركود</th><th>التسلسلي</th><th>الماركة</th><th>الموديل</th><th>الحالة</th><th>سعر الشراء</th><th>سعر البيع</th><th>الإجراءات</th>' : '<th>الاسم</th><th>الباركود</th><th>الفئة</th><th>الكمية</th><th>سعر الشراء</th><th>سعر البيع</th><th>الإجراءات</th>';
     const pageNumber = section.current + 1;
     const previousDisabled = section.current === 0 ? 'disabled' : '';
     const nextDisabled = !page.hasMore ? 'disabled' : '';
@@ -797,8 +801,8 @@
           allAccessories = allAccessories.filter(a => String(a.id) !== String(accessoryId));
           inventoryDataLoaded = false;
           showAlert('success', 'تم حذف الأكسسوار بنجاح');
-          // إعادة البحث لعرض النتائج المحدثة
-          document.getElementById('searchForm').dispatchEvent(new Event('submit'));
+          // أعد جلب البحث الخادمي الحالي؛ لا تعد إلى تحميل المخزون كاملاً.
+          await startServerSearch(activeSearchQuery, activeSearchType);
         } else {
           showAlert('danger', 'فشل في حذف الأكسسوار');
         }
@@ -943,10 +947,8 @@
         await window.storage.deletePhone(phoneId);
       } else throw new Error('يلزم الاتصال بقاعدة البيانات لحذف الجهاز');
 
-      // إعادة تحميل البيانات وعرض النتائج
-      await loadAllData();
-      inventoryDataLoaded = true;
-      inventoryLoadedAt = Date.now();
+      // أعد جلب البحث الخادمي الحالي؛ لا تعد إلى تحميل المخزون كاملاً.
+      await startServerSearch(activeSearchQuery, activeSearchType);
       
       showAlert('success', 'تم حذف الجهاز بنجاح');
       
