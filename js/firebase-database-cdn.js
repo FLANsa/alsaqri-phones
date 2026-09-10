@@ -538,6 +538,7 @@ class FirebaseDatabase {
       data.searchTokens = this._searchTokens(data.manufacturer || data.brand, data.model, data.phone_number, data.serial_number);
       data.sortAt = this._canonicalSortAt(data);
       if (creating) data.sold = false;
+      data.searchStatus = data.sold === true ? 1 : 0;
       const reservations = await this._reservePhoneKeys(transaction, ref.id, data);
       transaction.set(ref, { ...data, ...(creating ? { createdAt: serverTimestamp() } : {}), updatedAt: serverTimestamp() });
       reservations.forEach(lock => transaction.set(lock.ref, { phoneIds: lock.phoneIds }));
@@ -650,7 +651,7 @@ class FirebaseDatabase {
       const sold = soldKeys.has(key) || (alsoNumber && soldKeys.has(alsoNumber));
       sold ? soldCount++ : availCount++;
       if (phone.sold === sold) { skipped++; continue; }
-      batch.update(doc(this.db, 'phones', phone.id), { sold });
+      batch.update(doc(this.db, 'phones', phone.id), { sold, searchStatus: sold ? 1 : 0 });
       if (++ops === 400) { await batch.commit(); batch = writeBatch(this.db); ops = 0; }
     }
     if (ops > 0) await batch.commit();
@@ -920,7 +921,7 @@ class FirebaseDatabase {
         const snap = snapshots[accessoryRefs.length + index];
         if (!snap.exists()) throw new Error('الهاتف لم يعد موجوداً');
         if (snap.data().sold === true) throw new Error('هذا الهاتف تم بيعه مسبقاً');
-        transaction.update(ref, { sold: true, last_sale_id: saleRef.id, updatedAt: serverTimestamp() });
+        transaction.update(ref, { sold: true, searchStatus: 1, last_sale_id: saleRef.id, updatedAt: serverTimestamp() });
       });
 
       transaction.set(saleRef, { ...saleData, sortAt: this._canonicalSortAt(saleData), createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
@@ -935,7 +936,7 @@ class FirebaseDatabase {
       });
     }
     await this._patchRowsWhere('phones', (row) => committed.phoneIds.includes(String(row.id)),
-      () => ({ sold: true, updatedAt: new Date() }));
+      () => ({ sold: true, searchStatus: 1, updatedAt: new Date() }));
     return committed.saleId;
   }
 
@@ -998,7 +999,7 @@ class FirebaseDatabase {
       updates.forEach((update, index) => transaction.update(accessoryRefs[index], {
         quantity: update.quantity, quantity_in_stock: update.quantity, updatedAt: serverTimestamp()
       }));
-      phoneRefs.forEach(ref => transaction.update(ref, { sold: false, updatedAt: serverTimestamp() }));
+      phoneRefs.forEach(ref => transaction.update(ref, { sold: false, searchStatus: 0, updatedAt: serverTimestamp() }));
       reservations.forEach(lock => transaction.set(lock.ref, { phoneIds: lock.phoneIds }));
       transaction.update(saleRef, { returned: true, status: 'مسترجعة', returned_at: serverTimestamp(), updatedAt: serverTimestamp() });
       return updates;
@@ -1006,7 +1007,7 @@ class FirebaseDatabase {
     if (result === null) return false;
     await this._patchUpdateRow('sales', saleId, { returned: true, status: 'مسترجعة', returned_at: new Date() });
     for (const update of result) await this._patchUpdateRow('accessories', update.id, { quantity: update.quantity, quantity_in_stock: update.quantity });
-    await this._patchRowsWhere('phones', row => phoneIds.includes(row.id), () => ({ sold: false }));
+    await this._patchRowsWhere('phones', row => phoneIds.includes(row.id), () => ({ sold: false, searchStatus: 0 }));
     return true;
   }
 

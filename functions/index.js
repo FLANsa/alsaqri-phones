@@ -65,9 +65,14 @@ exports.searchInventoryPage = onCall(async request => {
     if (matchesQuery(name, row.data(), terms)) exact.set(row.id, { id: row.id, ...row.data() });
   });
   const exactIds = new Set(exact.keys());
-  let candidate = ref.where('searchTokens', 'array-contains', primary).orderBy('sortAt', 'desc').orderBy(admin.firestore.FieldPath.documentId(), 'desc');
+  let candidate = ref.where('searchTokens', 'array-contains', primary);
+  if (name === 'phones') candidate = candidate.orderBy('searchStatus', 'asc');
+  candidate = candidate.orderBy('sortAt', 'desc').orderBy(admin.firestore.FieldPath.documentId(), 'desc');
   if (cursor?.sortAtMillis && cursor?.id) {
-    candidate = candidate.startAfter(admin.firestore.Timestamp.fromMillis(Number(cursor.sortAtMillis)), String(cursor.id));
+    const values = name === 'phones'
+      ? [Number(cursor.searchStatus) || 0, admin.firestore.Timestamp.fromMillis(Number(cursor.sortAtMillis)), String(cursor.id)]
+      : [admin.firestore.Timestamp.fromMillis(Number(cursor.sortAtMillis)), String(cursor.id)];
+    candidate = candidate.startAfter(...values);
   }
 
   const results = includeExact ? [...exact.values()] : [];
@@ -100,7 +105,7 @@ exports.searchInventoryPage = onCall(async request => {
   const last = finalRows.length && lastCandidate ? lastCandidate : null;
   return {
     items: finalRows,
-    nextCursor: last ? { id: last.id, sortAtMillis: last.data().sortAt.toMillis() } : null,
+    nextCursor: last ? { id: last.id, sortAtMillis: last.data().sortAt.toMillis(), searchStatus: name === 'phones' ? Number(last.data().searchStatus) || 0 : undefined } : null,
     hasMore: !exhausted,
     total
   };
@@ -191,6 +196,7 @@ exports.migrateCollectionBatch = onCall(async request => {
       patch.normalizedBarcode = normalizeKey(data.phone_number || data.device_number);
       patch.normalizedSerial = normalizeKey(data.serial_number);
       patch.searchTokens = tokens(data.manufacturer || data.brand, data.model, data.phone_number, data.serial_number);
+      patch.searchStatus = data.sold === true ? 1 : 0;
     } else if (name === 'accessories') {
       patch.normalizedBarcode = normalizeKey(data.barcode || data.barcode_id || data.sku);
       patch.normalizedSerial = normalizeKey(data.serial_number);

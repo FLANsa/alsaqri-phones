@@ -68,7 +68,7 @@ service cloud.firestore {
           'manufacturer', 'brand', 'model', 'phone_color', 'color', 'storage_capacity',
           'storage', 'ram', 'condition', 'phone_type', 'battery_level', 'selling_price',
           'description', 'notes', 'supplier', 'warranty', 'quantity', 'quantity_in_stock',
-          'sold', 'last_sale_id', 'normalizedBarcode', 'normalizedSerial', 'searchTokens',
+          'sold', 'searchStatus', 'last_sale_id', 'normalizedBarcode', 'normalizedSerial', 'searchTokens',
           'sortAt', 'updatedAt', 'date_updated'
         ]);
     }
