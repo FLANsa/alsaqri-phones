@@ -170,6 +170,13 @@
   let currentPage = 1;
   let totalPages = 1;
   let currentSearchResults = { phones: [], accessories: [] };
+  const searchSections = {
+    phones: { pages: [], current: 0, total: 0, error: null },
+    accessories: { pages: [], current: 0, total: 0, error: null }
+  };
+  let activeSearchQuery = '';
+  let activeSearchType = 'all';
+  let activeSearchRequest = 0;
 
   // ===== دعم الأرقام العربية (التعريفات الكاملة في قسم التحويل أدناه) =====
   function parseArabicNumber(value) {
@@ -298,6 +305,96 @@
     }
   }
 
+  const activeSectionNames = () => activeSearchType === 'all'
+    ? ['phones', 'accessories'] : [activeSearchType];
+
+  async function startServerSearch(term, type) {
+    activeSearchQuery = term;
+    activeSearchType = type;
+    activeSearchRequest += 1;
+    const requestId = activeSearchRequest;
+    for (const name of ['phones', 'accessories']) {
+      searchSections[name] = { pages: [], current: 0, total: 0, error: null };
+    }
+    renderServerSearch();
+    await Promise.all(activeSectionNames().map(name => loadSearchSection(name, 'first', requestId)));
+  }
+
+  async function loadSearchSection(name, direction = 'first', requestId = activeSearchRequest) {
+    const section = searchSections[name];
+    if (direction === 'previous' && section.current > 0) {
+      section.current -= 1;
+      renderServerSearch();
+      return;
+    }
+    if (direction === 'next' && section.pages[section.current + 1]) {
+      section.current += 1;
+      renderServerSearch();
+      return;
+    }
+    const previous = section.pages[section.current];
+    if (direction === 'next' && (!previous || !previous.hasMore)) return;
+    try {
+      const repositories = await getRepositories();
+      const repository = name === 'phones' ? repositories.phonesRepository : repositories.accessoriesRepository;
+      const response = await repository.searchPage({
+        query: activeSearchQuery,
+        cursor: direction === 'next' ? previous.nextCursor : null,
+        pageSize: ITEMS_PER_PAGE,
+        includeExact: direction !== 'next',
+        includeTotal: direction !== 'next'
+      });
+      if (requestId !== activeSearchRequest) return;
+      const page = { ...response, items: response.items || [] };
+      if (direction === 'next') {
+        section.pages.push(page);
+        section.current += 1;
+      } else {
+        section.pages = [page];
+        section.current = 0;
+      }
+      if (Number.isFinite(Number(response.total))) section.total = Number(response.total);
+      section.error = null;
+    } catch (error) {
+      if (requestId !== activeSearchRequest) return;
+      section.error = error;
+      console.error(`❌ خطأ في بحث ${name}:`, error);
+    }
+    if (requestId === activeSearchRequest) renderServerSearch();
+  }
+
+  function sectionMarkup(name) {
+    const isPhone = name === 'phones';
+    const section = searchSections[name];
+    const page = section.pages[section.current];
+    const title = isPhone ? 'الهواتف' : 'الأكسسوارات';
+    const icon = isPhone ? 'fa-mobile-alt text-primary' : 'fa-box text-success';
+    if (section.error) return `<div class="col-12"><div class="alert alert-danger">تعذر تحميل ${title}. تحقق من الاتصال ثم أعد البحث.</div></div>`;
+    if (!page) return `<div class="col-12"><div class="card mb-4"><div class="card-body text-center text-muted"><span class="spinner-border spinner-border-sm"></span> جارٍ تحميل ${title}...</div></div></div>`;
+    const rows = page.items;
+    const tableRows = isPhone ? rows.map(p => `<tr><td>${escapeHTML(p.phone_number || p.device_number || '-')}</td><td>${escapeHTML(p.serial_number || '-')}</td><td>${escapeHTML(p.manufacturer || p.brand || '-')}</td><td>${escapeHTML(p.model || '-')}</td><td>${fmtMoney(p.selling_price || p.price)} ريال</td><td><button class="btn btn-sm btn-outline-info" onclick="viewPhoneDetails(${actionArg(p.phone_number || p.id)})"><i class="fas fa-eye"></i></button></td></tr>`).join('')
+      : rows.map(a => `<tr><td>${escapeHTML(a.arabic_name || a.name || '-')}</td><td>${escapeHTML(a.barcode || '-')}</td><td>${escapeHTML(a.category || '-')}</td><td>${Number(a.quantity_in_stock ?? a.quantity ?? 0) || 0}</td><td>${fmtMoney(a.selling_price)} ريال</td><td><button class="btn btn-sm btn-outline-info" onclick="viewAccessoryDetails(${actionArg(a.id)})"><i class="fas fa-eye"></i></button></td></tr>`).join('');
+    const headers = isPhone ? '<th>الباركود</th><th>التسلسلي</th><th>الماركة</th><th>الموديل</th><th>سعر البيع</th><th>الإجراء</th>' : '<th>الاسم</th><th>الباركود</th><th>الفئة</th><th>الكمية</th><th>سعر البيع</th><th>الإجراء</th>';
+    const pageNumber = section.current + 1;
+    const previousDisabled = section.current === 0 ? 'disabled' : '';
+    const nextDisabled = !page.hasMore ? 'disabled' : '';
+    const empty = rows.length === 0 ? '<div class="text-center text-muted py-3">لا توجد نتائج مطابقة.</div>' : `<div class="table-responsive"><table class="table table-striped mb-0"><thead class="table-dark"><tr>${headers}</tr></thead><tbody>${tableRows}</tbody></table></div>`;
+    return `<div class="col-12"><div class="card mb-4"><div class="card-header"><strong><i class="fas ${icon}"></i> ${title}</strong><span class="badge bg-secondary ms-2">${section.total} نتيجة</span><span class="text-muted small ms-2">الصفحة ${pageNumber}</span></div><div class="card-body">${empty}<div class="d-flex gap-2 justify-content-center mt-3"><button class="btn btn-outline-primary btn-sm" ${previousDisabled} onclick="goSearchPage('${name}', 'previous')">السابق</button><button class="btn btn-outline-primary btn-sm" ${nextDisabled} onclick="goSearchPage('${name}', 'next')">التالي</button></div></div></div></div>`;
+  }
+
+  function renderServerSearch() {
+    const wrap = document.getElementById('results_wrap');
+    const body = document.getElementById('results_body');
+    wrap.classList.remove('d-none');
+    body.innerHTML = activeSectionNames().map(sectionMarkup).join('');
+    allPhones = searchSections.phones.pages.flatMap(page => page.items || []);
+    allAccessories = searchSections.accessories.pages.flatMap(page => page.items || []);
+  }
+
+  function goSearchPage(name, direction) {
+    loadSearchSection(name, direction);
+  }
+
   async function handleSearch(e){
     e.preventDefault();
     const term = (document.getElementById('search_term').value || '').trim();
@@ -309,6 +406,8 @@
       showAlert('warning', 'يرجى إدخال كلمة البحث');
       return;
     }
+
+    return startServerSearch(term, type);
 
     try {
       const repositories = await getRepositories();

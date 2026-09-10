@@ -667,6 +667,7 @@ class FirebaseDatabase {
       const docRef = await addDoc(collection(this.db, 'accessories'), {
         ...accessoryData,
         normalizedBarcode: this._normalizePhoneKey(accessoryData.barcode || accessoryData.barcode_id || accessoryData.sku).toLowerCase(),
+        normalizedSerial: this._normalizePhoneKey(accessoryData.serial_number).toLowerCase(),
         searchTokens: this._searchTokens(accessoryData.name, accessoryData.arabic_name, accessoryData.category, accessoryData.barcode, accessoryData.sku),
         sortAt: this._canonicalSortAt(accessoryData),
         createdAt: serverTimestamp(),

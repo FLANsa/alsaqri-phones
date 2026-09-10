@@ -78,7 +78,7 @@ service cloud.firestore {
         request.resource.data.diff(resource.data).affectedKeys().hasOnly([
           'name', 'arabic_name', 'category', 'description', 'selling_price',
           'selling_price_with_vat', 'quantity', 'quantity_in_stock', 'supplier',
-          'notes', 'normalizedBarcode', 'searchTokens', 'sortAt', 'updatedAt', 'date_updated'
+          'notes', 'normalizedBarcode', 'normalizedSerial', 'searchTokens', 'sortAt', 'updatedAt', 'date_updated'
         ]);
     }
     match /sales/{id} {

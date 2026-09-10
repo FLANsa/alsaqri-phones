@@ -26,12 +26,85 @@ const saleDelta = sale => {
   };
 };
 const normalize = value => String(value || '').toLowerCase().trim()
+  .replace(/[٠-٩]/g, digit => String(digit.charCodeAt(0) - 1632))
+  .replace(/[۰-۹]/g, digit => String(digit.charCodeAt(0) - 1776))
   .replace(/[أإآ]/g, 'ا').replace(/ى/g, 'ي').replace(/ة/g, 'ه')
   .replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
+const normalizeKey = value => normalize(value).replace(/\s+/g, '');
 const tokens = (...values) => [...new Set(values.flatMap(value => {
   const text = normalize(value); const words = text.split(/\s+/).filter(Boolean);
   return words.flatMap(word => Array.from({ length: Math.min(word.length, 12) }, (_, i) => word.slice(0, i + 1)));
 }))].slice(0, 100);
+const authorized = request => request.auth?.token?.email === 'admin@alsaqri.store' || request.auth?.token?.email === 'user@alsaqri.store';
+const inventoryFields = (name, data) => name === 'phones'
+  ? [data.manufacturer, data.brand, data.model, data.phone_number, data.device_number, data.serial_number, data.condition, data.phone_type]
+  : [data.name, data.arabic_name, data.category, data.barcode, data.barcode_id, data.sku, data.serial_number];
+const matchesQuery = (name, data, terms) => {
+  const words = normalize(inventoryFields(name, data).join(' ')).split(/\s+/).filter(Boolean);
+  return terms.every(term => words.some(word => word.startsWith(term)));
+};
+
+/**
+ * صفحة بحث مستقلة لنوع مخزون واحد. تستخدم أطول كلمة كمرشح Firestore ثم
+ * تتحقق من كل الكلمات على الخادم، لذلك لا تفقد نتائج البحث متعدد الكلمات.
+ */
+exports.searchInventoryPage = onCall(async request => {
+  if (!authorized(request)) throw new HttpsError('permission-denied', 'يلزم تسجيل الدخول');
+  const { collection: name, query: rawQuery, cursor = null, pageSize = 20, includeExact = true, includeTotal = false } = request.data || {};
+  if (!['phones', 'accessories'].includes(name)) throw new HttpsError('invalid-argument', 'نوع المخزون غير مدعوم');
+  const terms = normalize(rawQuery).split(/\s+/).filter(Boolean);
+  if (!terms.length) throw new HttpsError('invalid-argument', 'عبارة البحث مطلوبة');
+  const safeSize = Math.min(Math.max(Number(pageSize) || 20, 1), 50);
+  const primary = terms.slice().sort((a, b) => b.length - a.length)[0].slice(0, 12);
+  const ref = db.collection(name);
+  const rawKey = normalizeKey(rawQuery);
+  const exactFields = name === 'phones' ? ['normalizedBarcode', 'normalizedSerial'] : ['normalizedBarcode', 'normalizedSerial'];
+  const exactSnapshots = rawKey ? await Promise.all(exactFields.map(field => ref.where(field, '==', rawKey).get())) : [];
+  const exact = new Map();
+  exactSnapshots.flatMap(snapshot => snapshot.docs).forEach(row => {
+    if (matchesQuery(name, row.data(), terms)) exact.set(row.id, { id: row.id, ...row.data() });
+  });
+  const exactIds = new Set(exact.keys());
+  let candidate = ref.where('searchTokens', 'array-contains', primary).orderBy('sortAt', 'desc').orderBy(admin.firestore.FieldPath.documentId(), 'desc');
+  if (cursor?.sortAtMillis && cursor?.id) {
+    candidate = candidate.startAfter(admin.firestore.Timestamp.fromMillis(Number(cursor.sortAtMillis)), String(cursor.id));
+  }
+
+  const results = includeExact ? [...exact.values()] : [];
+  let lastCandidate = null;
+  let exhausted = false;
+  while (results.length < safeSize && !exhausted) {
+    const batch = await candidate.limit(100).get();
+    if (batch.empty) { exhausted = true; break; }
+    for (const row of batch.docs) {
+      lastCandidate = row;
+      if (!exactIds.has(row.id) && matchesQuery(name, row.data(), terms)) {
+        results.push({ id: row.id, ...row.data() });
+        if (results.length === safeSize) break;
+      }
+    }
+    if (batch.size < 100 || results.length === safeSize) exhausted = batch.size < 100;
+    if (!exhausted && results.length < safeSize) {
+      candidate = candidate.startAfter(lastCandidate);
+    }
+  }
+
+  let total = null;
+  if (includeTotal) {
+    const allCandidates = await ref.where('searchTokens', 'array-contains', primary).get();
+    const ids = new Set(exactIds);
+    allCandidates.docs.forEach(row => { if (matchesQuery(name, row.data(), terms)) ids.add(row.id); });
+    total = ids.size;
+  }
+  const finalRows = results.slice(0, safeSize);
+  const last = finalRows.length && lastCandidate ? lastCandidate : null;
+  return {
+    items: finalRows,
+    nextCursor: last ? { id: last.id, sortAtMillis: last.data().sortAt.toMillis() } : null,
+    hasMore: !exhausted,
+    total
+  };
+});
 exports.syncSaleSummaryEvents = onDocumentWritten('sales/{saleId}', async event => {
   const before = event.data.before.exists ? event.data.before.data() : null;
   const after = event.data.after.exists ? event.data.after.data() : null;
@@ -115,11 +188,12 @@ exports.migrateCollectionBatch = onCall(async request => {
     const parsed = rawDate && typeof rawDate.toDate === 'function' ? rawDate.toDate() : new Date(rawDate || Date.now());
     const patch = { sortAt: admin.firestore.Timestamp.fromDate(Number.isNaN(parsed.getTime()) ? new Date() : parsed) };
     if (name === 'phones') {
-      patch.normalizedBarcode = normalize(data.phone_number || data.device_number);
-      patch.normalizedSerial = normalize(data.serial_number);
+      patch.normalizedBarcode = normalizeKey(data.phone_number || data.device_number);
+      patch.normalizedSerial = normalizeKey(data.serial_number);
       patch.searchTokens = tokens(data.manufacturer || data.brand, data.model, data.phone_number, data.serial_number);
     } else if (name === 'accessories') {
-      patch.normalizedBarcode = normalize(data.barcode || data.barcode_id || data.sku);
+      patch.normalizedBarcode = normalizeKey(data.barcode || data.barcode_id || data.sku);
+      patch.normalizedSerial = normalizeKey(data.serial_number);
       patch.searchTokens = tokens(data.name, data.arabic_name, data.category, data.barcode, data.sku);
     }
     batch.set(row.ref, patch, { merge: true });

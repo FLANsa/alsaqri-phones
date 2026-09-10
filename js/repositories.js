@@ -3,6 +3,9 @@
 (function () {
   'use strict';
   const unavailable = () => { throw new Error('طبقة البيانات غير مهيأة'); };
+  const searchPage = (collection, options) => window.firebaseCall
+    ? window.firebaseCall('searchInventoryPage', { collection, ...options })
+    : unavailable();
   const repo = (page, one) => ({
     getPage: options => window.firebaseDatabase ? window.firebaseDatabase[page](options) : unavailable(),
     getById: id => window.firebaseDatabase ? window.firebaseDatabase[one](id) : unavailable()
@@ -10,11 +13,13 @@
   window.dataRepositories = {
     phonesRepository: {
       ...repo('getPhonesPage', 'getPhoneByNumberQuery'),
+      searchPage: options => searchPage('phones', options),
       search: (value, options) => window.firebaseDatabase?.searchPhones(value, options) || unavailable(),
       findByBarcode: value => window.firebaseDatabase?.getPhoneByNumberQuery(value) || unavailable()
     },
     accessoriesRepository: {
       ...repo('getAccessoriesPage', 'getAccessoryById'),
+      searchPage: options => searchPage('accessories', options),
       search: (value, options) => window.firebaseDatabase?.searchAccessories(value, options) || unavailable(),
       findByBarcode: value => window.firebaseDatabase?.getAccessoryByBarcode(value) || unavailable()
     },
