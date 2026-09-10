@@ -121,7 +121,7 @@
                 <i class="fas fa-search"></i> بحث
               </button>
               <button type="button" class="btn btn-secondary btn-lg px-4 ms-2" onclick="loadAllData()">
-                <i class="fas fa-list"></i> عرض الكل
+                <i class="fas fa-list"></i> عرض أحدث العناصر
               </button>
             </div>
           </form>
@@ -265,6 +265,39 @@
   let inventoryLoadedAt = 0;
   const INVENTORY_REFRESH_MS = 30 * 1000;
 
+  async function getRepositories() {
+    // ملفات Firebase من نوع module؛ ننتظر تهيئتها بشكل صريح بدلاً من فشل
+    // البحث إذا ضغط المستخدم الزر مباشرة عند فتح الصفحة.
+    for (let attempt = 0; attempt < 20; attempt += 1) {
+      if (window.dataRepositories?.phonesRepository && window.dataRepositories?.accessoriesRepository) {
+        return window.dataRepositories;
+      }
+      await new Promise(resolve => setTimeout(resolve, 50));
+    }
+    throw new Error('تعذر تهيئة قاعدة البيانات. تحقق من الاتصال ثم أعد تحميل الصفحة.');
+  }
+
+  // بديل آمن لمسار «عرض الكل» القديم: يعرض أحدث صفحة من كل نوع فقط،
+  // ولا يعيد تنزيل جميع سجلات المخزون إلى المتصفح.
+  async function loadAllData() {
+    try {
+      const repositories = await getRepositories();
+      const [phonesPage, accessoriesPage] = await Promise.all([
+        repositories.phonesRepository.getPage({ pageSize: ITEMS_PER_PAGE }),
+        repositories.accessoriesRepository.getPage({ pageSize: ITEMS_PER_PAGE })
+      ]);
+      allPhones = phonesPage.items || [];
+      allAccessories = accessoriesPage.items || [];
+      allSales = [];
+      currentSearchResults = { phones: allPhones, accessories: allAccessories };
+      currentPage = 1;
+      renderResults(allPhones, allAccessories);
+    } catch (error) {
+      console.error('❌ خطأ في تحميل أحدث عناصر المخزون:', error);
+      showAlert('danger', 'تعذر تحميل عناصر المخزون. تحقق من الاتصال ثم حاول مجدداً.');
+    }
+  }
+
   async function handleSearch(e){
     e.preventDefault();
     const term = (document.getElementById('search_term').value || '').trim();
@@ -278,11 +311,11 @@
     }
 
     try {
-      if (!window.dataRepositories) throw new Error('تعذر تهيئة قاعدة البيانات. تحقق من الاتصال ثم أعد تحميل الصفحة.');
+      const repositories = await getRepositories();
       // بحث خادمي محدود؛ لا ننزل المخزون أو المبيعات كاملةً إلى المتصفح.
       [allPhones, allAccessories] = await Promise.all([
-        type === 'all' || type === 'phones' ? window.dataRepositories.phonesRepository.search(term, { pageSize: 50 }) : Promise.resolve([]),
-        type === 'all' || type === 'accessories' ? window.dataRepositories.accessoriesRepository.search(term, { pageSize: 50 }) : Promise.resolve([])
+        type === 'all' || type === 'phones' ? repositories.phonesRepository.search(term, { pageSize: 50 }) : Promise.resolve([]),
+        type === 'all' || type === 'accessories' ? repositories.accessoriesRepository.search(term, { pageSize: 50 }) : Promise.resolve([])
       ]);
       allSales = [];
 
