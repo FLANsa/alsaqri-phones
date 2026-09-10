@@ -369,7 +369,10 @@
     const page = section.pages[section.current];
     const title = isPhone ? 'الهواتف' : 'الأكسسوارات';
     const icon = isPhone ? 'fa-mobile-alt text-primary' : 'fa-box text-success';
-    if (section.error) return `<div class="col-12"><div class="alert alert-danger">تعذر تحميل ${title}. تحقق من الاتصال ثم أعد البحث.</div></div>`;
+    if (section.error) {
+      const code = escapeHTML(section.error.code || 'unknown');
+      return `<div class="col-12"><div class="alert alert-danger">تعذر تحميل ${title}. تحقق من الاتصال ثم أعد البحث. <span class="small">(${code})</span></div></div>`;
+    }
     if (!page) return `<div class="col-12"><div class="card mb-4"><div class="card-body text-center text-muted"><span class="spinner-border spinner-border-sm"></span> جارٍ تحميل ${title}...</div></div></div>`;
     const rows = page.items;
     const tableRows = isPhone ? rows.map(p => `<tr><td>${escapeHTML(p.phone_number || p.device_number || '-')}</td><td>${escapeHTML(p.serial_number || '-')}</td><td>${escapeHTML(p.manufacturer || p.brand || '-')}</td><td>${escapeHTML(p.model || '-')}</td><td>${fmtMoney(p.selling_price || p.price)} ريال</td><td><button class="btn btn-sm btn-outline-info" onclick="viewPhoneDetails(${actionArg(p.phone_number || p.id)})"><i class="fas fa-eye"></i></button></td></tr>`).join('')
