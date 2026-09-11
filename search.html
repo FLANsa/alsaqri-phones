@@ -164,12 +164,9 @@
   let allPhones = [];
   let allAccessories = [];
   let allSales = [];
-  
-  // ===== متغيرات الصفحات =====
+
+  // ===== متغيرات البحث الخادمي =====
   const ITEMS_PER_PAGE = 20;
-  let currentPage = 1;
-  let totalPages = 1;
-  let currentSearchResults = { phones: [], accessories: [] };
   const searchSections = {
     phones: { pages: [], current: 0, total: 0, error: null },
     accessories: { pages: [], current: 0, total: 0, error: null }
@@ -284,23 +281,24 @@
     throw new Error('تعذر تهيئة قاعدة البيانات. تحقق من الاتصال ثم أعد تحميل الصفحة.');
   }
 
-  // بديل آمن لمسار «عرض الكل» القديم: يعرض أحدث صفحة من كل نوع فقط،
-  // ولا يعيد تنزيل جميع سجلات المخزون إلى المتصفح.
+  // «عرض الكل»: يجلب المخزون كاملاً ويعرضه دفعة واحدة — القراءة الكاملة
+  // تمر عبر كاش IndexedDB في طبقة البيانات فلا تتكرر كلفتها في كل ضغطة.
   async function loadAllData() {
     try {
-      const repositories = await getRepositories();
-      const [phonesPage, accessoriesPage] = await Promise.all([
-        repositories.phonesRepository.getPage({ pageSize: ITEMS_PER_PAGE }),
-        repositories.accessoriesRepository.getPage({ pageSize: ITEMS_PER_PAGE })
+      await getRepositories();
+      if (!window.storage || !window.storage.isFirebaseAvailable) {
+        throw new Error('قاعدة البيانات غير مهيأة');
+      }
+      const [phones, accessories] = await Promise.all([
+        window.storage.getPhones(),
+        window.storage.getAccessories()
       ]);
-      allPhones = phonesPage.items || [];
-      allAccessories = accessoriesPage.items || [];
+      allPhones = Array.isArray(phones) ? phones : [];
+      allAccessories = Array.isArray(accessories) ? accessories : [];
       allSales = [];
-      currentSearchResults = { phones: allPhones, accessories: allAccessories };
-      currentPage = 1;
       renderResults(allPhones, allAccessories);
     } catch (error) {
-      console.error('❌ خطأ في تحميل أحدث عناصر المخزون:', error);
+      console.error('❌ خطأ في تحميل عناصر المخزون:', error);
       showAlert('danger', 'تعذر تحميل عناصر المخزون. تحقق من الاتصال ثم حاول مجدداً.');
     }
   }
@@ -408,8 +406,6 @@
     e.preventDefault();
     const term = (document.getElementById('search_term').value || '').trim();
     const type = document.getElementById('search_type').value || 'all';
-    const statusFilter = 'all';
-
 
     if (!term) {
       showAlert('warning', 'يرجى إدخال كلمة البحث');
@@ -417,78 +413,9 @@
     }
 
     return startServerSearch(term, type);
-
-    try {
-      const repositories = await getRepositories();
-      // بحث خادمي محدود؛ لا ننزل المخزون أو المبيعات كاملةً إلى المتصفح.
-      [allPhones, allAccessories] = await Promise.all([
-        type === 'all' || type === 'phones' ? repositories.phonesRepository.search(term, { pageSize: 50 }) : Promise.resolve([]),
-        type === 'all' || type === 'accessories' ? repositories.accessoriesRepository.search(term, { pageSize: 50 }) : Promise.resolve([])
-      ]);
-      allSales = [];
-
-      // لم نعد نحتاج Set لأننا سنستخدم isPhoneSold مباشرة
-
-      // تحويل الأرقام العربية إلى إنجليزية للبحث
-      const englishTerm = convertArabicToEnglishNumbers(term);
-      const arabicTerm = convertEnglishToArabicNumbers(term);
-      
-      // البحث في كلا النسختين (عربية وإنجليزية)
-      const searchTerms = [term.toLowerCase(), englishTerm.toLowerCase(), arabicTerm.toLowerCase()];
-      const uniqueTerms = [...new Set(searchTerms)]; // إزالة التكرار
-      
-
-      let phones = [];
-      let accessories = [];
-
-      if (type === 'all' || type === 'phones') {
-        phones = allPhones.filter(p => {
-          
-          // البحث في النص مع دعم الأرقام العربية والإنجليزية
-          // إضافة serial_number إلى البحث
-          const searchText = `${p.phone_number || ''} ${p.serial_number || ''} ${p.manufacturer || p.brand || ''} ${p.model || ''} ${p.condition || p.phone_type || ''}`.toLowerCase();
-          const englishSearchText = convertArabicToEnglishNumbers(searchText);
-          const arabicSearchText = convertEnglishToArabicNumbers(searchText);
-
-          // البحث في جميع النسخ (الأصلية، الإنجليزية، العربية)
-          return uniqueTerms.some(term => 
-            searchText.includes(term) || 
-            englishSearchText.includes(term) || 
-            arabicSearchText.includes(term)
-          );
-        });
-      }
-
-      if (type === 'all' || type === 'accessories') {
-        accessories = allAccessories.filter(a => {
-          // إضافة الباركود و serial_number إلى البحث للأكسسوارات
-          const searchText = `${a.name || ''} ${a.arabic_name || ''} ${a.barcode || ''} ${a.barcode_id || ''} ${a.serial_number || ''} ${a.category || ''}`.toLowerCase();
-          const englishSearchText = convertArabicToEnglishNumbers(searchText);
-          const arabicSearchText = convertEnglishToArabicNumbers(searchText);
-
-          // البحث في جميع النسخ (الأصلية، الإنجليزية، العربية)
-          return uniqueTerms.some(term => 
-            searchText.includes(term) || 
-            englishSearchText.includes(term) || 
-            arabicSearchText.includes(term)
-          );
-        });
-      }
-
-
-      // حفظ النتائج وإعادة تعيين الصفحة الأولى
-      currentSearchResults = { phones, accessories };
-      currentPage = 1;
-      
-      renderResults(phones, accessories);
-
-    } catch (error) {
-      console.error('❌ خطأ في البحث:', error);
-      showAlert('danger', 'حدث خطأ في البحث. حاول مرة أخرى.');
-    }
   }
 
-  // ===== العرض مع دعم الصفحات =====
+  // ===== عرض النتائج =====
   function renderResults(phones, accessories){
     const wrap = document.getElementById('results_wrap');
     const body = document.getElementById('results_body');
@@ -508,14 +435,7 @@
       return;
     }
 
-    // حساب عدد الصفحات
-    totalPages = Math.ceil(total / ITEMS_PER_PAGE);
-    
-    // ادمج النوعين أولاً ثم طبّق الترقيم على القائمة الواحدة؛ تطبيق نفس
-    // startIndex على كل نوع منفصلاً كان يتجاوز حجم الصفحة ويفقد نتائج.
-    const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
-    const endIndex = startIndex + ITEMS_PER_PAGE;
-
+    // اعرض القائمتين كاملتين — «عرض الكل» بلا تقطيع ولا ترقيم
     const sortedPhones = (phones || []).slice().sort((a, b) => {
       const aId = a.id || a.phone_number || a.device_number || a.serial_number;
       const bId = b.id || b.phone_number || b.device_number || b.serial_number;
@@ -524,12 +444,8 @@
       if (aSold !== bSold) return aSold ? 1 : -1;
       return String(a.phone_number || '').localeCompare(String(b.phone_number || ''));
     });
-    const pageItems = [
-      ...sortedPhones.map(item => ({ type: 'phone', item })),
-      ...(accessories || []).map(item => ({ type: 'accessory', item }))
-    ].slice(startIndex, endIndex);
-    const phonesForCurrentPage = pageItems.filter(x => x.type === 'phone').map(x => x.item);
-    const accessoriesForCurrentPage = pageItems.filter(x => x.type === 'accessory').map(x => x.item);
+    const phonesForCurrentPage = sortedPhones;
+    const accessoriesForCurrentPage = accessories || [];
 
     let html = '';
 
@@ -538,7 +454,7 @@
       html += `
         <div class="mb-4">
           <h6 class="text-primary mb-3">
-            <i class="fas fa-mobile-alt"></i> الهواتف (${phones.length}) - الصفحة ${currentPage} من ${totalPages}
+            <i class="fas fa-mobile-alt"></i> الهواتف (${phones.length})
           </h6>
           <div class="table-responsive">
             <table class="table table-striped">
@@ -608,7 +524,7 @@
       html += `
         <div class="mb-4">
           <h6 class="text-success mb-3">
-            <i class="fas fa-box"></i> الأكسسوارات (${accessories.length}) - الصفحة ${currentPage} من ${totalPages}
+            <i class="fas fa-box"></i> الأكسسوارات (${accessories.length})
           </h6>
           <div class="table-responsive">
             <table class="table table-striped">
@@ -658,78 +574,8 @@
         </div>`;
     }
 
-    // إضافة أزرار التنقل بين الصفحات
-    if (totalPages > 1) {
-      html += generatePaginationButtons();
-    }
-
     wrap.classList.remove('d-none');
     body.innerHTML = html;
-  }
-
-  // ===== دوال الصفحات =====
-  
-  // إنشاء أزرار التنقل بين الصفحات
-  function generatePaginationButtons() {
-    let buttons = '';
-    
-    // زر الصفحة السابقة
-    if (currentPage > 1) {
-      buttons += `<button class="btn btn-outline-primary btn-sm" onclick="goToPage(${currentPage - 1})">
-        <i class="fas fa-chevron-right"></i> السابق
-      </button>`;
-    }
-    
-    // أزرار الصفحات
-    const startPage = Math.max(1, currentPage - 2);
-    const endPage = Math.min(totalPages, currentPage + 2);
-    
-    if (startPage > 1) {
-      buttons += `<button class="btn btn-outline-secondary btn-sm" onclick="goToPage(1)">1</button>`;
-      if (startPage > 2) {
-        buttons += `<span class="mx-2 text-muted">...</span>`;
-      }
-    }
-    
-    for (let i = startPage; i <= endPage; i++) {
-      const isActive = i === currentPage ? 'btn-primary' : 'btn-outline-secondary';
-      buttons += `<button class="btn ${isActive} btn-sm" onclick="goToPage(${i})">${i}</button>`;
-    }
-    
-    if (endPage < totalPages) {
-      if (endPage < totalPages - 1) {
-        buttons += `<span class="mx-2 text-muted">...</span>`;
-      }
-      buttons += `<button class="btn btn-outline-secondary btn-sm" onclick="goToPage(${totalPages})">${totalPages}</button>`;
-    }
-    
-    // زر الصفحة التالية
-    if (currentPage < totalPages) {
-      buttons += `<button class="btn btn-outline-primary btn-sm" onclick="goToPage(${currentPage + 1})">
-        التالي <i class="fas fa-chevron-left"></i>
-      </button>`;
-    }
-    
-    return `
-      <div class="d-flex justify-content-center mt-4 mb-4">
-        <nav aria-label="تنقل الصفحات" class="pagination-nav">
-          <div class="btn-group shadow-sm" role="group" style="border-radius: 8px; overflow: hidden;">
-            ${buttons}
-          </div>
-        </nav>
-      </div>
-    `;
-  }
-  
-  // الانتقال لصفحة محددة
-  function goToPage(page) {
-    if (page < 1 || page > totalPages || page === currentPage) return;
-    
-    currentPage = page;
-    renderResults(currentSearchResults.phones, currentSearchResults.accessories);
-    
-    // التمرير لأعلى الصفحة
-    document.getElementById('results_wrap').scrollIntoView({ behavior: 'smooth' });
   }
 
   // ===== دوال الإجراءات =====
