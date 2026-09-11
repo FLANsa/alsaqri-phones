@@ -944,38 +944,44 @@ class FirebaseDatabase {
     const original = await this.getSale(saleId);
     if (!original) throw new Error('الفاتورة غير موجودة');
     if (original.returned === true || original.status === 'مسترجعة') return false;
-    const items = original.items || [];
-    const normalizedItems = items.map(item => ({ ...item, type: item.type || item.product_type }));
-    if (normalizedItems.some(item => !['phone', 'accessory'].includes(item.type))) throw new Error('نوع منتج الفاتورة غير صالح');
-    const phoneItems = normalizedItems.filter(item => item.type === 'phone');
-    const accessoryItems = normalizedItems.filter(item => item.type === 'accessory');
-    const phones = await this.getPhonesByRefs(phoneItems.map(item => item.id ?? item.phone_id));
-    const accessories = await this.getAccessoriesByIds(accessoryItems.map(item => item.id));
-    for (const item of accessoryItems) {
+    const normalized = (original.items || []).map(item => ({ ...item, type: item.type || item.product_type }));
+    if (normalized.some(item => !['phone', 'accessory'].includes(item.type))) throw new Error('نوع منتج الفاتورة غير صالح');
+
+    // البحث المسبق فقط لتعيين مراجع العناصر: معرّفات المستندات تُستخدم مباشرة،
+    // والباركود يُرجَّع لمعرّف المستند. الاستعلامات غير متاحة داخل المعاملة.
+    const phones = await this.getPhonesByRefs(normalized.filter(i => i.type === 'phone').map(item => item.id ?? item.phone_id));
+    const accessories = await this.getAccessoriesByIds(normalized.filter(i => i.type === 'accessory').map(item => item.id));
+    for (const item of normalized) {
       const key = String(item.id || '');
-      if (!accessories[key]) {
+      if (item.type === 'accessory' && !accessories[key]) {
         const snap = await this._getDocs('accessories:bySku', query(collection(this.db, 'accessories'), where('sku', '==', key)));
         if (snap.size === 1) accessories[key] = { ...snap.docs[0].data(), id: snap.docs[0].id };
       }
     }
-    const phoneIds = [...new Set(phoneItems.map(item => {
-      const phone = phones[String(item.id ?? item.phone_id)];
-      if (!phone) throw new Error('تعذر العثور على هاتف الفاتورة');
-      return phone.id;
-    }))];
-    const quantities = new Map();
-    for (const item of accessoryItems) {
-      const accessory = accessories[String(item.id)];
-      const quantity = Number(item.quantity);
-      if (!accessory || !Number.isSafeInteger(quantity) || quantity <= 0) throw new Error('بيانات أكسسوار الفاتورة غير صالحة');
-      quantities.set(accessory.id, (quantities.get(accessory.id) || 0) + quantity);
-    }
+
     const saleRef = doc(this.db, 'sales', saleId);
     const result = await runTransaction(this.db, async (transaction) => {
       const sale = await transaction.get(saleRef);
       if (!sale.exists()) throw new Error('الفاتورة غير موجودة');
       if (sale.data().returned === true || sale.data().status === 'مسترجعة') return null;
-      if (JSON.stringify(sale.data().items || []) !== JSON.stringify(items)) throw new Error('تغيرت الفاتورة؛ أعد تحميل الصفحة');
+      // المصدر الوحيد للحقيقة هو عناصر القراءة الحالية داخل المعاملة،
+      // فلا توجد مقارنة بين نسختين قد تختلف بسبب خلفية التعديلات أو الكاش.
+      const currentItems = (sale.data().items || []).map(item => ({ ...item, type: item.type || item.product_type }));
+      if (currentItems.some(item => !['phone', 'accessory'].includes(item.type))) throw new Error('نوع منتج الفاتورة غير صالح');
+      const phoneItems = currentItems.filter(item => item.type === 'phone');
+      const accessoryItems = currentItems.filter(item => item.type === 'accessory');
+      const phoneIds = [...new Set(phoneItems.map(item => {
+        const phone = phones[String(item.id ?? item.phone_id)];
+        if (!phone) throw new Error('تعذر العثور على هاتف الفاتورة');
+        return phone.id;
+      }))];
+      const quantities = new Map();
+      for (const item of accessoryItems) {
+        const accessory = accessories[String(item.id)];
+        const quantity = Number(item.quantity);
+        if (!accessory || !Number.isSafeInteger(quantity) || quantity <= 0) throw new Error('بيانات أكسسوار الفاتورة غير صالحة');
+        quantities.set(accessory.id, (quantities.get(accessory.id) || 0) + quantity);
+      }
       const accessoryRefs = [...quantities.keys()].map(id => doc(this.db, 'accessories', id));
       const phoneRefs = phoneIds.map(id => doc(this.db, 'phones', id));
       const snaps = await Promise.all([...accessoryRefs, ...phoneRefs].map(ref => transaction.get(ref)));
@@ -1002,12 +1008,12 @@ class FirebaseDatabase {
       phoneRefs.forEach(ref => transaction.update(ref, { sold: false, searchStatus: 0, updatedAt: serverTimestamp() }));
       reservations.forEach(lock => transaction.set(lock.ref, { phoneIds: lock.phoneIds }));
       transaction.update(saleRef, { returned: true, status: 'مسترجعة', returned_at: serverTimestamp(), updatedAt: serverTimestamp() });
-      return updates;
+      return { updates, phoneIds };
     });
     if (result === null) return false;
     await this._patchUpdateRow('sales', saleId, { returned: true, status: 'مسترجعة', returned_at: new Date() });
-    for (const update of result) await this._patchUpdateRow('accessories', update.id, { quantity: update.quantity, quantity_in_stock: update.quantity });
-    await this._patchRowsWhere('phones', row => phoneIds.includes(row.id), () => ({ sold: false, searchStatus: 0 }));
+    for (const update of result.updates) await this._patchUpdateRow('accessories', update.id, { quantity: update.quantity, quantity_in_stock: update.quantity });
+    await this._patchRowsWhere('phones', row => result.phoneIds.includes(row.id), () => ({ sold: false, searchStatus: 0 }));
     return true;
   }
 
