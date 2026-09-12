@@ -65,6 +65,10 @@ service cloud.firestore {
       allow create: if isAuthorizedAccount() && validInventory(request.resource.data);
       allow update: if isAuthorizedAccount() && validInventoryUpdate() &&
         request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'id', 'phone_number', 'serial_number', 'purchase_price', 'purchase_price_with_vat',
+          'purchase_price_without_vat', 'selling_price_without_vat', 'customer_name',
+          'customer_id', 'customer_phone', 'buyer_name', 'phone_memory', 'memory', 'price',
+          'age', 'phone_condition', 'date_added', 'createdAt',
           'manufacturer', 'brand', 'model', 'phone_color', 'color', 'storage_capacity',
           'storage', 'ram', 'condition', 'phone_type', 'battery_level', 'selling_price',
           'description', 'notes', 'supplier', 'warranty', 'quantity', 'quantity_in_stock',
@@ -77,7 +81,8 @@ service cloud.firestore {
       allow update: if isAuthorizedAccount() && validInventoryUpdate() &&
         request.resource.data.diff(resource.data).affectedKeys().hasOnly([
           'name', 'arabic_name', 'category', 'description', 'selling_price',
-          'selling_price_with_vat', 'quantity', 'quantity_in_stock', 'supplier',
+          'selling_price_with_vat', 'purchase_price', 'purchase_price_with_vat',
+          'quantity', 'quantity_in_stock', 'supplier',
           'notes', 'normalizedBarcode', 'normalizedSerial', 'searchTokens', 'sortAt', 'updatedAt', 'date_updated'
         ]);
     }
