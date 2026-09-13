@@ -65,49 +65,44 @@ exports.searchInventoryPage = onCall(async request => {
     if (matchesQuery(name, row.data(), terms)) exact.set(row.id, { id: row.id, ...row.data() });
   });
   const exactIds = new Set(exact.keys());
-  let candidate = ref.where('searchTokens', 'array-contains', primary);
-  if (name === 'phones') candidate = candidate.orderBy('searchStatus', 'asc');
-  candidate = candidate.orderBy('sortAt', 'desc').orderBy(admin.firestore.FieldPath.documentId(), 'desc');
-  if (cursor?.sortAtMillis && cursor?.id) {
-    const values = name === 'phones'
-      ? [Number(cursor.searchStatus) || 0, admin.firestore.Timestamp.fromMillis(Number(cursor.sortAtMillis)), String(cursor.id)]
-      : [admin.firestore.Timestamp.fromMillis(Number(cursor.sortAtMillis)), String(cursor.id)];
-    candidate = candidate.startAfter(...values);
-  }
+  // الفرز هنا في الذاكرة وليس بترتيب Firestore: الفهرس المركب (searchTokens,
+  // searchStatus, sortAt) لا يتضمن الأجهزة القديمة التي لا تحمل searchStatus
+  // فيسقطها الاستعلام المرتب وتظهر صفحات ناقصة رغم العدد الصحيح.
+  const availability = row => Number(row.searchStatus) || (row.sold === true ? 1 : 0);
+  const stamp = row => row.sortAt && typeof row.sortAt.toMillis === 'function' ? row.sortAt.toMillis() : 0;
+  const rows = (await ref.where('searchTokens', 'array-contains', primary).get()).docs
+    .filter(row => !exactIds.has(row.id) && matchesQuery(name, row.data(), terms))
+    .map(row => ({ id: row.id, ...row.data() }));
+  rows.sort((a, b) =>
+    availability(a) - availability(b) ||
+    stamp(b) - stamp(a) ||
+    (b.id < a.id ? -1 : b.id > a.id ? 1 : 0));
 
-  const results = includeExact ? [...exact.values()] : [];
-  let lastCandidate = null;
-  let exhausted = false;
-  while (results.length < safeSize && !exhausted) {
-    const batch = await candidate.limit(100).get();
-    if (batch.empty) { exhausted = true; break; }
-    for (const row of batch.docs) {
-      lastCandidate = row;
-      if (!exactIds.has(row.id) && matchesQuery(name, row.data(), terms)) {
-        results.push({ id: row.id, ...row.data() });
-        if (results.length === safeSize) break;
-      }
-    }
-    if (batch.size < 100 || results.length === safeSize) exhausted = batch.size < 100;
-    if (!exhausted && results.length < safeSize) {
-      candidate = candidate.startAfter(lastCandidate);
+  const fullOrdered = includeExact ? [...exact.values(), ...rows] : rows;
+  let startIndex = 0;
+  if (cursor?.id) {
+    const cursorId = String(cursor.id);
+    const found = fullOrdered.findIndex(row => row.id === cursorId);
+    if (found === -1) {
+      const cursorAvailability = Number(cursor.searchStatus) || 0;
+      const cursorStamp = Number(cursor.sortAtMillis) || 0;
+      startIndex = fullOrdered.findIndex(row => {
+        const a = availability(row), s = stamp(row);
+        return a > cursorAvailability ||
+          (a === cursorAvailability && (s < cursorStamp || (s === cursorStamp && row.id.localeCompare(cursorId) < 0)));
+      });
+      startIndex = startIndex === -1 ? fullOrdered.length : startIndex;
+    } else {
+      startIndex = found + 1;
     }
   }
-
-  let total = null;
-  if (includeTotal) {
-    const allCandidates = await ref.where('searchTokens', 'array-contains', primary).get();
-    const ids = new Set(exactIds);
-    allCandidates.docs.forEach(row => { if (matchesQuery(name, row.data(), terms)) ids.add(row.id); });
-    total = ids.size;
-  }
-  const finalRows = results.slice(0, safeSize);
-  const last = finalRows.length && lastCandidate ? lastCandidate : null;
+  const finalRows = fullOrdered.slice(startIndex, startIndex + safeSize);
+  const last = finalRows[finalRows.length - 1] || null;
   return {
     items: finalRows,
-    nextCursor: last ? { id: last.id, sortAtMillis: last.data().sortAt.toMillis(), searchStatus: name === 'phones' ? Number(last.data().searchStatus) || 0 : undefined } : null,
-    hasMore: !exhausted,
-    total
+    nextCursor: last ? { id: last.id, sortAtMillis: stamp(last), searchStatus: name === 'phones' ? availability(last) : undefined } : null,
+    hasMore: startIndex + safeSize < fullOrdered.length,
+    total: includeTotal ? fullOrdered.length : null
   };
 });
 exports.syncSaleSummaryEvents = onDocumentWritten('sales/{saleId}', async event => {
