@@ -179,6 +179,18 @@
     generateBarcode(phone_number || '-');
   }
 
+  /** انتظار جاهزية window.storage مع مهلة */
+  function waitForStorage(maxMs = 3000) {
+    return new Promise(resolve => {
+      if (window.storage && window.storage.isFirebaseAvailable) return resolve(true);
+      const step = 200, start = Date.now();
+      const poll = setInterval(() => {
+        if (window.storage && window.storage.isFirebaseAvailable) { clearInterval(poll); resolve(true); }
+        else if (Date.now() - start >= maxMs) { clearInterval(poll); resolve(false); }
+      }, step);
+    });
+  }
+
   async function findPhoneByNumber(phoneNumber){
     if(!phoneNumber) return null;
 
@@ -190,17 +202,27 @@
       }
     }catch{}
 
-    // 2) Firebase (if available)
-    try{
-      if(window.storage && window.storage.isFirebaseAvailable){
-        // If your API has a direct method, prefer it:
-        if(typeof window.storage.getPhoneByNumber === 'function'){
-          const one = await window.storage.getPhoneByNumber(String(phoneNumber));
-          // الاستعلام الموجّه حاسم: null تعني غير موجود — لا نعيد قراءة المجموعة كاملة
-          return one || null;
+    // 2) Firebase — انتظر حتى3 ثوانٍ إذا لم يكن جاهزاً بعد
+    const ready = await waitForStorage(3000);
+    if(ready){
+      for(let attempt = 0; attempt <2; attempt++){
+        try{
+          if(typeof window.storage.getPhoneByNumber === 'function'){
+            const one = await window.storage.getPhoneByNumber(String(phoneNumber));
+            if(one) return one;
+          }
+        }catch(e){
+          console.warn('Firebase lookup attempt', attempt+1, 'failed:', e);
+          if(attempt===0) await new Promise(r => setTimeout(r,500));
         }
       }
-    }catch(e){ console.warn('Firebase lookup failed:', e); }
+    }
+
+    // 3) Backup من آخر هاتف مضافة محلياً — يغطي حالة الكاش القديم/فشل Firebase
+    try{
+      const last = JSON.parse(localStorage.getItem('lastAddedPhone')||'null');
+      if(last && (String(last.phone_number)===String(phoneNumber))) return last;
+    }catch{}
 
     return null;
   }

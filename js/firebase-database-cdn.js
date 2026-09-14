@@ -231,8 +231,8 @@ class FirebaseDatabase {
   getMaintenanceJobsPage(options) { return this._getPage('maintenanceJobs', options); }
 
   /** getDocs مع تتبّع القراءة */
-  async _getDocs(label, q) {
-    const snap = await getDocs(q);
+  async _getDocs(label, q, options) {
+    const snap = await getDocs(q, options);
     this._trackReads(label, snap.size ?? 1);
     return snap;
   }
@@ -576,21 +576,27 @@ class FirebaseDatabase {
     }
   }
 
-  /** جلب هاتف واحد برقم الباركود — استعلام where بدل قراءة المجموعة كاملة */
+  /** جلب هاتف واحد برقم الباركود — استعلام where بدل قراءة المجموعة كاملة
+   *  يفضّل الخادم دائماً (لتجنّب عرض نسخة قديمة من كاش الجهاز)،
+   *  ومع انقطاع الشبكة فقط يقرأ من الكاش المحلي. */
   async getPhoneByNumberQuery(phoneNumber) {
     const normalized = String(phoneNumber || '').trim();
     if (!normalized) return null;
+    const q = query(collection(this.db, 'phones'), where('phone_number', '==', normalized));
+    let snap;
     try {
-      const snap = await this._getDocs('phones:byNumber',
-        query(collection(this.db, 'phones'), where('phone_number', '==', normalized))
-      );
-      let found = null;
-      snap.forEach((d) => { if (!found) found = { ...d.data(), id: d.id }; });
-      return found;
-    } catch (error) {
-      console.error('❌ Error getting phone by number:', error);
-      throw error;
+      snap = await this._getDocs('phones:byNumber', q, { source: 'server' });
+    } catch (e) {
+      if (e && (e.code === 'unavailable' || /offline|network/i.test(String(e.message || '')))) {
+        snap = await this._getDocs('phones:byNumber', q, { source: 'cache' });
+      } else {
+        console.error('❌ Error getting phone by number:', e);
+        throw e;
+      }
     }
+    let found = null;
+    snap.forEach((d) => { if (!found) found = { ...d.data(), id: d.id }; });
+    return found;
   }
 
   /**
