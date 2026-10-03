@@ -249,18 +249,7 @@
     // ملاحظة: نتوقع أن window.storage يوفّر الدوال التالية عندما تكون Firebase متاحة:
     // getPhones(), getAccessories(), getAccessoryCategories(), getSales()
     // إذا ما كانت متوفرة، بيصير التحميل من LocalStorage.
-    function fillSellerNameFromSession() {
-      const el = document.getElementById('seller_name');
-      if (!el || el.value.trim()) return;
-      try {
-        const u = JSON.parse(localStorage.getItem('current_user') || 'null');
-        const name = u && (u.name || u.username || u.displayName || u.email || '');
-        if (name) el.value = name;
-      } catch (_) {}
-    }
-
     document.addEventListener('DOMContentLoaded', async () => {
-      fillSellerNameFromSession();
 
       // ملفات Firebase نوعها module وتُنفَّذ قبل إطلاق DOMContentLoaded — لا حاجة لأي مهلة
       if (window.storage && window.storage.isFirebaseAvailable) {

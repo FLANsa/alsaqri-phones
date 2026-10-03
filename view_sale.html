@@ -1056,7 +1056,7 @@
 
     // البائع في الفاتورة
     const receiptSellerEl = document.getElementById('receipt_seller_name');
-    if (receiptSellerEl) receiptSellerEl.textContent = String(currentSale.seller_name || currentSale.sellerName || '').trim() || 'غير محدد';
+    if (receiptSellerEl) receiptSellerEl.textContent = String(currentSale.seller_name || currentSale.sellerName || '').trim();
 
     // الضمان في الفاتورة (إن وجد)
     const w = String(currentSale.warranty || '').trim();
