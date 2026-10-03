@@ -568,7 +568,11 @@ class FirebaseDatabase {
 
   async deletePhone(phoneId) {
     try {
-      await deleteDoc(doc(this.db, 'phones', phoneId));
+      const ref = doc(this.db, 'phones', phoneId);
+      if (!(await getDoc(ref)).exists()) {
+        throw new Error('تعذر العثور على الجهاز المطلوب للحذف');
+      }
+      await deleteDoc(ref);
       await this._patchRemoveRow('phones', phoneId);
     } catch (error) {
       console.error('❌ Error deleting phone:', error);
@@ -716,7 +720,11 @@ class FirebaseDatabase {
 
   async deleteAccessory(accessoryId) {
     try {
-      await deleteDoc(doc(this.db, 'accessories', accessoryId));
+      const ref = doc(this.db, 'accessories', accessoryId);
+      if (!(await getDoc(ref)).exists()) {
+        throw new Error('تعذر العثور على الأكسسوار المطلوب للحذف');
+      }
+      await deleteDoc(ref);
       await this._patchRemoveRow('accessories', accessoryId);
     } catch (error) {
       console.error('❌ Error deleting accessory:', error);

@@ -75,6 +75,8 @@ service cloud.firestore {
           'sold', 'searchStatus', 'last_sale_id', 'normalizedBarcode', 'normalizedSerial', 'searchTokens',
           'sortAt', 'updatedAt', 'date_updated'
         ]);
+      // الحذف إجراء إداري لا يجوز لحساب الموظف.
+      allow delete: if isAdmin();
     }
     match /accessories/{id} {
       allow create: if isAuthorizedAccount() && validInventory(request.resource.data);
@@ -85,6 +87,8 @@ service cloud.firestore {
           'quantity', 'quantity_in_stock', 'supplier',
           'notes', 'normalizedBarcode', 'normalizedSerial', 'searchTokens', 'sortAt', 'updatedAt', 'date_updated'
         ]);
+      // الحذف إجراء إداري لا يجوز لحساب الموظف.
+      allow delete: if isAdmin();
     }
     match /sales/{id} {
       allow create: if isAuthorizedAccount() && validSale(request.resource.data);
