@@ -89,17 +89,24 @@
               </div>
               <div class="mb-3">
                 <label for="payment_method" class="form-label">طريقة الدفع</label>
-                <select class="form-select" id="payment_method" name="payment_method">
+                <select class="form-select" id="payment_method" name="payment_method" required>
+                  <option value="" selected disabled>اختر طريقة الدفع</option>
                   <option value="نقدي">نقدي</option>
                   <option value="بطاقة ائتمان">بطاقة ائتمان</option>
                   <option value="تحويل بنكي">تحويل بنكي</option>
                   <option value="شيك">شيك</option>
+                  <option value="تابي">تابي</option>
+                  <option value="تمارا">تمارا</option>
                 </select>
               </div>
               <div class="mb-3">
                 <label for="seller_name" class="form-label"><i class="fas fa-user-tie"></i> اسم البائع</label>
-                <input type="text" class="form-control" id="seller_name" name="seller_name" placeholder="مثال: أحمد">
-                <div class="form-text">يُحفظ مع الفاتورة ويظهر في صفحة العرض والطباعة</div>
+                <select class="form-select" id="seller_name" name="seller_name" required>
+                  <option value="" selected disabled>اختر اسم البائع</option>
+                  <option value="علي">علي</option>
+                  <option value="لؤي">لؤي</option>
+                  <option value="مناف">مناف</option>
+                </select>
               </div>
               <div class="mb-3">
                 <label for="notes" class="form-label">ملاحظات</label>
@@ -778,6 +785,18 @@
         return; // تم الضغط مسبقاً
       }
       if (cart.length === 0) { alert('السلة فارغة'); return; }
+      const paymentMethod = document.getElementById('payment_method');
+      const sellerName = document.getElementById('seller_name');
+      if (!paymentMethod?.value) {
+        paymentMethod?.focus();
+        alert('يرجى اختيار طريقة الدفع قبل إتمام عملية البيع.');
+        return;
+      }
+      if (!sellerName?.value) {
+        sellerName?.focus();
+        alert('يرجى اختيار اسم البائع قبل إتمام عملية البيع.');
+        return;
+      }
       isCompletingSale = true;
       const completeBtn = document.getElementById('complete_sale_btn');
       if (completeBtn) {
@@ -804,8 +823,8 @@
         customer_phone: document.getElementById('customer_phone').value.trim() || '',
         customer_email: document.getElementById('customer_email').value || '',
         customer_address: document.getElementById('customer_address').value || '',
-        seller_name: document.getElementById('seller_name')?.value?.trim() || '',
-        payment_method: document.getElementById('payment_method').value,
+        seller_name: sellerName.value,
+        payment_method: paymentMethod.value,
         notes: document.getElementById('notes').value || '',
         warranty: document.getElementById('warranty_input')?.value?.trim() || '',
         items: cart.map(item => ({ ...item })),
