@@ -89,7 +89,7 @@
               </div>
               <div class="mb-3">
                 <label for="payment_method" class="form-label">طريقة الدفع</label>
-                <select class="form-select" id="payment_method" name="payment_method" required>
+                <select class="form-select" id="payment_method" name="payment_method" required onchange="updateCartSummary()">
                   <option value="" selected disabled>اختر طريقة الدفع</option>
                   <option value="نقدي">نقدي</option>
                   <option value="مدى">مدى</option>
@@ -200,7 +200,21 @@
                   <hr>
                   <div class="row">
                     <div class="col-md-6">
-                      <h5>المجموع الإجمالي: <span id="cart_total" class="text-success fw-bold">0.00</span> ريال</h5>
+                      <div class="mb-3">
+                        <label for="manual_sale_total" class="form-label">المبلغ الإجمالي يدويًا (شامل الضريبة، قبل خصم مدى)</label>
+                        <div class="input-group">
+                          <input type="text" class="form-control arabic-number-field" id="manual_sale_total" inputmode="decimal" onchange="updateManualSaleTotal()" placeholder="مجموع المنتجات">
+                          <span class="input-group-text">ريال</span>
+                        </div>
+                        <div class="form-text">يبدأ من مجموع أسعار السلة شامل الضريبة ويمكنك تعديله. عند اختيار مدى يُخصم 0.8% تلقائيًا.</div>
+                      </div>
+                      <div id="manual_adjustment_summary" class="small text-muted mb-1" style="display:none;">
+                        تعديل يدوي على المنتجات: <span id="manual_adjustment_amount">0.00</span> ريال
+                      </div>
+                      <div id="payment_discount_summary" class="small text-danger mb-1" style="display:none;">
+                        خصم مدى (0.8%): <span id="payment_discount_amount">0.00</span> ريال
+                      </div>
+                      <h5>المبلغ المستحق: <span id="cart_total" class="text-success fw-bold">0.00</span> ريال</h5>
 
                       <!-- الضمان (اختياري) -->
                       <div class="mt-3">
@@ -250,6 +264,7 @@
     let sales = [];
     let cart = [];
     let saleOperationId = null;
+    let manualTotalAdjustment = null;
     let isCompletingSale = false; // منع تكرار حفظ نفس العملية
     const actionArg = value => escapeHTML(JSON.stringify(String(value ?? '')));
 
@@ -567,14 +582,41 @@
     }
 
     function updateCartSummary() {
-      const total = cart.reduce((s, it) => s + it.totalPrice, 0);
-      const totalProfit = cart.reduce((s, it) => s + (it.totalProfit || 0), 0);                                                                             
-      const totalPurchaseCost = cart.reduce((s, it) => s + ((it.purchasePrice || 0) * it.quantity), 0);                                                     
+      const itemsTotal = cart.reduce((s, it) => s + it.totalPrice, 0);
+      const manualAdjustment = manualTotalAdjustment ?? 0;
+      const amountBeforeDiscount = Math.round(Math.max(0, itemsTotal + manualAdjustment) * 100) / 100;
+      const paymentMethod = document.getElementById('payment_method')?.value || '';
+      const discountRate = paymentMethod === 'مدى' ? 0.008 : 0;
+      const discountAmount = Math.round(amountBeforeDiscount * discountRate * 100) / 100;
+      const total = Math.max(0, amountBeforeDiscount - discountAmount);
+      const manualInput = document.getElementById('manual_sale_total');
+      if (manualInput && document.activeElement !== manualInput) {
+        manualInput.value = amountBeforeDiscount.toFixed(2);
+      }
 
       document.getElementById('cart_total').textContent = total.toFixed(2);
+      const manualAdjustmentRow = document.getElementById('manual_adjustment_summary');
+      manualAdjustmentRow.style.display = Math.abs(manualAdjustment) >= 0.005 ? 'block' : 'none';
+      document.getElementById('manual_adjustment_amount').textContent = manualAdjustment.toFixed(2);
+      const paymentDiscountRow = document.getElementById('payment_discount_summary');
+      paymentDiscountRow.style.display = discountAmount > 0 ? 'block' : 'none';
+      document.getElementById('payment_discount_amount').textContent = discountAmount.toFixed(2);
 
       // صفوف تكلفة الشراء والربح أُزيلت من الواجهة؛ لا عناصر #cart_purchase_cost/#cart_profit منذ زمن
       document.getElementById('complete_sale_btn').disabled = cart.length === 0;
+    }
+
+    function updateManualSaleTotal() {
+      const input = document.getElementById('manual_sale_total');
+      const value = parseArabicNumber(input?.value);
+      if (!Number.isFinite(value) || value <= 0) {
+        alert('يرجى إدخال مبلغ صحيح أكبر من صفر.');
+        input.value = (cart.reduce((sum, item) => sum + item.totalPrice, 0) + (manualTotalAdjustment ?? 0)).toFixed(2);
+        return;
+      }
+      const itemsTotal = cart.reduce((sum, item) => sum + item.totalPrice, 0);
+      manualTotalAdjustment = Math.round((value - itemsTotal) * 100) / 100;
+      updateCartSummary();
     }
 
     function removeFromCart(index) {
@@ -804,9 +846,23 @@
         completeBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> جاري حفظ العملية...';
       }
   
-      const total = cart.reduce((s, it) => s + it.totalPrice, 0);
+      const itemsTotal = cart.reduce((s, it) => s + it.totalPrice, 0);
+      const manualAdjustment = manualTotalAdjustment ?? 0;
+      const amountBeforeDiscount = Math.round(Math.max(0, itemsTotal + manualAdjustment) * 100) / 100;
+      const discountRate = paymentMethod.value === 'مدى' ? 0.008 : 0;
+      const paymentDiscountAmount = Math.round(amountBeforeDiscount * discountRate * 100) / 100;
+      const total = Math.max(0, amountBeforeDiscount - paymentDiscountAmount);
+      if (amountBeforeDiscount <= 0 || total <= 0) {
+        isCompletingSale = false;
+        if (completeBtn) {
+          completeBtn.disabled = false;
+          completeBtn.innerHTML = '<i class="fas fa-check"></i> إتمام عملية البيع';
+        }
+        alert('يجب أن يكون المبلغ المستحق أكبر من صفر.');
+        return;
+      }
       const saleNumber = 'SALE-' + Date.now().toString().slice(-6);
-      const totalProfit = cart.reduce((s, it) => s + (it.totalProfit || 0), 0);
+      const totalProfit = cart.reduce((s, it) => s + (it.totalProfit || 0), 0) + manualAdjustment - paymentDiscountAmount;
       const totalPurchaseCost = cart.reduce((s, it) => s + ((it.purchasePrice || 0) * it.quantity), 0);
 
       // حساب الضريبة - السعر يشمل الضريبة (15%)
@@ -832,6 +888,10 @@
         vat_amount: vatAmount, // قيمة الضريبة
         vat_rate: vatRate, // نسبة الضريبة
         total_amount: total, // المبلغ الإجمالي (يشمل الضريبة)
+        manual_total_before_discount: amountBeforeDiscount,
+        manual_total_adjustment: manualAdjustment,
+        payment_discount_rate: discountRate,
+        payment_discount_amount: paymentDiscountAmount,
         total_purchase_cost: totalPurchaseCost,
         total_profit: totalProfit,
         status: 'مكتمل',
@@ -849,9 +909,10 @@
         }
 
         try { localStorage.setItem('lastSale', JSON.stringify(saleData)); } catch (_) {}
-        alert(`تم إنشاء عملية البيع!\nرقم العملية: ${saleNumber}\nالمجموع الإجمالي: ${total.toFixed(2)} ريال\nسعر الشراء: ${totalPurchaseCost.toFixed(2)} ريال`);
+        alert(`تم إنشاء عملية البيع!\nرقم العملية: ${saleNumber}\nالمبلغ قبل الخصم: ${amountBeforeDiscount.toFixed(2)} ريال\nخصم مدى: ${paymentDiscountAmount.toFixed(2)} ريال\nالمبلغ المستحق: ${total.toFixed(2)} ريال`);
   
         cart = [];
+        manualTotalAdjustment = null;
         updateCartDisplay();
         document.getElementById('customerForm')?.reset?.();
         document.getElementById('warranty_input').value = '';
