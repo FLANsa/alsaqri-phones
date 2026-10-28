@@ -8,32 +8,42 @@ service firebase.storage {
           'user@alsaqri.store'
         ];
     }
+
+    function isAdmin() {
+      return request.auth != null && request.auth.token.email == 'admin@alsaqri.store';
+    }
+
+    function isImageUpload() {
+      return request.resource.size <= 5 * 1024 * 1024 &&
+        request.resource.contentType.matches('image/(jpeg|png|webp)');
+    }
     
     // قواعد لصور المنتجات
     match /products/{productId}/{fileName} {
       allow read: if true; // السماح للجميع بقراءة صور المنتجات
-      allow write: if isAuthorizedAccount();
+      allow write: if isAuthorizedAccount() && isImageUpload();
     }
     
     // قواعد لصور العملاء (إذا كانت موجودة)
     match /customers/{customerId}/{fileName} {
-      allow read, write: if isAuthorizedAccount();
+      allow read: if isAuthorizedAccount();
+      allow write: if isAuthorizedAccount() && isImageUpload();
     }
     
     // قواعد للملفات العامة
     match /public/{fileName} {
       allow read: if true; // السماح للجميع بقراءة الملفات العامة
-      allow write: if isAuthorizedAccount();
+      allow write: if isAuthorizedAccount() && isImageUpload();
     }
     
     // قواعد للملفات المؤقتة
     match /temp/{fileName} {
-      allow read, write: if isAuthorizedAccount();
+      allow read, write: if false;
     }
     
     // قواعد للنسخ الاحتياطية
     match /backups/{fileName} {
-      allow read, write: if isAuthorizedAccount();
+      allow read, write: if isAdmin();
     }
     
     // منع الوصول لجميع الملفات الأخرى

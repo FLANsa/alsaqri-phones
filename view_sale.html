@@ -400,6 +400,20 @@
             <div id="manual_total_adjustment_display" class="text-muted" style="display:none;">التعديل اليدوي على المنتجات: <span></span></div>
             <div id="payment_discount_display" class="text-danger" style="display:none;">خصم مدى (0.8%): <span></span></div>
           </div>
+          <div class="mt-3 text-end">
+            <button type="button" class="btn btn-outline-primary btn-sm" id="edit_sale_amount_btn" onclick="toggleEditSaleAmount()">
+              <i class="fas fa-pen"></i> تعديل مبلغ الفاتورة
+            </button>
+            <div id="sale_amount_edit_wrap" class="border rounded p-3 mt-2 text-end" style="display:none;">
+              <label for="sale_amount_input" class="form-label">المبلغ الصافي النهائي للفاتورة (شامل الضريبة)</label>
+              <div class="input-group mb-2">
+                <span class="input-group-text">ريال</span>
+                <input type="number" id="sale_amount_input" class="form-control" min="0.01" step="0.01" inputmode="decimal" placeholder="أدخل المبلغ يدويًا">
+              </div>
+              <button type="button" class="btn btn-success btn-sm" id="save_sale_amount_btn" onclick="saveSaleAmount()">حفظ المبلغ</button>
+              <button type="button" class="btn btn-secondary btn-sm" onclick="toggleEditSaleAmount(false)">إلغاء</button>
+            </div>
+          </div>
         <div class="row mt-3">
           <div class="col-md-12">
             <div class="border rounded p-3">
@@ -533,7 +547,7 @@
 </div>
 
 <!-- مكتبات JS -->
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js" integrity="sha384-geWF76RCwLtnZ8qwWowPQNguL3RmwHVBC9FhGdlKrxdiJJigb/j/68SIy3Te4Bkz" crossorigin="anonymous"></script>
 <!-- QR Code will be generated using API -->
 
 <!-- Firebase Configuration -->
@@ -620,6 +634,11 @@
   // عرض بيانات البيع
   async function displaySaleData() {
     if (!currentSale) return;
+
+    const amountEditWrap = document.getElementById('sale_amount_edit_wrap');
+    if (amountEditWrap) amountEditWrap.style.display = 'none';
+    const amountEditButton = document.getElementById('edit_sale_amount_btn');
+    if (amountEditButton) amountEditButton.style.display = 'inline-block';
 
     document.getElementById('sale_number').textContent = currentSale.sale_number || currentSale.id;
 
@@ -946,6 +965,96 @@
       showAlert('success', 'تم تحديث تاريخ الفاتورة');
     } catch (e) {
       showAlert('danger', 'فشل تحديث التاريخ: ' + (e && e.message ? e.message : e));
+    }
+  }
+
+  function toggleEditSaleAmount(forceOpen) {
+    const wrap = document.getElementById('sale_amount_edit_wrap');
+    const button = document.getElementById('edit_sale_amount_btn');
+    const input = document.getElementById('sale_amount_input');
+    if (!wrap || !input || !currentSale) return;
+    const open = forceOpen === undefined ? wrap.style.display === 'none' : Boolean(forceOpen);
+    if (!open) {
+      wrap.style.display = 'none';
+      if (button) button.style.display = 'inline-block';
+      return;
+    }
+    input.value = '';
+    wrap.style.display = 'block';
+    if (button) button.style.display = 'none';
+    input.focus();
+    input.select();
+  }
+
+  let isSavingSaleAmount = false;
+  async function saveSaleAmount() {
+    if (isSavingSaleAmount || !currentSale?.id) return;
+    const input = document.getElementById('sale_amount_input');
+    const saveButton = document.getElementById('save_sale_amount_btn');
+    const netAmount = Math.round(Number(input?.value) * 100) / 100;
+    if (!Number.isFinite(netAmount) || netAmount <= 0) {
+      showAlert('warning', 'أدخل مبلغًا أكبر من صفر');
+      input?.focus();
+      return;
+    }
+
+    const items = Array.isArray(currentSale.items) ? currentSale.items : [];
+    const itemTotal = items.reduce((sum, item) => {
+      const explicitTotal = Number(item.totalPrice ?? item.total_price);
+      const unitPrice = Number(item.unitPrice ?? item.unit_price) || 0;
+      const quantity = Number(item.quantity) || 1;
+      return sum + (Number.isFinite(explicitTotal) ? explicitTotal : unitPrice * quantity);
+    }, 0);
+    const itemProfit = items.reduce((sum, item) => {
+      const explicitProfit = item.totalProfit ?? item.total_profit;
+      if (explicitProfit !== undefined && explicitProfit !== null && Number.isFinite(Number(explicitProfit))) {
+        return sum + Number(explicitProfit);
+      }
+      const quantity = Number(item.quantity) || 1;
+      const unitPrice = Number(item.unitPrice ?? item.unit_price) || 0;
+      const purchasePrice = Number(item.purchasePrice ?? item.purchase_price) || 0;
+      return sum + (unitPrice - purchasePrice) * quantity;
+    }, 0);
+    const discountRate = 0;
+    const discountAmount = 0;
+    const grossAmount = netAmount;
+    const totalAmount = netAmount;
+    const adjustment = Math.round((grossAmount - itemTotal) * 100) / 100;
+    const rawVatRate = Number(currentSale.vat_rate ?? 0.15);
+    const vatRate = Number.isFinite(rawVatRate) && rawVatRate >= 0 && rawVatRate <= 1 ? rawVatRate : 0.15;
+    const subtotal = totalAmount / (1 + vatRate);
+    const vatAmount = totalAmount - subtotal;
+    const originalProfit = Number.isFinite(Number(currentSale.items_profit))
+      ? Number(currentSale.items_profit) : itemProfit;
+    const totalProfit = originalProfit + adjustment;
+    const update = {
+      total_amount: totalAmount,
+      manual_total_before_discount: grossAmount,
+      manual_total_adjustment: adjustment,
+      payment_discount_rate: discountRate,
+      payment_discount_amount: discountAmount,
+      subtotal,
+      vat_amount: vatAmount,
+      vat_rate: vatRate,
+      total_profit: totalProfit
+    };
+
+    isSavingSaleAmount = true;
+    if (saveButton) saveButton.disabled = true;
+    try {
+      if (!window.storage || typeof window.storage.updateSale !== 'function') {
+        throw new Error('التخزين غير متاح حاليًا');
+      }
+      const saved = await window.storage.updateSale(currentSale.id, update);
+      if (saved === false) throw new Error('تعذّر تأكيد حفظ المبلغ في قاعدة البيانات');
+      Object.assign(currentSale, update);
+      await displaySaleData();
+      showAlert('success', 'تم تحديث مبلغ الفاتورة والضريبة والربح');
+    } catch (error) {
+      showAlert('danger', 'فشل تحديث مبلغ الفاتورة: ' + (error?.message || error));
+    } finally {
+      isSavingSaleAmount = false;
+      if (saveButton) saveButton.disabled = false;
     }
   }
 

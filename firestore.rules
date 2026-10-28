@@ -32,6 +32,11 @@ service cloud.firestore {
         (request.resource.data[field] is number && request.resource.data[field] >= 0);
     }
 
+    function validChangedNumeric(field) {
+      return !request.resource.data.diff(resource.data).affectedKeys().hasAny([field]) ||
+        request.resource.data[field] is number;
+    }
+
     function validInventoryUpdate() {
       return validChangedNumber('purchase_price') &&
         validChangedNumber('purchase_price_with_vat') &&
@@ -44,6 +49,26 @@ service cloud.firestore {
       return data.items is list && data.items.size() > 0 &&
         data.total_amount is number && data.total_amount >= 0 &&
         (!(data.vat_rate is number) || (data.vat_rate >= 0 && data.vat_rate <= 1));
+    }
+
+    function validSaleFinancialUpdate() {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'date_created', 'sortAt', 'returned', 'returned_at', 'status', 'updatedAt',
+          'total_amount', 'manual_total_before_discount', 'manual_total_adjustment',
+          'payment_discount_rate', 'payment_discount_amount', 'subtotal', 'vat_amount',
+          'vat_rate', 'total_profit'
+        ]) &&
+        validChangedNumber('total_amount') &&
+        validChangedNumber('manual_total_before_discount') &&
+        validChangedNumeric('manual_total_adjustment') &&
+        validChangedNumber('payment_discount_rate') &&
+        (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['payment_discount_rate']) || request.resource.data.payment_discount_rate <= 1) &&
+        validChangedNumber('payment_discount_amount') &&
+        validChangedNumber('subtotal') &&
+        validChangedNumber('vat_amount') &&
+        validChangedNumber('vat_rate') &&
+        (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['vat_rate']) || request.resource.data.vat_rate <= 1) &&
+        validChangedNumeric('total_profit');
     }
 
     function validMaintenanceJob(data) {
@@ -92,10 +117,7 @@ service cloud.firestore {
     }
     match /sales/{id} {
       allow create: if isAuthorizedAccount() && validSale(request.resource.data);
-      allow update: if isAuthorizedAccount() &&
-        request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-          'date_created', 'sortAt', 'returned', 'returned_at', 'status', 'updatedAt'
-        ]);
+      allow update: if isAuthorizedAccount() && validSaleFinancialUpdate();
     }
     match /counters/{id} {
       allow create: if isAuthorizedAccount() && request.resource.data.lastPhoneNumber is number;

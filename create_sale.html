@@ -201,18 +201,15 @@
                   <div class="row">
                     <div class="col-md-6">
                       <div class="mb-3">
-                        <label for="manual_sale_total" class="form-label">المبلغ الإجمالي يدويًا (شامل الضريبة، قبل خصم مدى)</label>
+                        <label for="manual_sale_total" class="form-label">المبلغ الصافي يدويًا (شامل الضريبة)</label>
                         <div class="input-group">
                           <input type="text" class="form-control arabic-number-field" id="manual_sale_total" inputmode="decimal" onchange="updateManualSaleTotal()" placeholder="مجموع المنتجات">
                           <span class="input-group-text">ريال</span>
                         </div>
-                        <div class="form-text">يبدأ من مجموع أسعار السلة شامل الضريبة ويمكنك تعديله. عند اختيار مدى يُخصم 0.8% تلقائيًا.</div>
+                        <div class="form-text">يبدأ من مجموع أسعار السلة شامل الضريبة ويمكنك تعديله يدويًا.</div>
                       </div>
                       <div id="manual_adjustment_summary" class="small text-muted mb-1" style="display:none;">
                         تعديل يدوي على المنتجات: <span id="manual_adjustment_amount">0.00</span> ريال
-                      </div>
-                      <div id="payment_discount_summary" class="small text-danger mb-1" style="display:none;">
-                        خصم مدى (0.8%): <span id="payment_discount_amount">0.00</span> ريال
                       </div>
                       <h5>المبلغ المستحق: <span id="cart_total" class="text-success fw-bold">0.00</span> ريال</h5>
 
@@ -245,7 +242,7 @@
   </div>
 
   <!-- مكتبات JS نفسها -->
-  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js" integrity="sha384-geWF76RCwLtnZ8qwWowPQNguL3RmwHVBC9FhGdlKrxdiJJigb/j/68SIy3Te4Bkz" crossorigin="anonymous"></script>
 
   <!-- Firebase Configuration -->
   <script type="module" src="js/firebase-config-cdn.js?v=20260119"></script>
@@ -584,24 +581,16 @@
     function updateCartSummary() {
       const itemsTotal = cart.reduce((s, it) => s + it.totalPrice, 0);
       const manualAdjustment = manualTotalAdjustment ?? 0;
-      const amountBeforeDiscount = Math.round(Math.max(0, itemsTotal + manualAdjustment) * 100) / 100;
-      const paymentMethod = document.getElementById('payment_method')?.value || '';
-      const discountRate = paymentMethod === 'مدى' ? 0.008 : 0;
-      const discountAmount = Math.round(amountBeforeDiscount * discountRate * 100) / 100;
-      const total = Math.max(0, amountBeforeDiscount - discountAmount);
+      const total = Math.round(Math.max(0, itemsTotal + manualAdjustment) * 100) / 100;
       const manualInput = document.getElementById('manual_sale_total');
       if (manualInput && document.activeElement !== manualInput) {
-        manualInput.value = amountBeforeDiscount.toFixed(2);
+        manualInput.value = total.toFixed(2);
       }
 
       document.getElementById('cart_total').textContent = total.toFixed(2);
       const manualAdjustmentRow = document.getElementById('manual_adjustment_summary');
       manualAdjustmentRow.style.display = Math.abs(manualAdjustment) >= 0.005 ? 'block' : 'none';
       document.getElementById('manual_adjustment_amount').textContent = manualAdjustment.toFixed(2);
-      const paymentDiscountRow = document.getElementById('payment_discount_summary');
-      paymentDiscountRow.style.display = discountAmount > 0 ? 'block' : 'none';
-      document.getElementById('payment_discount_amount').textContent = discountAmount.toFixed(2);
-
       // صفوف تكلفة الشراء والربح أُزيلت من الواجهة؛ لا عناصر #cart_purchase_cost/#cart_profit منذ زمن
       document.getElementById('complete_sale_btn').disabled = cart.length === 0;
     }
@@ -848,11 +837,8 @@
   
       const itemsTotal = cart.reduce((s, it) => s + it.totalPrice, 0);
       const manualAdjustment = manualTotalAdjustment ?? 0;
-      const amountBeforeDiscount = Math.round(Math.max(0, itemsTotal + manualAdjustment) * 100) / 100;
-      const discountRate = paymentMethod.value === 'مدى' ? 0.008 : 0;
-      const paymentDiscountAmount = Math.round(amountBeforeDiscount * discountRate * 100) / 100;
-      const total = Math.max(0, amountBeforeDiscount - paymentDiscountAmount);
-      if (amountBeforeDiscount <= 0 || total <= 0) {
+      const total = Math.round(Math.max(0, itemsTotal + manualAdjustment) * 100) / 100;
+      if (total <= 0) {
         isCompletingSale = false;
         if (completeBtn) {
           completeBtn.disabled = false;
@@ -862,7 +848,7 @@
         return;
       }
       const saleNumber = 'SALE-' + Date.now().toString().slice(-6);
-      const totalProfit = cart.reduce((s, it) => s + (it.totalProfit || 0), 0) + manualAdjustment - paymentDiscountAmount;
+      const totalProfit = cart.reduce((s, it) => s + (it.totalProfit || 0), 0) + manualAdjustment;
       const totalPurchaseCost = cart.reduce((s, it) => s + ((it.purchasePrice || 0) * it.quantity), 0);
 
       // حساب الضريبة - السعر يشمل الضريبة (15%)
@@ -888,10 +874,10 @@
         vat_amount: vatAmount, // قيمة الضريبة
         vat_rate: vatRate, // نسبة الضريبة
         total_amount: total, // المبلغ الإجمالي (يشمل الضريبة)
-        manual_total_before_discount: amountBeforeDiscount,
+        manual_total_before_discount: total,
         manual_total_adjustment: manualAdjustment,
-        payment_discount_rate: discountRate,
-        payment_discount_amount: paymentDiscountAmount,
+        payment_discount_rate: 0,
+        payment_discount_amount: 0,
         total_purchase_cost: totalPurchaseCost,
         total_profit: totalProfit,
         status: 'مكتمل',
@@ -909,7 +895,7 @@
         }
 
         try { localStorage.setItem('lastSale', JSON.stringify(saleData)); } catch (_) {}
-        alert(`تم إنشاء عملية البيع!\nرقم العملية: ${saleNumber}\nالمبلغ قبل الخصم: ${amountBeforeDiscount.toFixed(2)} ريال\nخصم مدى: ${paymentDiscountAmount.toFixed(2)} ريال\nالمبلغ المستحق: ${total.toFixed(2)} ريال`);
+        alert(`تم إنشاء عملية البيع!\nرقم العملية: ${saleNumber}\nالمبلغ الصافي: ${total.toFixed(2)} ريال`);
   
         cart = [];
         manualTotalAdjustment = null;

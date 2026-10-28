@@ -399,7 +399,7 @@ class FirebaseStorageManager {
         return true;
       } catch (error) {
         console.error('Error updating sale in Firebase:', error);
-        return false;
+        throw error;
       }
     }
 

@@ -11,7 +11,12 @@ const number = value => Number.isFinite(Number(value)) ? Number(value) : 0;
 const dayKey = value => {
   const date = value && typeof value.toDate === 'function' ? value.toDate() : new Date(value || Date.now());
   if (Number.isNaN(date.getTime())) return null;
-  return date.toISOString().slice(0, 10);
+  // لا تستخدم UTC هنا: اليوم التشغيلي للمحل هو توقيت الرياض، لا اليوم العالمي.
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Asia/Riyadh', year: 'numeric', month: '2-digit', day: '2-digit'
+  }).formatToParts(date);
+  const field = type => parts.find(part => part.type === type)?.value;
+  return `${field('year')}-${field('month')}-${field('day')}`;
 };
 const saleDelta = sale => {
   if (!sale || !Array.isArray(sale.items)) return null;
@@ -50,59 +55,34 @@ const matchesQuery = (name, data, terms) => {
  */
 exports.searchInventoryPage = onCall(async request => {
   if (!authorized(request)) throw new HttpsError('permission-denied', 'يلزم تسجيل الدخول');
-  const { collection: name, query: rawQuery, cursor = null, pageSize = 20, includeExact = true, includeTotal = false } = request.data || {};
+  const { collection: name, query: rawQuery, cursor = null, pageSize = 20, includeTotal = false } = request.data || {};
   if (!['phones', 'accessories'].includes(name)) throw new HttpsError('invalid-argument', 'نوع المخزون غير مدعوم');
   const terms = normalize(rawQuery).split(/\s+/).filter(Boolean);
   if (!terms.length) throw new HttpsError('invalid-argument', 'عبارة البحث مطلوبة');
   const safeSize = Math.min(Math.max(Number(pageSize) || 20, 1), 50);
   const primary = terms.slice().sort((a, b) => b.length - a.length)[0].slice(0, 12);
   const ref = db.collection(name);
-  const rawKey = normalizeKey(rawQuery);
-  const exactFields = name === 'phones' ? ['normalizedBarcode', 'normalizedSerial'] : ['normalizedBarcode', 'normalizedSerial'];
-  const exactSnapshots = rawKey ? await Promise.all(exactFields.map(field => ref.where(field, '==', rawKey).get())) : [];
-  const exact = new Map();
-  exactSnapshots.flatMap(snapshot => snapshot.docs).forEach(row => {
-    if (matchesQuery(name, row.data(), terms)) exact.set(row.id, { id: row.id, ...row.data() });
-  });
-  const exactIds = new Set(exact.keys());
-  // الفرز هنا في الذاكرة وليس بترتيب Firestore: الفهرس المركب (searchTokens,
-  // searchStatus, sortAt) لا يتضمن الأجهزة القديمة التي لا تحمل searchStatus
-  // فيسقطها الاستعلام المرتب وتظهر صفحات ناقصة رغم العدد الصحيح.
-  const availability = row => Number(row.searchStatus) || (row.sold === true ? 1 : 0);
-  const stamp = row => row.sortAt && typeof row.sortAt.toMillis === 'function' ? row.sortAt.toMillis() : 0;
-  const rows = (await ref.where('searchTokens', 'array-contains', primary).get()).docs
-    .filter(row => !exactIds.has(row.id) && matchesQuery(name, row.data(), terms))
-    .map(row => ({ id: row.id, ...row.data() }));
-  rows.sort((a, b) =>
-    availability(a) - availability(b) ||
-    stamp(b) - stamp(a) ||
-    (b.id < a.id ? -1 : b.id > a.id ? 1 : 0));
-
-  const fullOrdered = includeExact ? [...exact.values(), ...rows] : rows;
-  let startIndex = 0;
+  let query = ref.where('searchTokens', 'array-contains', primary).orderBy('sortAt', 'desc');
   if (cursor?.id) {
-    const cursorId = String(cursor.id);
-    const found = fullOrdered.findIndex(row => row.id === cursorId);
-    if (found === -1) {
-      const cursorAvailability = Number(cursor.searchStatus) || 0;
-      const cursorStamp = Number(cursor.sortAtMillis) || 0;
-      startIndex = fullOrdered.findIndex(row => {
-        const a = availability(row), s = stamp(row);
-        return a > cursorAvailability ||
-          (a === cursorAvailability && (s < cursorStamp || (s === cursorStamp && row.id.localeCompare(cursorId) < 0)));
-      });
-      startIndex = startIndex === -1 ? fullOrdered.length : startIndex;
-    } else {
-      startIndex = found + 1;
-    }
+    const cursorDoc = await ref.doc(String(cursor.id)).get();
+    if (cursorDoc.exists) query = query.startAfter(cursorDoc);
   }
-  const finalRows = fullOrdered.slice(startIndex, startIndex + safeSize);
-  const last = finalRows[finalRows.length - 1] || null;
+  // يقرأ الاستعلام صفحة واحدة فقط (+1 لمعرفة وجود الصفحة التالية)، بدلاً من
+  // تنزيل نتائج المخزون كاملة وترتيبها داخل الذاكرة.
+  const snapshot = await query.limit(safeSize + 1).get();
+  const pageDocs = snapshot.docs.slice(0, safeSize);
+  const finalRows = pageDocs
+    .filter(row => matchesQuery(name, row.data(), terms))
+    .map(row => ({ id: row.id, ...row.data() }));
+  const last = pageDocs[pageDocs.length - 1] || null;
+  const total = includeTotal
+    ? (await ref.where('searchTokens', 'array-contains', primary).count().get()).data().count
+    : null;
   return {
     items: finalRows,
-    nextCursor: last ? { id: last.id, sortAtMillis: stamp(last), searchStatus: name === 'phones' ? availability(last) : undefined } : null,
-    hasMore: startIndex + safeSize < fullOrdered.length,
-    total: includeTotal ? fullOrdered.length : null
+    nextCursor: last ? { id: last.id } : null,
+    hasMore: snapshot.docs.length > safeSize,
+    total
   };
 });
 exports.syncSaleSummaryEvents = onDocumentWritten('sales/{saleId}', async event => {
