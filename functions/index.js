@@ -2,10 +2,11 @@ const { onDocumentWritten } = require('firebase-functions/v2/firestore');
 const { onCall, HttpsError } = require('firebase-functions/v2/https');
 const { setGlobalOptions } = require('firebase-functions/v2');
 const admin = require('firebase-admin');
+const { FieldPath, FieldValue, Timestamp, getFirestore } = require('firebase-admin/firestore');
 
 admin.initializeApp();
 setGlobalOptions({ region: 'me-central1', maxInstances: 10 });
-const db = admin.firestore();
+const db = getFirestore();
 
 const number = value => Number.isFinite(Number(value)) ? Number(value) : 0;
 const dayKey = value => {
@@ -105,11 +106,11 @@ exports.syncSaleSummaryEvents = onDocumentWritten('sales/{saleId}', async event 
     if ((await tx.get(eventRef)).exists) return;
     for (const [path, delta] of changes) {
       const ref = db.doc(path); const current = (await tx.get(ref)).data() || {};
-      const next = { updatedAt: admin.firestore.FieldValue.serverTimestamp() };
+      const next = { updatedAt: FieldValue.serverTimestamp() };
       for (const key of Object.keys(delta)) next[key] = number(current[key]) + delta[key];
       tx.set(ref, next, { merge: true });
     }
-    tx.set(eventRef, { saleId: event.params.saleId, processedAt: admin.firestore.FieldValue.serverTimestamp() });
+    tx.set(eventRef, { saleId: event.params.saleId, processedAt: FieldValue.serverTimestamp() });
   });
 });
 
@@ -128,7 +129,7 @@ exports.rebuildSummary = onCall(async request => {
     for (const field of Object.keys(totals)) totals[field] += delta[field];
   });
   const name = period === 'day' ? 'daily_summaries' : 'monthly_summaries';
-  await db.doc(`${name}/${id}`).set({ ...totals, rebuiltAt: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
+  await db.doc(`${name}/${id}`).set({ ...totals, rebuiltAt: FieldValue.serverTimestamp() }, { merge: true });
   return { id, ...totals };
 });
 
@@ -145,8 +146,8 @@ exports.rebuildAllSummaries = onCall(async request => {
     if (day && delta) { add(days, day, delta); add(months, day.slice(0, 7), delta); }
   });
   const batch = db.batch();
-  for (const [id, row] of days) batch.set(db.doc(`daily_summaries/${id}`), { ...row, rebuiltAt: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
-  for (const [id, row] of months) batch.set(db.doc(`monthly_summaries/${id}`), { ...row, rebuiltAt: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
+  for (const [id, row] of days) batch.set(db.doc(`daily_summaries/${id}`), { ...row, rebuiltAt: FieldValue.serverTimestamp() }, { merge: true });
+  for (const [id, row] of months) batch.set(db.doc(`monthly_summaries/${id}`), { ...row, rebuiltAt: FieldValue.serverTimestamp() }, { merge: true });
   await batch.commit();
   return { sales: rows.size, days: days.size, months: months.size };
 });
@@ -158,7 +159,7 @@ exports.migrateCollectionBatch = onCall(async request => {
     throw new HttpsError('invalid-argument', 'المجموعة غير مدعومة');
   }
   const size = Math.min(Math.max(Number(batchSize) || 200, 1), 400);
-  let query = db.collection(name).orderBy(admin.firestore.FieldPath.documentId()).limit(size);
+  let query = db.collection(name).orderBy(FieldPath.documentId()).limit(size);
   if (afterId) query = query.startAfter(String(afterId));
   const rows = await query.get();
   const batch = db.batch();
@@ -166,7 +167,7 @@ exports.migrateCollectionBatch = onCall(async request => {
     const data = row.data();
     const rawDate = data.sortAt || data.date_created || data.date_added || data.visitDate || data.createdAt;
     const parsed = rawDate && typeof rawDate.toDate === 'function' ? rawDate.toDate() : new Date(rawDate || Date.now());
-    const patch = { sortAt: admin.firestore.Timestamp.fromDate(Number.isNaN(parsed.getTime()) ? new Date() : parsed) };
+    const patch = { sortAt: Timestamp.fromDate(Number.isNaN(parsed.getTime()) ? new Date() : parsed) };
     if (name === 'phones') {
       patch.normalizedBarcode = normalizeKey(data.phone_number || data.device_number);
       patch.normalizedSerial = normalizeKey(data.serial_number);
