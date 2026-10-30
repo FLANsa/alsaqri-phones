@@ -294,6 +294,10 @@
                 <td><strong>الحالة:</strong></td>
                 <td id="status">-</td>
               </tr>
+              <tr id="returned_at_row" style="display: none;">
+                <td><strong>تاريخ الاسترجاع:</strong></td>
+                <td id="returned_at">-</td>
+              </tr>
               <tr>
                 <td><strong>طريقة الدفع:</strong></td>
                 <td id="payment_method">-</td>
@@ -654,6 +658,12 @@
     if (editDateBtn) editDateBtn.style.display = 'inline';
 
     document.getElementById('status').innerHTML = getStatusBadge(currentSale.status || 'مكتمل');
+    const returnedAtRow = document.getElementById('returned_at_row');
+    const returnedAtElement = document.getElementById('returned_at');
+    const returnedAt = normalizeToDate(currentSale.returned_at);
+    const isReturned = currentSale.returned === true || currentSale.status === 'مسترجعة';
+    if (returnedAtRow) returnedAtRow.style.display = isReturned ? '' : 'none';
+    if (returnedAtElement) returnedAtElement.textContent = returnedAt ? formatDate(returnedAt) : '-';
     document.getElementById('payment_method').textContent = currentSale.payment_method || 'نقدي';
     const sellerEl = document.getElementById('seller_name');
     if (sellerEl) sellerEl.textContent = String(currentSale.seller_name || currentSale.sellerName || '').trim() || 'غير محدد';

@@ -192,6 +192,7 @@
               <th>المبلغ الإجمالي</th>
               <th>طريقة الدفع</th>
               <th>الحالة</th>
+              <th>تاريخ الاسترجاع</th>
               <th>الإجراءات</th>
             </tr>
           </thead>
@@ -593,6 +594,14 @@
       else if (sale.status === 'ملغي') badge = 'bg-danger';
       tdStatus.innerHTML = `<span class="badge ${badge}">${escapeHTML(sale.status || '-')}</span>`;
       tr.appendChild(tdStatus);
+
+      // تاريخ الاسترجاع يظهر فقط عند استرجاع الفاتورة
+      const tdReturnedAt = document.createElement('td');
+      const returnedAt = (sale.returned === true || sale.status === 'مسترجعة')
+        ? normalizeToDate(sale.returned_at)
+        : null;
+      tdReturnedAt.textContent = returnedAt ? formatDateTime(returnedAt) : '-';
+      tr.appendChild(tdReturnedAt);
 
       // الإجراءات
       const tdAct = document.createElement('td');
